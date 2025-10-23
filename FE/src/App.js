@@ -15,7 +15,8 @@ import AdminPermissions from './pages/Admin/AdminPermissions';
 import CEODashboard from './pages/CEO/CEODashboard';
 import InventoryManagement from './pages/Warehouse/InventoryManagement';
 import SupplierPortal from './pages/Supplier/SupplierPortal';
-
+import StaffManagement from './pages/Store_Manager/StaffManagement';
+import ScheduleManagement from './pages/Store_Manager/ScheduleManagement';
 import ProtectedRoute from './routes/ProtectedRoutes';
 
 // Component để chuyển hướng người dùng đã đăng nhập
@@ -48,7 +49,10 @@ function App() {
           <Route path="/" element={<AuthenticatedRedirect />}>
             <Route path="/admin/permissions" element={<ProtectedRoute allowedRoles={['Admin']}><AdminPermissions /></ProtectedRoute>} />
             <Route path="/manager/products" element={<ProtectedRoute allowedRoles={['Manager']}><ManagerDashboard /></ProtectedRoute>} />
+            <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={['Manager']}><StaffManagement /></ProtectedRoute>} />
+            <Route path="/manager/schedule" element={<ProtectedRoute allowedRoles={['Manager']}><ScheduleManagement /></ProtectedRoute>} />
             <Route path="/ceo/dashboard" element={<ProtectedRoute allowedRoles={['CEO']}><CEODashboard /></ProtectedRoute>} />
+            
             <Route path="/warehouse/inventory" element={<ProtectedRoute allowedRoles={['Warehouse']}><InventoryManagement /></ProtectedRoute>} />
             <Route path="/supplier/portal" element={<ProtectedRoute allowedRoles={['Supplier']}><SupplierPortal /></ProtectedRoute>} />
           </Route>
