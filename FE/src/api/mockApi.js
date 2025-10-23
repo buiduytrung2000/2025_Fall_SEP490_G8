@@ -19,7 +19,24 @@ const mockPurchaseOrders = [
     { id: 'PO001', supplier: 'Supplier Coca', date: '2025-10-22', total: 5000000, status: 'Approved' },
     { id: 'PO002', supplier: 'Supplier Oishi', date: '2025-10-23', total: 2000000, status: 'Pending' },
 ]
+const mockStaff = [
+    { id: 101, name: 'Nguyễn Văn An', phone: '0901234567', role: 'Cashier', shift: 'Sáng' },
+    { id: 102, name: 'Trần Thị Bình', phone: '0907654321', role: 'Cashier', shift: 'Tối' },
+    { id: 103, name: 'Lê Minh Cường', phone: '0912345678', role: 'Warehouse Staff', shift: 'Hành chính' },
+];
 
+const mockSchedules = {
+    'Thứ 2': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
+    'Thứ 3': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
+    'Thứ 4': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
+    'Thứ 5': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
+    'Thứ 6': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
+    'Thứ 7': { 'Ca Sáng (6h-14h)': 'Trần Thị Bình', 'Ca Tối (14h-22h)': 'Nguyễn Văn An' },
+    'Chủ Nhật': { 'Ca Sáng (6h-14h)': 'Trần Thị Bình', 'Ca Tối (14h-22h)': 'Nguyễn Văn An' },
+};
+
+export const getStaff = () => apiCall(mockStaff);
+export const getSchedules = () => apiCall(mockSchedules);
 // Simulate API call delay
 const apiCall = (data) => new Promise(resolve => setTimeout(() => resolve(data), 500));
 
