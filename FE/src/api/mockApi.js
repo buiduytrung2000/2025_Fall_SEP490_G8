@@ -26,17 +26,38 @@ const mockStaff = [
 ];
 
 const mockSchedules = {
-    'Thứ 2': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
-    'Thứ 3': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
-    'Thứ 4': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
-    'Thứ 5': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
-    'Thứ 6': { 'Ca Sáng (6h-14h)': 'Nguyễn Văn An', 'Ca Tối (14h-22h)': 'Trần Thị Bình' },
-    'Thứ 7': { 'Ca Sáng (6h-14h)': 'Trần Thị Bình', 'Ca Tối (14h-22h)': 'Nguyễn Văn An' },
-    'Chủ Nhật': { 'Ca Sáng (6h-14h)': 'Trần Thị Bình', 'Ca Tối (14h-22h)': 'Nguyễn Văn An' },
+    'Thứ 2': { 
+        'Ca Sáng (6h-14h)': { employeeId: 101, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 102, status: 'Confirmed' } 
+    },
+    'Thứ 3': { 
+        'Ca Sáng (6h-14h)': { employeeId: 101, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 102, status: 'Pending' } 
+    },
+    'Thứ 4': { 
+        'Ca Sáng (6h-14h)': { employeeId: 101, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 103, status: 'Confirmed' } 
+    },
+    'Thứ 5': { 
+        'Ca Sáng (6h-14h)': { employeeId: 102, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 103, status: 'Confirmed' } 
+    },
+    'Thứ 6': { 
+        'Ca Sáng (6h-14h)': { employeeId: 101, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 102, status: 'Confirmed' } 
+    },
+    'Thứ 7': { 
+        'Ca Sáng (6h-14h)': { employeeId: 102, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 103, status: 'Pending' } 
+    },
+    'Chủ Nhật': { 
+        'Ca Sáng (6h-14h)': { employeeId: 103, status: 'Confirmed' }, 
+        'Ca Tối (14h-22h)': { employeeId: 101, status: 'Confirmed' } 
+    },
 };
 
 export const getStaff = () => apiCall(mockStaff);
-export const getSchedules = () => apiCall(mockSchedules);
+export const getSchedules = () => apiCall(mockSchedules); 
 // Simulate API call delay
 const apiCall = (data) => new Promise(resolve => setTimeout(() => resolve(data), 500));
 
@@ -51,3 +72,30 @@ export const loginApi = (username, password) => {
 export const getUsers = () => apiCall(mockUsers.map(u => ({ id: u.id, name: u.name, role: u.role })));
 export const getProducts = () => apiCall(mockProducts);
 export const getPurchaseOrders = () => apiCall(mockPurchaseOrders);
+const mockRevenue7Days = [
+    { name: 'T2', DoanhThu: 4000000 },
+    { name: 'T3', DoanhThu: 3000000 },
+    { name: 'T4', DoanhThu: 2000000 },
+    { name: 'T5', DoanhThu: 2780000 },
+    { name: 'T6', DoanhThu: 1890000 },
+    { name: 'T7', DoanhThu: 2390000 },
+    { name: 'CN', DoanhThu: 3490000 },
+];
+
+const mockTopProducts = [
+    { id: 1, name: 'Bánh mì sandwich', sold: 120, revenue: 1200000 }, // <-- Sửa tên
+    { id: 2, name: 'Sữa tươi không đường', sold: 98, revenue: 343000 },
+    { id: 3, name: 'Nước ngọt Coca-Cola', sold: 75, revenue: 375000 },
+    { id: 4, name: 'Mì ly Omachi', sold: 50, revenue: 850000 },
+    { id: 5, name: 'Bim bim Oishi', sold: 45, revenue: 270000 },
+];
+const mockKpis = {
+    todayRevenue: 5150000,
+    todayOrders: 32,
+    newCustomers: 5,
+};
+
+// --- EXPORT CÁC HÀM MỚI ---
+export const getRevenueLast7Days = () => apiCall(mockRevenue7Days);
+export const getTopSellingProducts = () => apiCall(mockTopProducts);
+export const getManagerKpis = () => apiCall(mockKpis);

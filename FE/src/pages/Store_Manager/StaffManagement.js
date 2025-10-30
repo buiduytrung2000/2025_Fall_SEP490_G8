@@ -1,20 +1,21 @@
 // src/pages/Manager/StaffManagement.js
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Spinner, Modal, Form } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+// Import Button của MUI thay vì react-bootstrap
+import { Spinner, Modal, Form } from 'react-bootstrap';
 import { getStaff } from '../../api/mockApi';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
-import { FaUserPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { MaterialReactTable } from 'material-react-table';
+import { Box, IconButton, Button } from '@mui/material'; // <-- Thay đổi ở đây
+import { Edit, Delete, PersonAdd } from '@mui/icons-material'; // <-- Thêm icon PersonAdd
 
 const StaffManagement = () => {
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // State cho Modal Add/Edit
+    // ... (các state và hàm xử lý modal giữ nguyên)
     const [showFormModal, setShowFormModal] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentStaff, setCurrentStaff] = useState(null);
-
-    // State cho Modal Delete
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [staffToDelete, setStaffToDelete] = useState(null);
 
@@ -25,89 +26,97 @@ const StaffManagement = () => {
         });
     }, []);
 
-    const handleCloseFormModal = () => {
-        setShowFormModal(false);
-        setCurrentStaff(null);
-        setIsEditMode(false);
-    }
-    
+    const handleCloseFormModal = () => setShowFormModal(false);
     const handleShowAddModal = () => {
         setIsEditMode(false);
-        setCurrentStaff({ name: '', phone: '', role: 'Cashier' }); // Dữ liệu mặc định
+        setCurrentStaff({ name: '', phone: '', role: 'Cashier' });
         setShowFormModal(true);
     }
-
     const handleShowEditModal = (staff) => {
         setIsEditMode(true);
         setCurrentStaff(staff);
         setShowFormModal(true);
     };
-
     const handleShowDeleteModal = (staff) => {
         setStaffToDelete(staff);
         setShowDeleteModal(true);
     }
-    
     const handleSaveStaff = (e) => {
         e.preventDefault();
-        // Thêm logic gọi API để lưu ở đây
-        if (isEditMode) {
-            console.log("Updating staff:", currentStaff);
-        } else {
-            console.log("Adding new staff:", currentStaff);
-        }
+        console.log(isEditMode ? "Updating" : "Adding", currentStaff);
         handleCloseFormModal();
     }
-    
     const confirmDelete = () => {
         console.log("Deleting staff:", staffToDelete.name);
-        // Thêm logic gọi API để xóa ở đây
         setShowDeleteModal(false);
         setStaffToDelete(null);
     };
+
+    // Cột (giữ nguyên)
+    const columns = useMemo(
+        () => [
+            { accessorKey: 'id', header: 'ID', size: 50 },
+            { accessorKey: 'name', header: 'Họ và Tên' },
+            { accessorKey: 'phone', header: 'Số điện thoại' },
+            { accessorKey: 'role', header: 'Vai trò' },
+        ],
+        [],
+    );
 
     if (loading) return <Spinner animation="border" />;
 
     return (
         <div>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h2>Quản lý Nhân viên</h2>
-                <Button variant="primary" onClick={handleShowAddModal}>
-                    <FaUserPlus className="me-2" /> Thêm nhân viên
-                </Button>
-            </div>
-            <Table striped bordered hover responsive>
-                <thead className="table-dark">
-                    <tr>
-                        <th>ID</th>
-                        <th>Họ và Tên</th>
-                        <th>Số điện thoại</th>
-                        <th>Vai trò</th>
-                        <th>Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {staffList.map(staff => (
-                        <tr key={staff.id}>
-                            <td>{staff.id}</td>
-                            <td>{staff.name}</td>
-                            <td>{staff.phone}</td>
-                            <td>{staff.role}</td>
-                            <td>
-                                <Button variant="warning" size="sm" className="me-2" onClick={() => handleShowEditModal(staff)}>
-                                    <FaEdit /> Sửa
-                                </Button>
-                                <Button variant="danger" size="sm" onClick={() => handleShowDeleteModal(staff)}>
-                                    <FaTrash /> Xóa
-                                </Button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </Table>
+            <MaterialReactTable
+                columns={columns}
+                data={staffList}
+                enableRowActions
+                
+                // --- PHẦN SỬA LỖI ---
+                positionActionsColumn="first" // Giữ nguyên: Đưa cột Actions lên đầu
+                displayColumnDefOptions={{
+                    'mrt-row-actions': {
+                        header: 'Actions', // Đặt tên header
+                        size: 100,         // Đặt độ rộng cố định cho cột Sửa/Xóa
+                    },
+                }}
+                // --- HẾT PHẦN SỬA LỖI ---
 
-            {/* Modal for Add/Edit Staff */}
+                // Nút "Thêm nhân viên" (Dùng Button của MUI cho đồng bộ)
+                renderTopToolbarCustomActions={() => (
+                    <Button
+                        variant="contained"
+                        startIcon={<PersonAdd />}
+                        onClick={handleShowAddModal}
+                    >
+                        Thêm nhân viên
+                    </Button>
+                )}
+                
+                // Nút Sửa/Xóa (giữ nguyên)
+                renderRowActions={({ row }) => (
+                    <Box sx={{ display: 'flex', gap: '0.5rem' }}>
+                        <IconButton
+                            color="warning"
+                            size="small"
+                            onClick={() => handleShowEditModal(row.original)}
+                        >
+                            <Edit />
+                        </IconButton>
+                        <IconButton
+                            color="error"
+                            size="small"
+                            onClick={() => handleShowDeleteModal(row.original)}
+                        >
+                            <Delete />
+                        </IconButton>
+                    </Box>
+                )}
+            />
+
+            {/* Các Modal (giữ nguyên, vẫn dùng React Bootstrap) */}
             <Modal show={showFormModal} onHide={handleCloseFormModal} centered>
+                {/* ... (Nội dung Modal không đổi) ... */}
                 <Modal.Header closeButton>
                     <Modal.Title>{isEditMode ? 'Cập nhật thông tin' : 'Thêm nhân viên mới'}</Modal.Title>
                 </Modal.Header>
@@ -140,7 +149,6 @@ const StaffManagement = () => {
                 </Modal.Body>
             </Modal>
 
-            {/* Modal for Deleting Staff */}
             <ConfirmationModal 
                 show={showDeleteModal}
                 onHide={() => setShowDeleteModal(false)}

@@ -1,27 +1,22 @@
-// src/pages/Manager/ScheduleManagement.js
-// GHI ĐÈ TOÀN BỘ FILE NÀY
-
+// src/pages/Employee/MySchedule.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { getSchedules, getStaff } from '../../api/mockApi';
-import ChangeShiftModal from './ChangeShiftModal'; 
-// KHÔNG import useNavigate nữa
+import { useAuth } from '../../contexts/AuthContext'; // Dùng để biết ai đang đăng nhập
 
 // Import các component từ Material-UI (MUI)
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, Button, Typography, Box, CircularProgress, IconButton
+    Paper, Typography, Box, CircularProgress, IconButton
 } from '@mui/material';
-import {
-    ChevronLeft, ChevronRight, PersonAdd, Save 
-} from '@mui/icons-material';
+import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 
-// --- HÀM HELPER VỀ NGÀY THÁNG (Giữ nguyên) ---
+// --- HÀM HELPER VỀ NGÀY THÁNG (Copy từ ScheduleManagement) ---
 const getStartOfWeek = (date) => {
     const d = new Date(date);
-    const day = d.getDay(); 
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     d.setDate(diff);
-    d.setHours(0, 0, 0, 0); 
+    d.setHours(0, 0, 0, 0);
     return d;
 };
 const addDays = (date, days) => {
@@ -41,28 +36,24 @@ const formatDate = (date) => {
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
     return `${d}/${m}`;
 };
-const getMonthYear = (date) => {
-    return date.toLocaleString('vi-VN', { month: 'long', year: 'numeric' }).toUpperCase();
-};
 const weekDayNames = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
 const shiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
 // --- HẾT HÀM HELPER ---
 
-
-const ScheduleManagement = () => {
-    // Vẫn dùng state ngày tháng để UI hiển thị đúng, nhưng không cho phép đổi
+const MySchedule = () => {
     const [currentDate, setCurrentDate] = useState(new Date('2025-10-23T10:00:00')); // Tuần 43
-    
     const [schedule, setSchedule] = useState({});
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [selectedShift, setSelectedShift] = useState(null);
+    
+    const { user } = useAuth(); // Lấy thông tin user đang đăng nhập
+    const [myStaffId, setMyStaffId] = useState(null);
 
-    // Các hook useMemo giữ nguyên để tính toán ngày
+    // Tính toán các biến ngày tháng
     const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
     const endOfWeek = useMemo(() => addDays(startOfWeek, 6), [startOfWeek]);
     const weekDays = useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(startOfWeek, i)), [startOfWeek]);
+    
     const staffMap = useMemo(() => {
         return staffList.reduce((acc, staff) => {
             acc[staff.id] = staff.name;
@@ -70,70 +61,48 @@ const ScheduleManagement = () => {
         }, {});
     }, [staffList]);
 
-    // useEffect để tải dữ liệu (giữ nguyên)
+    // useEffect để tải dữ liệu
     useEffect(() => {
         setLoading(true);
         Promise.all([getSchedules(startOfWeek), getStaff()])
             .then(([scheduleData, staffData]) => {
                 setSchedule(scheduleData);
                 setStaffList(staffData);
+
+                // Tìm ID của nhân viên đang đăng nhập
+                const currentUser = staffData.find(staff => staff.name === user.name);
+                if (currentUser) {
+                    setMyStaffId(currentUser.id);
+                }
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [startOfWeek]);
+    }, [startOfWeek, user.name]); // Thêm user.name vào dependencies
 
-    // --- Hàm xử lý Modal (Logic y hệt trước, không đổi) ---
-    const handleOpenModal = (dayKey, shiftName, shiftData) => {
-        setSelectedShift({ dayKey, shiftName, employeeId: shiftData ? shiftData.employeeId : '' });
-        setShowModal(true);
+    // --- Hàm cho các nút bấm (cho phép xem tuần khác) ---
+    const handlePrevWeek = () => {
+        setCurrentDate(addDays(currentDate, -7));
     };
-    const handleCloseModal = () => setShowModal(false);
-    const handleSaveShift = (newEmployeeId) => {
-        const { dayKey, shiftName } = selectedShift;
-        setSchedule(prevSchedule => ({
-            ...prevSchedule,
-            [dayKey]: {
-                ...prevSchedule[dayKey],
-                [shiftName]: {
-                    ...prevSchedule[dayKey][shiftName],
-                    employeeId: newEmployeeId,
-                    status: 'Confirmed' 
-                }
-            }
-        }));
-        handleCloseModal();
-    };
-    
-    // --- THAY ĐỔI: Tắt chức năng các nút bấm ---
-    const handleSaveSchedule = () => {
-        console.log("Chức năng 'Lưu' chưa được kích hoạt.");
-    };
-    const handleAddStaffClick = () => {
-        console.log("Chức năng 'Thêm Nhân viên' chưa được kích hoạt.");
+    const handleNextWeek = () => {
+        setCurrentDate(addDays(currentDate, 7));
     };
 
     return (
         <Box sx={{ padding: 2 }}>
-            {/* --- Header: Tiêu đề và Nút bấm --- */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5" component="h2" fontWeight="bold">
-                    {/* Hardcode tiêu đề */}
-                    LỊCH LÀM VIỆC - THÁNG 10/2025
-                </Typography>
-               
-            </Box>
+            <Typography variant="h5" component="h2" fontWeight="bold" sx={{ mb: 2 }}>
+                Lịch làm việc của tôi
+            </Typography>
 
-            {/* --- Bộ chọn tuần (Vô hiệu hóa nút) --- */}
+            {/* --- Bộ chọn tuần --- */}
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 2 }}>
-                <IconButton disabled><ChevronLeft /></IconButton> {/* <-- Đã sửa */}
+                <IconButton onClick={handlePrevWeek}><ChevronLeft /></IconButton>
                 <Typography variant="h6" sx={{ mx: 2 }}>
-                    {/* Hardcode Tuần */}
-                    Tuần 43 ({formatDate(startOfWeek)} - {formatDate(endOfWeek)})
+                    Tuần {getWeekNumber(currentDate)} ({formatDate(startOfWeek)} - {formatDate(endOfWeek)})
                 </Typography>
-                <IconButton disabled><ChevronRight /></IconButton> {/* <-- Đã sửa */}
+                <IconButton onClick={handleNextWeek}><ChevronRight /></IconButton>
             </Box>
             
-            {/* --- Bảng lịch (Giữ nguyên) --- */}
+            {/* --- Bảng lịch --- */}
             <TableContainer component={Paper} sx={{ boxShadow: 3, borderRadius: 2 }}>
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>
@@ -161,22 +130,24 @@ const ScheduleManagement = () => {
                                     {weekDays.map((day) => {
                                         const dayKey = day.toISOString().split('T')[0];
                                         const shiftData = schedule[dayKey] ? schedule[dayKey][shiftName] : null;
-                                        const employeeName = shiftData ? (staffMap[shiftData.employeeId] || 'Lỗi ID') : 'Trống';
+                                        
+                                        // Kiểm tra xem ca này có phải của tôi không
+                                        const isMyShift = (shiftData && shiftData.employeeId === myStaffId);
 
                                         return (
-                                            <TableCell key={dayKey} align="center" sx={{ border: '1px solid #e0e0e0', p: 1 }}>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                                                    <Typography variant="body1" fontWeight="500">
-                                                        {employeeName}
-                                                    </Typography>
-                                                    <Button
-                                                        variant="text"
-                                                        size="small"
-                                                        onClick={() => handleOpenModal(dayKey, shiftName, shiftData)}
-                                                    >
-                                                        + Thêm
-                                                    </Button>
-                                                </Box>
+                                            <TableCell 
+                                                key={dayKey} 
+                                                align="center" 
+                                                sx={{ 
+                                                    border: '1px solid #e0e0e0', 
+                                                    p: 2,
+                                                    // Đánh dấu ca của mình
+                                                    backgroundColor: isMyShift ? '#e7f0ff' : 'inherit',
+                                                    fontWeight: isMyShift ? 'bold' : 'normal',
+                                                    color: isMyShift ? '#0a58ca' : 'inherit'
+                                                }}
+                                            >
+                                                {isMyShift ? "CÓ LỊCH" : "-"}
                                             </TableCell>
                                         );
                                     })}
@@ -186,19 +157,8 @@ const ScheduleManagement = () => {
                     </Table>
                 )}
             </TableContainer>
-
-            {/* --- Modal (Giữ nguyên) --- */}
-            {staffList.length > 0 && (
-                <ChangeShiftModal
-                    show={showModal}
-                    onHide={handleCloseModal}
-                    onSave={handleSaveShift}
-                    shiftInfo={selectedShift}
-                    staffList={staffList.filter(s => s.role === 'Cashier')}
-                />
-            )}
         </Box>
     );
 };
 
-export default ScheduleManagement;
+export default MySchedule;

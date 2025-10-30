@@ -1,7 +1,13 @@
 // src/pages/Supplier/SupplierPortal.js
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Spinner, Badge } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Spinner, Badge } from 'react-bootstrap';
 import { getPurchaseOrders } from '../../api/mockApi';
+import { MaterialReactTable } from 'material-react-table';
+import { Box, Button } from '@mui/material';
+
+// Hàm helper format tiền
+const formatCurrency = (number) => 
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
 
 const SupplierPortal = () => {
     const [orders, setOrders] = useState([]);
@@ -14,34 +20,56 @@ const SupplierPortal = () => {
         });
     }, []);
 
+    // Định nghĩa cột
+    const columns = useMemo(
+        () => [
+            {
+                accessorKey: 'id',
+                header: 'Mã ĐH',
+            },
+            {
+                accessorKey: 'date',
+                header: 'Ngày đặt',
+            },
+            {
+                accessorKey: 'total',
+                header: 'Tổng tiền',
+                // Custom render
+                Cell: ({ cell }) => formatCurrency(cell.getValue()),
+            },
+            {
+                accessorKey: 'status',
+                header: 'Trạng thái',
+                // Custom render cho Badge
+                Cell: ({ cell }) => (
+                    <Badge bg={cell.getValue() === 'Approved' ? 'success' : 'warning'}>
+                        {cell.getValue()}
+                    </Badge>
+                ),
+            },
+        ],
+        [],
+    );
+
+
     if (loading) return <Spinner animation="border" />;
     return (
         <div>
             <h2>Đơn đặt hàng</h2>
-             <Table striped bordered hover>
-                <thead>
-                    <tr>
-                        <th>Mã ĐH</th>
-                        <th>Ngày đặt</th>
-                        <th>Tổng tiền</th>
-                        <th>Trạng thái</th>
-                        <th>Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {orders.map(order => (
-                        <tr key={order.id}>
-                            <td>{order.id}</td>
-                            <td>{order.date}</td>
-                            <td>{order.total.toLocaleString()} VNĐ</td>
-                            <td><Badge bg={order.status === 'Approved' ? 'success' : 'warning'}>{order.status}</Badge></td>
-                            <td>
-                                <Button variant="primary" size="sm">Xem chi tiết & Nhập hóa đơn</Button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </Table>
+            <MaterialReactTable
+                columns={columns}
+                data={orders}
+                enableRowActions
+                renderRowActions={({ row }) => (
+                    <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => console.log('View order:', row.original.id)}
+                    >
+                        Xem chi tiết & Nhập hóa đơn
+                    </Button>
+                )}
+            />
         </div>
     );
 };
