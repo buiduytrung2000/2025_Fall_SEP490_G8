@@ -25,13 +25,13 @@ import StaffManagement from "./pages/Store_Manager/StaffManagement";
 import ScheduleManagement from "./pages/Store_Manager/ScheduleManagement";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
+import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
   // Chuyển hướng về trang login nếu chưa đăng nhập
   if (!user) return <Navigate to="/login" replace />;
-  // Nếu đã đăng nhập thì ở yên trang hiện tại (trong MainLayout)
-  // Hoặc có thể chuyển về trang chính của vai trò đó
+  
   return <MainLayout />;
 };
 
@@ -118,6 +118,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <InventoryManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/pricing"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <ProductPriceManagement />
                 </ProtectedRoute>
               }
             />

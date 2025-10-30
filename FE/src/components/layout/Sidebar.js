@@ -27,7 +27,10 @@ const navLinks = {
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" }
     ],
     CEO: [ { to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" } ],
-    Warehouse: [ { to: "/warehouse/inventory", icon: <FaWarehouse />, text: "Tồn kho" } ],
+    Warehouse: [
+        { to: "/warehouse/inventory", icon: <FaWarehouse />, text: "Tồn kho" },
+        { to: "/warehouse/pricing", icon: <FaBox />, text: "Quản lý giá SP" },
+    ],
     Supplier: [ { to: "/supplier/portal", icon: <FaTruck />, text: "Đơn đặt hàng" } ],
 };
 

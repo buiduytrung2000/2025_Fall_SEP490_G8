@@ -17,6 +17,7 @@
     "axios": "^1.10.0",
     "bootstrap": "^5.3.6",
     "bootstrap-icons": "^1.13.1",
+    "chart.js": "^4.5.1",
     "formik": "^2.4.6",
     "lucide-react": "^0.523.0",
     "material-react-table": "^3.2.1",
@@ -25,6 +26,7 @@
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
     "react-bootstrap-icons": "^1.11.6",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-medium-image-zoom": "^5.3.0",
@@ -38,7 +40,7 @@
     "recharts": "^2.15.3",
     "web-vitals": "^2.1.4",
     "yup": "^1.6.1"
-  },  
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

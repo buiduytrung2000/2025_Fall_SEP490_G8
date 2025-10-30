@@ -1,169 +1,174 @@
-// src/pages/Manager/ManagerDashboard.js
-import React, { useState, useEffect, useMemo } from 'react';
-import { getRevenueLast7Days, getTopSellingProducts, getManagerKpis } from '../../api/mockApi';
+// src/pages/Store_Manager/ManagerDashboard.js
+import React from "react";
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Avatar,
+  useTheme,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Divider,
+  LinearProgress,
+} from "@mui/material";
+import { Bar } from "react-chartjs-2";
+import { TrendingUp, People, Inventory2, CalendarToday } from "@mui/icons-material";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-// Import Thư viện Biểu đồ
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+const stats = [
+  { label: "Doanh thu hôm nay", value: "12.500.000₫", icon: <TrendingUp />, color: "primary.main" },
+  { label: "Số nhân viên", value: 18, icon: <People />, color: "success.main" },
+  { label: "Sản phẩm hiện có", value: 158, icon: <Inventory2 />, color: "warning.main" },
+  { label: "Ca làm việc hôm nay", value: 6, icon: <CalendarToday />, color: "secondary.main" },
+];
 
-// Import MUI và Icons
-import { Grid, Paper, Typography, Box, CircularProgress, Avatar } from '@mui/material';
-import { MonetizationOn, ShoppingCart, PeopleAlt } from '@mui/icons-material';
-import { MaterialReactTable } from 'material-react-table';
+// Dummy chart data
+const revenueChartData = {
+  labels: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
+  datasets: [
+    {
+      label: "Doanh thu (triệu VND)",
+      data: [12, 14, 9, 13, 17, 11, 15],
+      backgroundColor: "#1976d2",
+    },
+  ],
+};
 
-// Hàm helper format tiền (giữ nguyên)
-const formatCurrency = (number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+const revenueChartOptions = {
+  responsive: true,
+  plugins: {
+    legend: { display: false },
+    title: { display: false },
+  },
+  scales: { y: { beginAtZero: true } },
+  height: 120,
+};
 
-// Component Card KPI (giữ nguyên)
-const KpiCard = ({ title, value, icon, color }) => (
-    <Paper 
-        sx={{ 
-            p: 2.5, 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 2, 
-            borderRadius: 3, 
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-            border: '1px solid #e0e0e0' 
-        }}
-    >
-        <Avatar sx={{ bgcolor: `${color}.light`, width: 56, height: 56 }}>
-            {React.cloneElement(icon, { sx: { color: `${color}.dark` } })}
-        </Avatar>
-        <Box>
-            <Typography variant="h6" color="text.secondary" fontWeight="500">
-                {title}
-            </Typography>
-            <Typography variant="h4" fontWeight="bold">
-                {value}
-            </Typography>
-        </Box>
-    </Paper>
-);
+const topProducts = [
+  { name: "Cà phê Latte", sold: 120, revenue: "6.000.000₫" },
+  { name: "Bánh Mì Trứng", sold: 95, revenue: "2.850.000₫" },
+  { name: "Sữa tươi", sold: 80, revenue: "1.600.000₫" },
+  { name: "Trà đào", sold: 71, revenue: "2.130.000₫" },
+];
+
+const todayShifts = [
+  { time: "06:00-14:00", staff: ["Nguyễn Văn A", "Trần Thị B"] },
+  { time: "14:00-22:00", staff: ["Phạm Văn C", "Lê Thị D"] },
+  { time: "22:00-06:00", staff: ["Đặng Văn E"] },
+];
 
 const ManagerDashboard = () => {
-    const [kpis, setKpis] = useState(null);
-    const [revenueData, setRevenueData] = useState([]);
-    const [topProducts, setTopProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+  const theme = useTheme();
 
-    useEffect(() => {
-        setLoading(true);
-        Promise.all([
-            getManagerKpis(),
-            getRevenueLast7Days(),
-            getTopSellingProducts()
-        ]).then(([kpiData, revenue, products]) => {
-            setKpis(kpiData);
-            setRevenueData(revenue);
-            setTopProducts(products);
-            setLoading(false);
-        }).catch(console.error);
-    }, []);
+  return (
+    <Box p={{ xs: 1, sm: 3 }}>
+      {/* TITLE */}
+      <Typography variant="h4" fontWeight={700} mb={3}>Tổng quan cửa hàng</Typography>
 
-    // Cột cho Bảng Top Sản Phẩm (giữ nguyên)
-    const columns = useMemo(() => [
-        { accessorKey: 'name', header: 'Tên Sản Phẩm' },
-        { accessorKey: 'sold', header: 'Đã bán', size: 100 },
-        { 
-            accessorKey: 'revenue', 
-            header: 'Doanh Thu',
-            Cell: ({ cell }) => formatCurrency(cell.getValue()),
-        },
-    ], []);
+      {/* STAT CARDS */}
+      <Grid container spacing={3} mb={3}>
+        {stats.map((stat, i) => (
+          <Grid item xs={12} sm={6} md={3} key={stat.label}>
+            <Card elevation={3} sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
+              <Avatar sx={{ bgcolor: stat.color, mr: 2 }}>{stat.icon}</Avatar>
+              <Box>
+                <Typography variant="h6">{stat.value}</Typography>
+                <Typography variant="body2" color="text.secondary">{stat.label}</Typography>
+              </Box>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
 
-    // Style chung cho các Paper chứa biểu đồ/bảng
-    const paperStyle = {
-        p: 2.5,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-        border: '1px solid #e0e0e0',
-        borderRadius: 3,
-        height: '480px' // <-- Tăng chiều cao lên 480px (trước là 420px)
-    };
+      {/* REVENUE CHART */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" mb={1}>Doanh thu tuần này</Typography>
+          {/* BIỂU ĐỒ DOANH THU - CÓ THỂ THAY ĐỔI BẰNG CHART KHÁC */}
+          <Bar data={revenueChartData} options={revenueChartOptions} height={120}/>
+        </CardContent>
+      </Card>
 
-    if (loading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
-    }
-
-    return (
-        <Box>
-            <Typography variant="h5" component="h2" fontWeight="bold" sx={{ mb: 3 }}>
-                Tổng quan Cửa hàng
-            </Typography>
-
-            {/* Hàng 1: 3 Thẻ KPI */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}>
-                    <KpiCard 
-                        title="Doanh thu hôm nay" 
-                        value={formatCurrency(kpis.todayRevenue)}
-                        icon={<MonetizationOn />}
-                        color="success" 
-                    />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <KpiCard 
-                        title="Số đơn hàng" 
-                        value={kpis.todayOrders.toString()}
-                        icon={<ShoppingCart />}
-                        color="primary" 
-                    />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <KpiCard 
-                        title="Khách hàng mới" 
-                        value={kpis.newCustomers.toString()}
-                        icon={<PeopleAlt />}
-                        color="warning" 
-                    />
-                </Grid>
-            </Grid>
-
-            {/* Hàng 2: Biểu đồ và Bảng */}
-            <Grid container spacing={3}>
-                {/* Biểu đồ Doanh thu */}
-                <Grid item xs={12} lg={8}> {/* <-- ĐÃ SỬA: Tăng độ rộng lên 8/12 */}
-                    <Paper sx={paperStyle}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                            Doanh thu 7 ngày qua
-                        </Typography>
-                        <ResponsiveContainer width="100%" height="90%">
-                            <LineChart data={revenueData} margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                {/* SỬA LỖI TRỤC X: Đặt interval = 0 để hiển thị tất cả nhãn */}
-                                <XAxis dataKey="name" interval={0} /> 
-                                <YAxis 
-                                    tickFormatter={(value) => new Intl.NumberFormat('vi-VN').format(value)}
-                                    width={80} 
-                                />
-                                <Tooltip formatter={(value) => formatCurrency(value)} />
-                                <Legend />
-                                <Line type="monotone" dataKey="DoanhThu" stroke="#8884d8" activeDot={{ r: 8 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </Paper>
-                </Grid>
-
-                {/* Bảng Top Sản phẩm */}
-                <Grid item xs={12} lg={4}> {/* <-- ĐÃ SỬA: Giảm độ rộng xuống 4/12 */}
-                    <Paper sx={paperStyle}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                            Sản phẩm bán chạy
-                        </Typography> {/* <-- ĐÃ SỬA: Đổi tiêu đề */}
-                        <MaterialReactTable
-                            columns={columns}
-                            data={topProducts}
-                            enableToolbarInternalActions={false}
-                            enablePagination={false}
-                            enableSorting={false}
-                            // Điều chỉnh chiều cao cho phù hợp với 480px của paperStyle
-                            muiTableContainerProps={{ sx: { height: 'calc(480px - 70px)' } }} 
-                        />
-                    </Paper>
-                </Grid>
-            </Grid>
-        </Box>
-    );
+      <Grid container spacing={3}>
+        {/* TOP PRODUCTS */}
+        <Grid item xs={12} md={7}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" mb={1}>Top sản phẩm bán chạy</Typography>
+              {/* BẢNG SẢN PHẨM */}
+              <TableContainer component={Paper} sx={{ boxShadow: 0 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Sản phẩm</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Lượt bán</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Doanh thu</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {topProducts.map((row, i) => (
+                      <TableRow key={row.name}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell>{row.sold}</TableCell>
+                        <TableCell>{row.revenue}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+        {/* TODAY'S SHIFTS (SCHEDULING) */}
+        <Grid item xs={12} md={5}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" mb={1}>Phân ca hôm nay</Typography>
+              {/* BẢNG PHÂN CA */}
+              {todayShifts.map((shift, idx) => (
+                <Box key={shift.time} mb={idx === todayShifts.length - 1 ? 0 : 2}>
+                  <Typography fontWeight={500}>{shift.time}</Typography>
+                  <Box pl={2}>
+                    {shift.staff.map(staff => (
+                      <Typography variant="body2" key={staff}>
+                        • {staff}
+                      </Typography>
+                    ))}
+                  </Box>
+                  {idx < todayShifts.length - 1 && <Divider sx={{ mt: 1, mb: 1 }} />}
+                </Box>
+              ))}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+      {/* Chú thích code:
+        - Phần STAT CARDS: các chỉ số tổng quan (dummy data).
+        - Phần REVENUE CHART: biểu đồ trụ doanh thu 7 ngày.
+        - Phần TOP PRODUCTS: bảng sản phẩm bán chạy.
+        - Phần TODAY'S SHIFTS: bảng phân ca làm việc hôm nay.
+        Các data là mẫu, dev tự fetch sau.
+      */}
+    </Box>
+  );
 };
 
 export default ManagerDashboard;

@@ -15,7 +15,6 @@ const InventoryManagement = () => {
         });
     }, []);
 
-    // Định nghĩa cột
     const columns = useMemo(
         () => [
             {
@@ -40,7 +39,6 @@ const InventoryManagement = () => {
             <MaterialReactTable
                 columns={columns}
                 data={inventory}
-                // Nút Nhập/Xuất kho
                 renderTopToolbarCustomActions={() => (
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Button variant="success">Nhập kho</Button>
