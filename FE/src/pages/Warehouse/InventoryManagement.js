@@ -1,7 +1,8 @@
 // src/pages/Warehouse/InventoryManagement.js
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Spinner } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Spinner } from 'react-bootstrap';
 import { getProducts } from '../../api/mockApi';
+import { MaterialReactTable } from 'material-react-table';
 
 const InventoryManagement = () => {
     const [inventory, setInventory] = useState([]);
@@ -14,34 +15,37 @@ const InventoryManagement = () => {
         });
     }, []);
 
+    const columns = useMemo(
+        () => [
+            {
+                accessorKey: 'code',
+                header: 'Mã SP',
+            },
+            {
+                accessorKey: 'name',
+                header: 'Tên sản phẩm',
+            },
+            {
+                accessorKey: 'stock',
+                header: 'Số lượng tồn',
+            },
+        ],
+        [],
+    );
+
     if (loading) return <Spinner animation="border" />;
     return (
         <div>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h2>Quản lý Tồn kho</h2>
-                <div>
-                     <Button variant="success" className="me-2">Nhập kho</Button>
-                     <Button variant="info">Xuất kho</Button>
-                </div>
-            </div>
-             <Table striped bordered hover>
-                <thead>
-                    <tr>
-                        <th>Mã SP</th>
-                        <th>Tên sản phẩm</th>
-                        <th>Số lượng tồn</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {inventory.map(item => (
-                        <tr key={item.id}>
-                            <td>{item.code}</td>
-                            <td>{item.name}</td>
-                            <td>{item.stock}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </Table>
+            <MaterialReactTable
+                columns={columns}
+                data={inventory}
+                renderTopToolbarCustomActions={() => (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button variant="success">Nhập kho</Button>
+                        <Button variant="info">Xuất kho</Button>
+                    </div>
+                )}
+            />
         </div>
     );
 };
