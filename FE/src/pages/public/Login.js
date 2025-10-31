@@ -134,7 +134,7 @@ const Login = () => {
 
           <Box mt={3} textAlign="center">
             <Alert severity="info" variant="outlined" sx={{ fontSize: 13, px: 2, py: 0.5, mb: 1 }}>
-              <strong>Tài khoản demo:</strong> admin, manager, cashier ... <br />Mật khẩu: <b>123</b>
+              <strong>Tài khoản demo:</strong> admin, manager, cashier, warehouse, supplier<br />Mật khẩu: <b>123</b>
             </Alert>
             <Typography variant="caption" color="GrayText">
               © 2025 CCMS

@@ -1,22 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Modal, Form, Table, Spinner } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton } from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
 import { getProducts } from '../../api/mockApi';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
 
 const ProductPriceManagement = () => {
-    const [products, setProducts] = useState([]); // [{id, name, price, code}]
+    const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showPriceModal, setShowPriceModal] = useState(false);
     const [newPrice, setNewPrice] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    // Dummy state for price history map: { productId: [{ price, startDate, endDate }] }
     const [priceHistoryMap, setPriceHistoryMap] = useState({});
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addCode, setAddCode] = useState('');
+    const [addName, setAddName] = useState('');
+    const [addPrice, setAddPrice] = useState('');
 
     useEffect(() => {
         getProducts().then(data => {
             setProducts(data.map(p => ({...p, price: p.price || 20000})));
-            // Initialize each product with dummy price history
             const initHistory = {};
             data.forEach(p => {
                 initHistory[p.id] = [
@@ -28,7 +33,18 @@ const ProductPriceManagement = () => {
         });
     }, []);
 
-    // Open modal for price update
+    // Cột table sản phẩm
+    const columns = useMemo(() => [
+        { accessorKey: 'code', header: 'Mã sản phẩm' },
+        { accessorKey: 'name', header: 'Tên sản phẩm' },
+        {
+            accessorKey: 'price',
+            header: 'Giá hiện tại',
+            size: 120,
+            Cell: ({ cell }) => <span style={{ color: '#1976d2', fontWeight: 700 }}>{parseInt(cell.getValue()).toLocaleString()}₫</span>,
+        },
+    ], []);
+
     const handleShowPriceModal = (prod) => {
         setSelectedProduct(prod);
         setNewPrice(prod.price);
@@ -52,99 +68,171 @@ const ProductPriceManagement = () => {
         setShowPriceModal(false);
     };
 
-    if (loading) return <Spinner animation="border" className="mt-5" />;
+    const handleOpenAddModal = () => {
+        setAddCode(''); setAddName(''); setAddPrice(''); setShowAddModal(true);
+    };
+    const handleCloseAddModal = () => setShowAddModal(false);
+    const handleAddProduct = (e) => {
+        e.preventDefault();
+        const newId = products.length > 0 ? Math.max(...products.map(p => p.id))+1 : 1;
+        const product = {
+            id: newId,
+            code: addCode,
+            name: addName,
+            price: addPrice
+        };
+        setProducts(ps => [product, ...ps]);
+        setPriceHistoryMap(prev => ({
+            ...prev,
+            [product.id]: [
+                { price: addPrice, startDate: new Date().toISOString().slice(0,10), endDate: '' }
+            ]
+        }));
+        setShowAddModal(false);
+    };
+
+    // MRT columns cho bảng lịch sử giá (khi đã chọn sp)
+    const historyColumns = useMemo(() => [
+        {
+            accessorKey: 'price',
+            header: 'Giá',
+            Cell: ({ cell }) => <>{parseInt(cell.getValue()).toLocaleString()}₫</>,
+            size: 100,
+        },
+        {
+            accessorKey: 'startDate',
+            header: 'Bắt đầu áp dụng',
+            size: 120,
+        },
+        {
+            accessorKey: 'endDate',
+            header: 'Kết thúc áp dụng',
+            size: 120,
+            Cell: ({ cell }) => cell.getValue() || '-',
+        },
+    ], []);
+
+    if (loading) return <div style={{textAlign:'center',marginTop:50}}>Loading...</div>;
     return (
         <div className="container py-3">
             <h4 className="mb-4 fw-bold">Quản lý giá sản phẩm</h4>
-            <Table bordered hover responsive className="align-middle bg-white shadow-sm">
-                <thead className="table-light">
-                    <tr>
-                        <th>#</th>
-                        <th>Mã sản phẩm</th>
-                        <th>Tên sản phẩm</th>
-                        <th>Giá hiện tại</th>
-                        <th>Cập nhật</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {products.map((prod, idx) => (
-                        <tr key={prod.id}>
-                            <td>{idx+1}</td>
-                            <td>{prod.code}</td>
-                            <td>{prod.name}</td>
-                            <td className="fw-bold text-primary">{parseInt(prod.price).toLocaleString()}₫</td>
-                            <td><Button size="sm" variant="outline-primary" onClick={() => handleShowPriceModal(prod)}>Cập nhật giá</Button></td>
-                        </tr>
-                    ))}
-                </tbody>
-            </Table>
-            {/* Lịch sử giá */}
+            <Button
+                variant="contained"
+                color="success"
+                startIcon={<AddIcon />}
+                sx={{ mb: 2 }}
+                onClick={handleOpenAddModal}
+            >Thêm sản phẩm mới</Button>
+            <MaterialReactTable
+                columns={columns}
+                data={products}
+                enableRowActions
+                renderRowActions={({ row }) => (
+                    <IconButton color="primary" onClick={() => handleShowPriceModal(row.original)} title="Cập nhật giá">
+                        <EditIcon />
+                    </IconButton>
+                )}
+                muiTableHeadCellProps={{
+                    sx: {
+                        backgroundColor: '#f5f5f5',
+                        fontWeight: 'bold',
+                    },
+                }}
+            />
+            {/* Lịch sử giá dùng MRT luôn */}
             {selectedProduct && priceHistoryMap[selectedProduct.id] && (
                 <div className="mt-4">
                     <h6 className="mb-2 fw-bold">Lịch sử thay đổi giá: {selectedProduct.name} ({selectedProduct.code})</h6>
-                    <Table bordered size="sm" className="bg-white">
-                        <thead>
-                            <tr>
-                                <th>Giá</th>
-                                <th>Bắt đầu áp dụng</th>
-                                <th>Kết thúc áp dụng</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {priceHistoryMap[selectedProduct.id].map((item, idx) => (
-                                <tr key={idx}>
-                                    <td>{parseInt(item.price).toLocaleString()}₫</td>
-                                    <td>{item.startDate || '-'}</td>
-                                    <td>{item.endDate || '-'}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </Table>
+                    <MaterialReactTable
+                        columns={historyColumns}
+                        data={priceHistoryMap[selectedProduct.id]}
+                        enableRowActions={false}
+                        enableTopToolbar={false}
+                        enableColumnActions={false}
+                        muiTablePaperProps={{ sx:{backgroundColor:'#fff'} }}
+                        muiTableContainerProps={{ sx: { borderRadius:2, border: '1px solid #eee' } }}
+                    />
                 </div>
             )}
-            {/* Modal cập nhật giá */}
-            <Modal show={showPriceModal} onHide={handleClosePriceModal} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Cập nhật giá cho {selectedProduct && selectedProduct.name}</Modal.Title>
-                </Modal.Header>
-                <Form onSubmit={handleUpdatePrice}>
-                    <Modal.Body>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Giá mới (₫)</Form.Label>
-                            <Form.Control
-                                type="number"
-                                min={0}
-                                value={newPrice}
-                                onChange={e => setNewPrice(e.target.value)}
-                                required
-                            />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Bắt đầu áp dụng từ ngày</Form.Label>
-                            <Form.Control
-                                type="date"
-                                value={startDate}
-                                onChange={e => setStartDate(e.target.value)}
-                                required
-                            />
-                        </Form.Group>
-                        <Form.Group className="mb-2">
-                            <Form.Label>Kết thúc áp dụng (tuỳ chọn)</Form.Label>
-                            <Form.Control
-                                type="date"
-                                value={endDate}
-                                onChange={e => setEndDate(e.target.value)}
-                                min={startDate}
-                            />
-                            <Form.Text className="text-muted">Để trống nếu giá chưa có ngày kết thúc</Form.Text>
-                        </Form.Group>
-                    </Modal.Body>
-                    <Modal.Footer>
-                        <Button variant="secondary" onClick={handleClosePriceModal}>Huỷ</Button>
-                        <Button type="submit" variant="primary">Lưu</Button>
-                    </Modal.Footer>
-                </Form>
-            </Modal>
+            {/* Modal cập nhật giá dùng MUI Dialog */}
+            <Dialog open={showPriceModal} onClose={handleClosePriceModal} fullWidth maxWidth="xs">
+                <form onSubmit={handleUpdatePrice}>
+                    <DialogTitle>Cập nhật giá cho {selectedProduct?.name}</DialogTitle>
+                    <DialogContent dividers>
+                        <TextField
+                            label="Giá mới (₫)"
+                            type="number"
+                            inputProps={{ min: 0 }}
+                            value={newPrice}
+                            onChange={e => setNewPrice(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                        <TextField
+                            label="Bắt đầu áp dụng từ ngày"
+                            type="date"
+                            value={startDate}
+                            onChange={e => setStartDate(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            InputLabelProps={{ shrink: true }}
+                            required
+                        />
+                        <TextField
+                            label="Kết thúc áp dụng (tuỳ chọn)"
+                            type="date"
+                            value={endDate}
+                            onChange={e => setEndDate(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: startDate||undefined }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleClosePriceModal} color="secondary" variant="outlined">Huỷ</Button>
+                        <Button type="submit" variant="contained" color="primary">Lưu</Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+            <Dialog open={showAddModal} onClose={handleCloseAddModal} fullWidth maxWidth="xs">
+                <form onSubmit={handleAddProduct}>
+                    <DialogTitle>Thêm sản phẩm mới</DialogTitle>
+                    <DialogContent dividers>
+                        <TextField
+                            label="Mã sản phẩm"
+                            value={addCode}
+                            onChange={e => setAddCode(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                        <TextField
+                            label="Tên sản phẩm"
+                            value={addName}
+                            onChange={e => setAddName(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                        <TextField
+                            label="Giá khởi tạo (₫)"
+                            type="number"
+                            inputProps={{ min: 0 }}
+                            value={addPrice}
+                            onChange={e => setAddPrice(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseAddModal} color="secondary" variant="outlined">Huỷ</Button>
+                        <Button type="submit" variant="contained" color="primary">Thêm</Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
         </div>
     );
 };

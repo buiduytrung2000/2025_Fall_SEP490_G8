@@ -160,13 +160,6 @@ const ManagerDashboard = () => {
           </Card>
         </Grid>
       </Grid>
-      {/* Chú thích code:
-        - Phần STAT CARDS: các chỉ số tổng quan (dummy data).
-        - Phần REVENUE CHART: biểu đồ trụ doanh thu 7 ngày.
-        - Phần TOP PRODUCTS: bảng sản phẩm bán chạy.
-        - Phần TODAY'S SHIFTS: bảng phân ca làm việc hôm nay.
-        Các data là mẫu, dev tự fetch sau.
-      */}
     </Box>
   );
 };

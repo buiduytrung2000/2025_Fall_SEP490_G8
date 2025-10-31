@@ -1,5 +1,3 @@
-// src/pages/Cashier/POS.js
-// GHI ĐÈ TOÀN BỘ FILE NÀY
 
 import React, { useState, useMemo } from 'react';
 import { Container, Row, Col, Form, Button, ListGroup, Card, InputGroup } from 'react-bootstrap';

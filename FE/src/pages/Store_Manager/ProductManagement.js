@@ -6,6 +6,12 @@ import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
 import { Box, IconButton } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import AddIcon from '@mui/icons-material/Add';
 
 // Hàm helper format tiền
 const formatCurrency = (number) => 
@@ -16,6 +22,9 @@ const ProductManagement = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
+    const [showEditDialog, setShowEditDialog] = useState(false);
+    const [editData, setEditData] = useState({ id: null, code: '', name: '', price: '', stock: '' });
+    const [isEditMode, setIsEditMode] = useState(false);
 
     useEffect(() => {
         getProducts().then(data => {
@@ -34,6 +43,29 @@ const ProductManagement = () => {
         // Add logic to call delete API here
         setShowModal(false);
         setSelectedProduct(null);
+    };
+
+    const handleOpenAdd = () => {
+        setEditData({ id: null, code: '', name: '', price: '', stock: '' });
+        setIsEditMode(false);
+        setShowEditDialog(true);
+    };
+    const handleOpenEdit = prod => {
+        setEditData({ ...prod });
+        setIsEditMode(true);
+        setShowEditDialog(true);
+    };
+    const handleCloseEditDialog = () => setShowEditDialog(false);
+    const handleEditField = e => setEditData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const handleSaveProduct = e => {
+        e.preventDefault();
+        if (isEditMode) {
+            setProducts(ps => ps.map(item => item.id === editData.id ? { ...editData, price: parseInt(editData.price), stock: parseInt(editData.stock) } : item));
+        } else {
+            const newId = products.length > 0 ? Math.max(...products.map(p => p.id))+1 : 1;
+            setProducts(ps => [{ ...editData, id: newId, price: parseInt(editData.price), stock: parseInt(editData.stock) }, ...ps]);
+        }
+        setShowEditDialog(false);
     };
 
     // Định nghĩa cột
@@ -83,27 +115,18 @@ const ProductManagement = () => {
                 // Nút "Thêm sản phẩm" ở trên đầu bảng
                 renderTopToolbarCustomActions={() => (
                     <Button
-                        variant="primary"
-                        onClick={() => console.log('Add new product')}
-                    >
-                        Thêm sản phẩm mới
-                    </Button>
+                        variant="contained" color="success"
+                        startIcon={<AddIcon />}
+                        onClick={handleOpenAdd}
+                    >Thêm sản phẩm mới</Button>
                 )}
                 // Nút Sửa/Xóa ở mỗi hàng
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '1rem' }}>
-                        <IconButton
-                            color="warning"
-                            onClick={() => {
-                                console.log('Edit product:', row.original);
-                            }}
-                        >
+                        <IconButton color="warning" onClick={() => handleOpenEdit(row.original)}>
                             <Edit />
                         </IconButton>
-                        <IconButton
-                            color="error"
-                            onClick={() => handleDeleteClick(row.original)}
-                        >
+                        <IconButton color="error" onClick={() => handleDeleteClick(row.original)}>
                             <Delete />
                         </IconButton>
                     </Box>
@@ -116,6 +139,22 @@ const ProductManagement = () => {
                     },
                 }}
             />
+            {/* Dialog Thêm/Sửa */}
+            <Dialog open={showEditDialog} onClose={handleCloseEditDialog} fullWidth maxWidth="xs">
+                <form onSubmit={handleSaveProduct}>
+                    <DialogTitle>{isEditMode ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}</DialogTitle>
+                    <DialogContent dividers>
+                        <TextField label="Mã sản phẩm" name="code" value={editData.code} required onChange={handleEditField} fullWidth margin="normal" />
+                        <TextField label="Tên sản phẩm" name="name" value={editData.name} required onChange={handleEditField} fullWidth margin="normal" />
+                        <TextField label="Giá bán" name="price" type="number" value={editData.price} required inputProps={{ min: 0 }} onChange={handleEditField} fullWidth margin="normal" />
+                        <TextField label="Tồn kho" name="stock" type="number" value={editData.stock} required inputProps={{ min: 0 }} onChange={handleEditField} fullWidth margin="normal" />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseEditDialog} color="secondary" variant="outlined">Huỷ</Button>
+                        <Button type="submit" variant="contained" color="primary">{isEditMode ? 'Lưu' : 'Thêm'}</Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
         </div>
     );
 };
