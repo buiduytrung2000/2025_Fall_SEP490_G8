@@ -1,0 +1,121 @@
+   // src/pages/Warehouse/IncomingOrders.js
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Button,
+  MenuItem,
+  TextField,
+  Stack
+} from '@mui/material';
+import { getStoreOrders, approveStoreOrder, rejectStoreOrder, forwardStoreOrderToSupplier, approveAndSendToSupplier } from '../../api/mockApi';
+
+const columns = [
+  { key: 'id', label: 'Mã đơn' },
+  { key: 'createdBy', label: 'Tạo bởi' },
+  { key: 'date', label: 'Ngày' },
+  { key: 'items', label: 'Số dòng' },
+  { key: 'total', label: 'Tổng tiền' },
+  { key: 'status', label: 'Trạng thái' },
+  { key: 'actions', label: 'Thao tác' }
+];
+
+const IncomingOrders = () => {
+  const [rows, setRows] = useState([]);
+  const [status, setStatus] = useState('Pending');
+  const [loading, setLoading] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    getStoreOrders().then(data => setRows(data.filter(o => o.type === 'ToWarehouse'))).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    if (status === 'All') return rows;
+    return rows.filter(r => r.status === status);
+  }, [rows, status]);
+
+  const handleApprove = async (id) => {
+    const supplier = window.prompt('Nhập nhà cung cấp để gửi đơn:', 'Default Supplier');
+    if (!supplier) return;
+    await approveAndSendToSupplier(id, supplier);
+    load();
+  };
+  const handleReject = async (id) => { await rejectStoreOrder(id); load(); };
+  const handleForward = async (order) => {
+    const supplier = window.prompt('Nhập nhà cung cấp giao thẳng cho cửa hàng:', order.supplier || 'Fresh Supplier');
+    if (!supplier) return;
+    await forwardStoreOrderToSupplier(order.id, supplier);
+    load();
+  };
+
+  return (
+    <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>Đơn nhập từ cửa hàng</Typography>
+          <Typography color="text.secondary">Tiếp nhận và duyệt đơn do cửa hàng gửi</Typography>
+        </Box>
+        <TextField select size="small" value={status} onChange={(e) => setStatus(e.target.value)} label="Lọc trạng thái" sx={{ width: 220 }}>
+          {['All', 'Pending', 'Approved', 'Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+        </TextField>
+      </Stack>
+
+      <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+        <Table sx={{ minWidth: 800 }}>
+          <TableHead>
+            <TableRow>
+              {columns.map(c => (<TableCell key={c.key} sx={{ fontWeight: 700 }}>{c.label}</TableCell>))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filtered.map(r => {
+              const isPending = r.status === 'Pending';
+              const color = r.status === 'Approved' ? 'success' : (r.status === 'Rejected' ? 'error' : 'warning');
+              return (
+                <TableRow key={r.id} hover>
+                  <TableCell>{r.id}</TableCell>
+                  <TableCell>{r.createdBy}</TableCell>
+                  <TableCell>{r.date}</TableCell>
+                  <TableCell>{r.items}</TableCell>
+                  <TableCell>{Number(r.total).toLocaleString('vi-VN')}</TableCell>
+                  <TableCell><Chip size="small" color={color} label={r.status} /></TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Button disabled={!isPending || loading} variant="contained" color="success" onClick={() => handleApprove(r.id)}>Approve</Button>
+                      <Button disabled={!isPending || loading} variant="outlined" color="error" onClick={() => handleReject(r.id)}>Reject</Button>
+                      {r.perishable && isPending && (
+                        <Button variant="outlined" onClick={() => handleForward(r)}>Forward to Supplier</Button>
+                      )}
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {!filtered.length && (
+              <TableRow>
+                <TableCell colSpan={columns.length} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  {loading ? 'Đang tải...' : 'Không có dữ liệu'}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+};
+
+export default IncomingOrders;
+
+
