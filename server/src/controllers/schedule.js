@@ -1,0 +1,418 @@
+import * as scheduleService from '../services/schedule';
+
+// =====================================================
+// SHIFT TEMPLATE CONTROLLERS
+// =====================================================
+
+// Get all shift templates
+export const getShiftTemplates = async (req, res) => {
+    try {
+        const response = await scheduleService.getShiftTemplates();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift template controller: ' + error.message
+        });
+    }
+};
+
+// Get shift template by ID
+export const getShiftTemplateById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await scheduleService.getShiftTemplateById(id);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift template controller: ' + error.message
+        });
+    }
+};
+
+// Create shift template
+export const createShiftTemplate = async (req, res) => {
+    try {
+        const data = req.body;
+        const response = await scheduleService.createShiftTemplate(data);
+        return res.status(response.err === 0 ? 201 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift template controller: ' + error.message
+        });
+    }
+};
+
+// Update shift template
+export const updateShiftTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+        const response = await scheduleService.updateShiftTemplate(id, data);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift template controller: ' + error.message
+        });
+    }
+};
+
+// =====================================================
+// SCHEDULE CONTROLLERS
+// =====================================================
+
+// Get schedules
+export const getSchedules = async (req, res) => {
+    try {
+        const { store_id, start_date, end_date } = req.query;
+        
+        if (!store_id || !start_date || !end_date) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: store_id, start_date, end_date'
+            });
+        }
+
+        const response = await scheduleService.getSchedules(store_id, start_date, end_date);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get schedule by ID
+export const getScheduleById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await scheduleService.getScheduleById(id);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get employee schedules
+export const getEmployeeSchedules = async (req, res) => {
+    try {
+        const { user_id } = req.params;
+        const { start_date, end_date } = req.query;
+
+        if (!start_date || !end_date) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: start_date, end_date'
+            });
+        }
+
+        const response = await scheduleService.getEmployeeSchedules(user_id, start_date, end_date);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get my schedules (current user)
+export const getMySchedules = async (req, res) => {
+    try {
+        const { id } = req.user;
+        const { start_date, end_date } = req.query;
+
+        if (!start_date || !end_date) {
+            // Default to next 14 days if not provided
+            const today = new Date();
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 14);
+            req.query.start_date = today.toISOString().split('T')[0];
+            req.query.end_date = endDate.toISOString().split('T')[0];
+        }
+
+        const response = await scheduleService.getEmployeeSchedules(id, req.query.start_date, req.query.end_date);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Create schedule
+export const createSchedule = async (req, res) => {
+    try {
+        const data = {
+            ...req.body,
+            created_by: req.user.id
+        };
+
+        // Check for conflicts before creating
+        const conflictCheck = await scheduleService.checkScheduleConflicts(
+            data.user_id,
+            data.work_date,
+            data.shift_template_id
+        );
+
+        if (conflictCheck.data.has_conflicts) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Schedule conflicts detected',
+                data: conflictCheck.data
+            });
+        }
+
+        const response = await scheduleService.createSchedule(data);
+        return res.status(response.err === 0 ? 201 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Update schedule
+export const updateSchedule = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        // If updating user_id, work_date, or shift_template_id, check for conflicts
+        if (data.user_id || data.work_date || data.shift_template_id) {
+            const schedule = await scheduleService.getScheduleById(id);
+            if (schedule.err !== 0) {
+                return res.status(404).json(schedule);
+            }
+
+            const userId = data.user_id || schedule.data.user_id;
+            const workDate = data.work_date || schedule.data.work_date;
+            const shiftTemplateId = data.shift_template_id || schedule.data.shift_template_id;
+
+            const conflictCheck = await scheduleService.checkScheduleConflicts(
+                userId,
+                workDate,
+                shiftTemplateId
+            );
+
+            if (conflictCheck.data.has_conflicts) {
+                // Exclude current schedule from conflicts
+                const relevantConflicts = conflictCheck.data.conflicts.filter(
+                    c => c.schedule_id !== parseInt(id)
+                );
+
+                if (relevantConflicts.length > 0) {
+                    return res.status(400).json({
+                        err: 1,
+                        msg: 'Schedule conflicts detected',
+                        data: {
+                            has_conflicts: true,
+                            conflicts: relevantConflicts
+                        }
+                    });
+                }
+            }
+        }
+
+        const response = await scheduleService.updateSchedule(id, data);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Delete schedule
+export const deleteSchedule = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await scheduleService.deleteSchedule(id);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get available shifts
+export const getAvailableShifts = async (req, res) => {
+    try {
+        const { store_id, start_date, end_date } = req.query;
+
+        if (!store_id || !start_date || !end_date) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: store_id, start_date, end_date'
+            });
+        }
+
+        const response = await scheduleService.getAvailableShifts(store_id, start_date, end_date);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get schedule statistics
+export const getScheduleStatistics = async (req, res) => {
+    try {
+        const { store_id, role } = req.query;
+
+        if (!store_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameter: store_id'
+            });
+        }
+
+        const response = await scheduleService.getScheduleStatistics(store_id, role);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Check schedule conflicts
+export const checkScheduleConflicts = async (req, res) => {
+    try {
+        const { user_id, work_date, shift_template_id } = req.body;
+
+        if (!user_id || !work_date || !shift_template_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: user_id, work_date, shift_template_id'
+            });
+        }
+
+        const response = await scheduleService.checkScheduleConflicts(user_id, work_date, shift_template_id);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// =====================================================
+// SHIFT CHANGE REQUEST CONTROLLERS
+// =====================================================
+
+// Create shift change request
+export const createShiftChangeRequest = async (req, res) => {
+    try {
+        const data = {
+            ...req.body,
+            from_user_id: req.body.from_user_id || req.user.id
+        };
+
+        const response = await scheduleService.createShiftChangeRequest(data);
+        return res.status(response.err === 0 ? 201 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+
+// Get shift change requests
+export const getShiftChangeRequests = async (req, res) => {
+    try {
+        const filters = {};
+        
+        if (req.query.store_id) filters.store_id = req.query.store_id;
+        if (req.query.from_user_id) filters.from_user_id = req.query.from_user_id;
+        if (req.query.status) filters.status = req.query.status;
+
+        const response = await scheduleService.getShiftChangeRequests(filters);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+
+// Get my shift change requests (current user)
+export const getMyShiftChangeRequests = async (req, res) => {
+    try {
+        const { id } = req.user;
+        const filters = {
+            from_user_id: id
+        };
+
+        if (req.query.status) filters.status = req.query.status;
+
+        const response = await scheduleService.getShiftChangeRequests(filters);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+
+// Get shift change request by ID
+export const getShiftChangeRequestById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const response = await scheduleService.getShiftChangeRequestById(id);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+
+// Approve/reject shift change request
+export const reviewShiftChangeRequest = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, review_notes } = req.body;
+
+        if (!status || !['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Invalid status. Must be "approved" or "rejected"'
+            });
+        }
+
+        const response = await scheduleService.updateShiftChangeRequestStatus(
+            id,
+            status,
+            req.user.id,
+            review_notes
+        );
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+

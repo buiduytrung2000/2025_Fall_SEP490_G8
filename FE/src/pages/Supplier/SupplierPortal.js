@@ -1,9 +1,9 @@
 // src/pages/Supplier/SupplierPortal.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { Spinner, Badge } from 'react-bootstrap';
-import { getPurchaseOrders } from '../../api/mockApi';
+import { Spinner } from 'react-bootstrap';
 import { MaterialReactTable } from 'material-react-table';
-import { Box, Button } from '@mui/material';
+import { Box, Button, Chip } from '@mui/material';
+import { getSupplierOrders, supplierApproveOrder } from '../../api/mockApi';
 
 // Hàm helper format tiền
 const formatCurrency = (number) => 
@@ -13,61 +13,54 @@ const SupplierPortal = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        getPurchaseOrders().then(data => {
+    const load = () => {
+        getSupplierOrders().then(data => {
             setOrders(data);
             setLoading(false);
         });
-    }, []);
+    };
+
+    useEffect(() => { load(); }, []);
 
     // Định nghĩa cột
     const columns = useMemo(
         () => [
-            {
-                accessorKey: 'id',
-                header: 'Mã ĐH',
-            },
-            {
-                accessorKey: 'date',
-                header: 'Ngày đặt',
-            },
+            { accessorKey: 'id', header: 'Mã NCC' },
+            { accessorKey: 'fromOrderId', header: 'Từ đơn cửa hàng' },
+            { accessorKey: 'supplier', header: 'Nhà cung cấp' },
             {
                 accessorKey: 'total',
                 header: 'Tổng tiền',
-                // Custom render
                 Cell: ({ cell }) => formatCurrency(cell.getValue()),
             },
             {
                 accessorKey: 'status',
                 header: 'Trạng thái',
-                // Custom render cho Badge
-                Cell: ({ cell }) => (
-                    <Badge bg={cell.getValue() === 'Approved' ? 'success' : 'warning'}>
-                        {cell.getValue()}
-                    </Badge>
-                ),
+                Cell: ({ cell }) => <Chip size="small" color={cell.getValue()==='Approved'?'success':'warning'} label={cell.getValue()} />,
             },
         ],
         [],
     );
 
-
     if (loading) return <Spinner animation="border" />;
     return (
         <div>
-            <h2>Đơn đặt hàng</h2>
+            <h2>Đơn kho gửi cho nhà cung cấp</h2>
             <MaterialReactTable
                 columns={columns}
                 data={orders}
                 enableRowActions
                 renderRowActions={({ row }) => (
-                    <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => console.log('View order:', row.original.id)}
-                    >
-                        Xem chi tiết & Nhập hóa đơn
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            disabled={row.original.status !== 'Pending'}
+                            onClick={async () => { await supplierApproveOrder(row.original.id); load(); }}
+                        >
+                            Approve
+                        </Button>
+                    </Box>
                 )}
             />
         </div>

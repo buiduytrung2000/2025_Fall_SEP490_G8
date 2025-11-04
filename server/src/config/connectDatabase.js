@@ -1,8 +1,15 @@
 const { Sequelize } = require('sequelize');
 
-// Option 3: Passing parameters separately (other dialects)
-const sequelize = new Sequelize('CCMS_DB', 'root', '123456', {
-    host: 'localhost',
+// Read DB config from environment variables with sensible defaults
+const dbName = process.env.MYSQL_DB || 'CCMS_DB';
+const dbUser = process.env.MYSQL_USER || 'root';
+const dbPass = process.env.MYSQL_PASSWORD || '123456';
+const dbHost = process.env.MYSQL_HOST || 'localhost';
+const dbPort = process.env.MYSQL_PORT ? Number(process.env.MYSQL_PORT) : 3306;
+
+const sequelize = new Sequelize(dbName, dbUser, dbPass, {
+    host: dbHost,
+    port: dbPort,
     dialect: 'mysql',
     logging: false
 });

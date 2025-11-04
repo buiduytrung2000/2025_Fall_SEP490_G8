@@ -23,9 +23,16 @@ import InventoryManagement from "./pages/Warehouse/InventoryManagement";
 import SupplierPortal from "./pages/Supplier/SupplierPortal";
 import StaffManagement from "./pages/Store_Manager/StaffManagement";
 import ScheduleManagement from "./pages/Store_Manager/ScheduleManagement";
+import StoreInventory from "./pages/Store_Manager/InventoryManagement";
+import PurchaseOrders from "./pages/Store_Manager/PurchaseOrders";
+import WarehouseIncomingOrders from "./pages/Warehouse/IncomingOrders";
+import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
+import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
+import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
+import ShiftReports from "./pages/Store_Manager/ShiftReports";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -67,6 +74,30 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Manager"]}>
                   <ManagerProducts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/inventory"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <StoreInventory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/reports/shifts"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <ShiftReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/orders"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <PurchaseOrders />
                 </ProtectedRoute>
               }
             />
@@ -126,6 +157,38 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <ProductPriceManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/invoices"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <InvoicesManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/incoming-orders"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <WarehouseIncomingOrders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/branch-orders"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <WarehouseBranchOrders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/branch-orders/:id"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <WarehouseOrderUpdate />
                 </ProtectedRoute>
               }
             />
