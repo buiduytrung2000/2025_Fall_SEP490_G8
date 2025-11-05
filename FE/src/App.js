@@ -7,6 +7,8 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Layout
 import MainLayout from "./components/layout/MainLayout";
@@ -205,6 +207,7 @@ function App() {
           {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
       </Router>
     </AuthProvider>
   );

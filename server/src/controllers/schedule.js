@@ -67,8 +67,19 @@ export const updateShiftTemplate = async (req, res) => {
 // Get schedules
 export const getSchedules = async (req, res) => {
     try {
-        const { store_id, start_date, end_date } = req.query;
-        
+        let { store_id, start_date, end_date } = req.query;
+
+        // Allow providing only start_date: default end_date = start_date + 6 days
+        if (start_date && !end_date) {
+            const d = new Date(start_date);
+            if (!isNaN(d)) {
+                const e = new Date(d);
+                e.setDate(e.getDate() + 6);
+                end_date = e.toISOString().split('T')[0];
+                req.query.end_date = end_date;
+            }
+        }
+
         if (!store_id || !start_date || !end_date) {
             return res.status(400).json({
                 err: 1,
@@ -260,6 +271,30 @@ export const getAvailableShifts = async (req, res) => {
         }
 
         const response = await scheduleService.getAvailableShifts(store_id, start_date, end_date);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Get available employees for a shift
+export const getAvailableEmployees = async (req, res) => {
+    try {
+        const { store_id, work_date, shift_template_id, role } = req.query;
+
+        if (!store_id || !work_date || !shift_template_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: store_id, work_date, shift_template_id'
+            });
+        }
+
+        const response = await scheduleService.getAvailableEmployees(
+            parseInt(store_id), work_date, parseInt(shift_template_id), role || 'Cashier'
+        );
         return res.status(200).json(response);
     } catch (error) {
         return res.status(500).json({

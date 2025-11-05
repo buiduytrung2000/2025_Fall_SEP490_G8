@@ -2,8 +2,11 @@
 // GHI ĐÈ TOÀN BỘ FILE NÀY
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getSchedules, getStaff } from '../../api/mockApi';
+import { getSchedules as apiGetSchedules, getShiftTemplates, createSchedule, updateSchedule, getAvailableEmployees } from '../../api/scheduleApi';
+import { fetchEmployees, fetchEmployeeById } from '../../api/employeeApi';
 import ChangeShiftModal from './ChangeShiftModal';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'react-toastify';
 // KHÔNG import useNavigate nữa
 
 // Import các component từ Material-UI (MUI)
@@ -45,17 +48,23 @@ const getMonthYear = (date) => {
   return date.toLocaleString('vi-VN', { month: 'long', year: 'numeric' }).toUpperCase();
 };
 const weekDayNames = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
-const shiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
+// Will be replaced by templates from backend
+const defaultShiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
 // --- HẾT HÀM HELPER ---
 
 
 const ScheduleManagement = () => {
-  const [currentDate] = useState(new Date('2025-10-23T10:00:00')); // Tuần 43 (hardcode demo)
-  const [schedule, setSchedule] = useState({});
-  const [staffList, setStaffList] = useState([]);
+  const [currentDate] = useState(new Date());
+  const [schedule, setSchedule] = useState({}); // { [date]: { [templateId]: { schedule_id, user_id, status } } }
+  const [staffList, setStaffList] = useState([]); // employees in store (cashiers)
+  const [shiftTemplatesData, setShiftTemplatesData] = useState([]); // raw templates
+  const [shiftNames, setShiftNames] = useState(defaultShiftNames);
+  const [storeId, setStoreId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedShift, setSelectedShift] = useState(null);
+  const [availableStaff, setAvailableStaff] = useState([]);
+  const { user } = useAuth();
 
   // Các hook useMemo giữ nguyên để tính toán ngày
   const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
@@ -65,38 +74,101 @@ const ScheduleManagement = () => {
     return staffList.reduce((acc, staff) => { acc[staff.id] = staff.name; return acc; }, {});
   }, [staffList]);
 
+  const formatShiftName = (t) => `${t.name} (${t.start_time?.slice(0,5)} - ${t.end_time?.slice(0,5)})`;
+
   // useEffect để tải dữ liệu (giữ nguyên)
   useEffect(() => {
-    setLoading(true);
-    Promise.all([getSchedules(startOfWeek), getStaff()])
-      .then(([scheduleData, staffData]) => {
-        setSchedule(scheduleData);
-        setStaffList(staffData);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        setLoading(true);
+        // 1) find manager's store
+        const me = await fetchEmployeeById(user.id);
+        const myStoreId = me?.data?.store_id || me?.data?.store?.store_id;
+        if (!myStoreId) {
+          toast.error('Manager chưa gán cửa hàng');
+          setLoading(false);
+          return;
+        }
+        setStoreId(myStoreId);
+
+        // 2) fetch shift templates and employees of store
+        const [tplRes, empRes] = await Promise.all([
+          getShiftTemplates(),
+          fetchEmployees({ store_id: myStoreId, role: 'Cashier', limit: 200 })
+        ]);
+        const templates = (tplRes?.data || []);
+        setShiftTemplatesData(templates);
+        setShiftNames(templates.length ? templates.map(formatShiftName) : defaultShiftNames);
+
+        const employees = (empRes?.data || []).map(u => ({ id: u.user_id, name: u.name || u.username }));
+        setStaffList(employees);
+
+        // 3) fetch schedules for this week
+        const start = startOfWeek.toISOString().split('T')[0];
+        const end = endOfWeek.toISOString().split('T')[0];
+        const schRes = await apiGetSchedules(myStoreId, start, end);
+        const rows = schRes?.data || [];
+        const grid = {};
+        rows.forEach(r => {
+          const dateKey = r.work_date;
+          if (!grid[dateKey]) grid[dateKey] = {};
+          grid[dateKey][r.shift_template_id] = {
+            schedule_id: r.schedule_id,
+            user_id: r.user_id,
+            status: r.status,
+          };
+        });
+        setSchedule(grid);
+      } catch (e) {
+        toast.error('Tải dữ liệu lịch thất bại');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, [startOfWeek]);
 
   // --- Hàm xử lý Modal (Logic y hệt trước, không đổi) ---
-  const handleOpenModal = (dayKey, shiftName, shiftData) => {
-    setSelectedShift({ dayKey, shiftName, employeeId: shiftData ? shiftData.employeeId : '' });
+  const handleOpenModal = async (dayKey, templateId, shiftData) => {
+    setSelectedShift({ dayKey, templateId, employeeId: shiftData ? shiftData.user_id : '' , scheduleId: shiftData?.schedule_id});
+    // fetch available employees for this slot
+    try {
+      if (storeId) {
+        const res = await getAvailableEmployees(storeId, dayKey, templateId, 'Cashier');
+        const list = (res?.data || []).map(u => ({ id: u.user_id, name: u.username, role: 'Cashier' }));
+        setAvailableStaff(list);
+      }
+    } catch {}
     setShowModal(true);
   };
   const handleCloseModal = () => setShowModal(false);
-  const handleSaveShift = (newEmployeeId) => {
-    const { dayKey, shiftName } = selectedShift;
-    setSchedule(prevSchedule => ({
-      ...prevSchedule,
-      [dayKey]: {
-        ...prevSchedule[dayKey],
-        [shiftName]: {
-          ...prevSchedule[dayKey][shiftName],
-          employeeId: newEmployeeId,
-          status: 'Confirmed'
-        }
+  const handleSaveShift = async (newEmployeeId) => {
+    const { dayKey, templateId, scheduleId } = selectedShift;
+    try {
+      if (!storeId) return;
+      if (scheduleId) {
+        const res = await updateSchedule(scheduleId, { user_id: newEmployeeId, status: 'confirmed' });
+        if (res.err === 0) toast.success('Cập nhật ca thành công');
+        else toast.error(res.msg || 'Cập nhật ca thất bại');
+      } else {
+        const res = await createSchedule({
+          store_id: storeId,
+          user_id: newEmployeeId,
+          shift_template_id: templateId,
+          work_date: dayKey,
+          status: 'confirmed'
+        });
+        if (res.err === 0) toast.success('Tạo ca thành công');
+        else toast.error(res.msg || 'Tạo ca thất bại');
       }
-    }));
-    handleCloseModal();
+      // locally update
+      setSchedule(prev => ({
+        ...prev,
+        [dayKey]: { ...(prev[dayKey] || {}), [templateId]: { schedule_id: scheduleId || (prev[dayKey]?.[templateId]?.schedule_id) , user_id: newEmployeeId, status: 'confirmed' } }
+      }));
+    } finally {
+      handleCloseModal();
+    }
   };
 
   // --- THAY ĐỔI: Tắt chức năng các nút bấm ---
@@ -161,8 +233,10 @@ const ScheduleManagement = () => {
                   <TableCell align="left" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>{shiftName}</TableCell>
                   {weekDays.map((day) => {
                     const dayKey = day.toISOString().split('T')[0];
-                    const shiftData = schedule[dayKey] ? schedule[dayKey][shiftName] : null;
-                    const employeeName = shiftData ? (staffMap[shiftData.employeeId] || 'Trống') : 'Trống';
+                    const tpl = shiftTemplatesData.find(t => formatShiftName(t) === shiftName);
+                    const templateId = tpl?.shift_template_id || tpl?.id;
+                    const shiftData = schedule[dayKey] ? schedule[dayKey][templateId] : null;
+                    const employeeName = shiftData ? (staffMap[shiftData.user_id] || 'Trống') : 'Trống';
                     const status = shiftData ? shiftData.status : 'Empty';
                     let chipColor = 'default', chipLabel = '';
                     if (!shiftData || employeeName === 'Trống') { chipColor = 'default'; chipLabel = 'Chưa phân'; }
@@ -191,7 +265,7 @@ const ScheduleManagement = () => {
                               color={btnColor}
                               size="small"
                               sx={{ borderRadius: 2, minWidth: 36, px: 1, py: 0.3, mt: 0.5, fontWeight: 700, boxShadow: 0 }}
-                              onClick={() => handleOpenModal(dayKey, shiftName, shiftData)}
+                              onClick={() => handleOpenModal(dayKey, templateId, shiftData)}
                               startIcon={<AddCircleOutline />}
                             >
                               {btnLabel}
@@ -209,13 +283,13 @@ const ScheduleManagement = () => {
       </TableContainer>
 
       {/* Modal chọn nhân viên/Chỉnh ca */}
-      {staffList.length > 0 && (
+      {(availableStaff.length > 0 || staffList.length > 0) && (
         <ChangeShiftModal
           show={showModal}
           onHide={handleCloseModal}
           onSave={handleSaveShift}
           shiftInfo={selectedShift}
-          staffList={staffList.filter(s => s.role === 'Cashier')}
+          staffList={(availableStaff.length ? availableStaff : staffList.filter(s => s.role === 'Cashier'))}
         />
       )}
       {/*

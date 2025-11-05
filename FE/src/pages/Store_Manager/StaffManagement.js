@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 // Import Button của MUI thay vì react-bootstrap
 import { Spinner, Modal, Form } from 'react-bootstrap';
-import { getStaff } from '../../api/mockApi';
+import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../api/employeeApi';
+import { toast } from 'react-toastify';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
 import { Box, IconButton, Button } from '@mui/material'; // <-- Thay đổi ở đây
@@ -19,12 +20,26 @@ const StaffManagement = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [staffToDelete, setStaffToDelete] = useState(null);
 
-    useEffect(() => {
-        getStaff().then(data => {
-            setStaffList(data);
-            setLoading(false);
-        });
-    }, []);
+    const loadEmployees = async () => {
+        setLoading(true);
+        const res = await fetchEmployees({ limit: 100 });
+        if (res && res.err === 0) {
+            const mapped = (res.data || []).map(u => ({
+                id: u.user_id,
+                name: u.name || u.username,
+                phone: u.phone || '',
+                role: u.role,
+                status: u.status,
+                email: u.email || ''
+            }));
+            setStaffList(mapped);
+        } else {
+            toast.error(res?.msg || 'Tải danh sách nhân viên thất bại');
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => { loadEmployees(); }, []);
 
     const handleCloseFormModal = () => setShowFormModal(false);
     const handleShowAddModal = () => {
@@ -41,21 +56,48 @@ const StaffManagement = () => {
         setStaffToDelete(staff);
         setShowDeleteModal(true);
     }
-    const handleSaveStaff = (e) => {
+    const handleSaveStaff = async (e) => {
         e.preventDefault();
-        console.log(isEditMode ? "Updating" : "Adding", currentStaff);
-        handleCloseFormModal();
+        try {
+            if (isEditMode) {
+                const res = await updateEmployee(currentStaff.id, {
+                    name: currentStaff.name,
+                    phone: currentStaff.phone,
+                    role: currentStaff.role
+                });
+                if (res.err === 0) toast.success('Cập nhật nhân viên thành công');
+                else toast.error(res.msg || 'Cập nhật thất bại');
+            } else {
+                const username = (currentStaff.name || 'user').toLowerCase().replace(/\s+/g, '') + Date.now().toString().slice(-4);
+                const res = await createEmployee({
+                    username,
+                    password: '123',
+                    name: currentStaff.name,
+                    phone: currentStaff.phone,
+                    role: currentStaff.role
+                });
+                if (res.err === 0) toast.success('Thêm nhân viên thành công (mật khẩu mặc định: 123)');
+                else toast.error(res.msg || 'Thêm thất bại');
+            }
+        } finally {
+            handleCloseFormModal();
+            loadEmployees();
+        }
     }
-    const confirmDelete = () => {
-        console.log("Deleting staff:", staffToDelete.name);
+    const confirmDelete = async () => {
+        if (!staffToDelete) return;
+        const res = await deleteEmployee(staffToDelete.id, false);
+        if (res.err === 0) toast.success('Đã vô hiệu hóa nhân viên');
+        else toast.error(res.msg || 'Xóa thất bại');
         setShowDeleteModal(false);
         setStaffToDelete(null);
+        loadEmployees();
     };
 
     // Cột (giữ nguyên)
     const columns = useMemo(
         () => [
-            { accessorKey: 'id', header: 'ID', size: 50 },
+            { id: 'stt', header: 'STT', size: 50, enableSorting: false, Cell: ({ row }) => row.index + 1 },
             { accessorKey: 'name', header: 'Họ và Tên' },
             { accessorKey: 'phone', header: 'Số điện thoại' },
             { accessorKey: 'role', header: 'Vai trò' },
@@ -73,7 +115,7 @@ const StaffManagement = () => {
                 enableRowActions
                 
                 // --- PHẦN SỬA LỖI ---
-                positionActionsColumn="first" // Giữ nguyên: Đưa cột Actions lên đầu
+                positionActionsColumn="last" // Đưa cột Actions xuống cuối cùng
                 displayColumnDefOptions={{
                     'mrt-row-actions': {
                         header: 'Actions', // Đặt tên header

@@ -37,9 +37,8 @@ export const getEmployees = (filters = {}, pagination = { page: 1, limit: 10 }) 
                     required: false
                 }
             ],
-            attributes: {
-                exclude: ['password']
-            },
+            // Select only existing columns (now includes phone)
+            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             order: [['created_at', 'DESC']],
             limit: parseInt(limit),
             offset: parseInt(offset),
@@ -57,6 +56,20 @@ export const getEmployees = (filters = {}, pagination = { page: 1, limit: 10 }) 
                 totalPages: Math.ceil(count / limit)
             }
         });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get store_id and role by user id
+export const getStoreInfoByUserId = (userId) => new Promise(async (resolve, reject) => {
+    try {
+        const user = await db.User.findOne({
+            where: { user_id: userId },
+            attributes: ['user_id', 'role', 'store_id'],
+            raw: true
+        });
+        resolve(user);
     } catch (error) {
         reject(error);
     }
@@ -89,9 +102,7 @@ export const getEmployeeById = (id) => new Promise(async (resolve, reject) => {
                     ]
                 }
             ],
-            attributes: {
-                exclude: ['password']
-            },
+            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             raw: false
         });
 
@@ -151,9 +162,7 @@ export const createEmployee = (data) => new Promise(async (resolve, reject) => {
                     required: false
                 }
             ],
-            attributes: {
-                exclude: ['password']
-            },
+            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             raw: false
         });
 
@@ -218,9 +227,7 @@ export const updateEmployee = (id, data) => new Promise(async (resolve, reject) 
                         required: false
                     }
                 ],
-                attributes: {
-                    exclude: ['password']
-                },
+                attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
                 raw: false
             });
 
