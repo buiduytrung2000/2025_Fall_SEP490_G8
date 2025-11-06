@@ -22,14 +22,19 @@ router.put('/shift-templates/:id', scheduleController.updateShiftTemplate);
 // Get schedules (with query params: store_id, start_date, end_date)
 router.get('/schedules', scheduleController.getSchedules);
 
-// Get schedule by ID
-router.get('/schedules/:id', scheduleController.getScheduleById);
+// Get available shifts (with query params: store_id, start_date, end_date)
+router.get('/schedules/available', scheduleController.getAvailableShifts);
+// Get available employees for a shift (store_id, work_date, shift_template_id, role)
+router.get('/schedules/available-employees', scheduleController.getAvailableEmployees);
 
 // Get employee schedules (with query params: start_date, end_date)
 router.get('/schedules/employee/:user_id', scheduleController.getEmployeeSchedules);
 
 // Get my schedules (current user)
 router.get('/schedules/my-schedules', scheduleController.getMySchedules);
+
+// Get schedule by ID
+router.get('/schedules/:id', scheduleController.getScheduleById);
 
 // Create schedule
 router.post('/schedules', scheduleController.createSchedule);
@@ -39,11 +44,6 @@ router.put('/schedules/:id', scheduleController.updateSchedule);
 
 // Delete schedule
 router.delete('/schedules/:id', scheduleController.deleteSchedule);
-
-// Get available shifts (with query params: store_id, start_date, end_date)
-router.get('/schedules/available', scheduleController.getAvailableShifts);
-// Get available employees for a shift (store_id, work_date, shift_template_id, role)
-router.get('/schedules/available-employees', scheduleController.getAvailableEmployees);
 
 // Get schedule statistics (with query params: store_id, role)
 router.get('/schedules/statistics', scheduleController.getScheduleStatistics);

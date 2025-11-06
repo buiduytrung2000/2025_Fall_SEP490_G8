@@ -186,24 +186,6 @@ export const getEmployeeSchedules = (userId, startDate, endDate) => new Promise(
 // Create schedule
 export const createSchedule = (data) => new Promise(async (resolve, reject) => {
     try {
-        // Check if schedule already exists for this store, shift, and date
-        const existing = await db.Schedule.findOne({
-            where: {
-                store_id: data.store_id,
-                shift_template_id: data.shift_template_id,
-                work_date: data.work_date
-            }
-        });
-
-        if (existing) {
-            resolve({
-                err: 1,
-                msg: 'Schedule already exists for this store, shift, and date',
-                data: null
-            });
-            return;
-        }
-
         const response = await db.Schedule.create(data);
         const schedule = await db.Schedule.findOne({
             where: { schedule_id: response.schedule_id },
@@ -228,7 +210,14 @@ export const createSchedule = (data) => new Promise(async (resolve, reject) => {
             data: schedule
         });
     } catch (error) {
-        reject(error);
+        // Log chi tiết lỗi để debug
+        console.error('Error creating schedule:', error);
+        // Nếu là lỗi unique constraint, trả về message rõ ràng hơn
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            reject(new Error('Unique constraint violation: Schedule already exists for this store, shift, and date. Please remove the unique index from database.'));
+        } else {
+            reject(error);
+        }
     }
 });
 
@@ -420,82 +409,13 @@ export const getScheduleStatistics = (storeId, role = null) => new Promise(async
 // Check for schedule conflicts
 export const checkScheduleConflicts = (userId, workDate, shiftTemplateId) => new Promise(async (resolve, reject) => {
     try {
-        const shiftTemplate = await db.ShiftTemplate.findOne({
-            where: { shift_template_id: shiftTemplateId },
-            raw: true
-        });
-
-        if (!shiftTemplate) {
-            resolve({
-                err: 1,
-                msg: 'Shift template not found',
-                data: null
-            });
-            return;
-        }
-
-        // Get all schedules for the user on the same date or adjacent dates (for overnight shifts)
-        const dateObj = new Date(workDate);
-        const prevDate = new Date(dateObj);
-        prevDate.setDate(prevDate.getDate() - 1);
-        const nextDate = new Date(dateObj);
-        nextDate.setDate(nextDate.getDate() + 1);
-
-        const existingSchedules = await db.Schedule.findAll({
-            where: {
-                user_id: userId,
-                work_date: {
-                    [Op.in]: [
-                        prevDate.toISOString().split('T')[0],
-                        workDate,
-                        nextDate.toISOString().split('T')[0]
-                    ]
-                },
-                status: {
-                    [Op.ne]: 'cancelled'
-                }
-            },
-            include: [
-                {
-                    model: db.ShiftTemplate,
-                    as: 'shiftTemplate',
-                    attributes: ['start_time', 'end_time']
-                }
-            ],
-            raw: false
-        });
-
-        const newStart = new Date(`2000-01-01 ${shiftTemplate.start_time}`);
-        let newEnd = new Date(`2000-01-01 ${shiftTemplate.end_time}`);
-        if (newEnd < newStart) {
-            newEnd = new Date(`2000-01-02 ${shiftTemplate.end_time}`);
-        }
-
-        const conflicts = [];
-        existingSchedules.forEach(schedule => {
-            const existingStart = new Date(`2000-01-01 ${schedule.shiftTemplate.start_time}`);
-            let existingEnd = new Date(`2000-01-01 ${schedule.shiftTemplate.end_time}`);
-            if (existingEnd < existingStart) {
-                existingEnd = new Date(`2000-01-02 ${schedule.shiftTemplate.end_time}`);
-            }
-
-            // Check if shifts overlap
-            if (newStart < existingEnd && newEnd > existingStart) {
-                conflicts.push({
-                    schedule_id: schedule.schedule_id,
-                    work_date: schedule.work_date,
-                    shift_name: schedule.shiftTemplate.name,
-                    conflict_reason: 'Overlapping time slots'
-                });
-            }
-        });
-
+        // Bỏ check trùng ca - cho phép gán bất kỳ nhân viên nào cho bất kỳ ca nào
         resolve({
             err: 0,
-            msg: conflicts.length > 0 ? 'Conflicts found' : 'No conflicts',
+            msg: 'No conflicts',
             data: {
-                has_conflicts: conflicts.length > 0,
-                conflicts: conflicts
+                has_conflicts: false,
+                conflicts: []
             }
         });
     } catch (error) {
@@ -506,51 +426,14 @@ export const checkScheduleConflicts = (userId, workDate, shiftTemplateId) => new
 // Get available employees for a specific shift (not overlapping on that date/time)
 export const getAvailableEmployees = (storeId, workDate, shiftTemplateId, role = 'Cashier') => new Promise(async (resolve, reject) => {
     try {
-        // Get target shift template window
-        const tpl = await db.ShiftTemplate.findOne({ where: { shift_template_id: shiftTemplateId }, raw: true });
-        if (!tpl) return resolve({ err: 1, msg: 'Shift template not found', data: [] });
-
-        const newStart = new Date(`2000-01-01 ${tpl.start_time}`);
-        let newEnd = new Date(`2000-01-01 ${tpl.end_time}`);
-        if (newEnd < newStart) newEnd = new Date(`2000-01-02 ${tpl.end_time}`);
-
-        // Employees in store and role
+        // Bỏ check trùng ca - trả về tất cả nhân viên trong store và role
         const employees = await db.User.findAll({
             where: { store_id: storeId, role },
             attributes: ['user_id', 'username', 'email'],
             raw: true
         });
-        const employeeIds = employees.map(e => e.user_id);
 
-        if (employeeIds.length === 0) return resolve({ err: 0, msg: 'OK', data: [] });
-
-        // Schedules for those employees on same or adjacent days (for overnight overlap)
-        const dateObj = new Date(workDate);
-        const prevDate = new Date(dateObj); prevDate.setDate(prevDate.getDate() - 1);
-        const nextDate = new Date(dateObj); nextDate.setDate(nextDate.getDate() + 1);
-
-        const existing = await db.Schedule.findAll({
-            where: {
-                user_id: { [Op.in]: employeeIds },
-                work_date: { [Op.in]: [prevDate.toISOString().split('T')[0], workDate, nextDate.toISOString().split('T')[0]] },
-                status: { [Op.ne]: 'cancelled' }
-            },
-            include: [{ model: db.ShiftTemplate, as: 'shiftTemplate', attributes: ['start_time', 'end_time'] }],
-            raw: false
-        });
-
-        const busyByUser = new Set();
-        existing.forEach(s => {
-            const start = new Date(`2000-01-01 ${s.shiftTemplate.start_time}`);
-            let end = new Date(`2000-01-01 ${s.shiftTemplate.end_time}`);
-            if (end < start) end = new Date(`2000-01-02 ${s.shiftTemplate.end_time}`);
-            if (newStart < end && newEnd > start) {
-                busyByUser.add(s.user_id);
-            }
-        });
-
-        const available = employees.filter(e => !busyByUser.has(e.user_id));
-        resolve({ err: 0, msg: 'OK', data: available });
+        resolve({ err: 0, msg: 'OK', data: employees });
     } catch (error) {
         reject(error);
     }
