@@ -88,7 +88,7 @@ const Login = () => {
             </Box>
           </Box>
 
-         
+
 
           <Formik
             initialValues={{ email: "", password: "" }}
@@ -100,12 +100,13 @@ const Login = () => {
                 <TextField
                   fullWidth
                   name="email"
-                  label="Username"
+                  label="Email"
+                  type="email"
                   value={values.email}
                   onChange={(e) => { handleChange(e); setEmail(e.target.value); }}
                   margin="normal"
                   autoFocus
-                  placeholder="Enter username"
+                  placeholder="Enter email"
                   error={touched.email && Boolean(errors.email)}
                   helperText={touched.email && errors.email}
                   InputProps={{
@@ -171,7 +172,7 @@ const Login = () => {
 
           <Box mt={3.5} textAlign="center">
             <Typography variant="body2" color="text.secondary">
-              Don’t have an account ? <Link component="button" color="primary">Signup now</Link>
+              Don't have an account ? <Link component="button" onClick={() => navigate('/register')} color="primary">Signup now</Link>
             </Typography>
             <Typography variant="caption" color="GrayText" display="block" mt={2.5}>
               © 2025 CCMS

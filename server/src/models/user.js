@@ -4,7 +4,7 @@ const {
 } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
-   
+
     static associate(models) {
       User.belongsTo(models.Store, {
         foreignKey: 'store_id',
@@ -67,9 +67,9 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('active', 'inactive', 'suspended'),
       defaultValue: 'active'
     },
-    name: DataTypes.STRING,
-    phone: DataTypes.STRING,
-    avatar: DataTypes.BLOB,
+
+    // phone: DataTypes.STRING,
+    // avatar: DataTypes.BLOB,
   }, {
     sequelize,
     modelName: 'User',

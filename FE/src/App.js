@@ -15,6 +15,7 @@ import MainLayout from "./components/layout/MainLayout";
 
 // Pages
 import Login from "./pages/public/Login";
+import Register from "./pages/public/Register";
 import Unauthorized from "./pages/public/Unauthorized";
 import POS from "./pages/Cashier/POS";
 import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
@@ -40,7 +41,7 @@ const AuthenticatedRedirect = () => {
   const { user } = useAuth();
   // Chuyển hướng về trang login nếu chưa đăng nhập
   if (!user) return <Navigate to="/login" replace />;
-  
+
   return <MainLayout />;
 };
 
@@ -51,8 +52,9 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
-          
+
           {/* Main application layout for other roles */}
           <Route path="/" element={<AuthenticatedRedirect />}>
             <Route

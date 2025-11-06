@@ -1,27 +1,74 @@
 import db from '../models'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { v4 } from 'uuid'
-require('dotenv').config()
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 const hashPassword = password => bcrypt.hashSync(password, bcrypt.genSaltSync(12))
 
-export const registerService = ({ phone, password, name }) => new Promise(async (resolve, reject) => {
+export const registerService = ({ username, password, role, email, store_id }) => new Promise(async (resolve, reject) => {
     try {
-        const response = await db.User.findOrCreate({
-            where: { phone },
-            defaults: {
-                phone,
-                name,
-                password: hashPassword(password),
-                id: v4()
-            }
+        // Check if username already exists
+        const existingUsername = await db.User.findOne({
+            where: { username }
         })
-        const token = response[1] && jwt.sign({ id: response[0].id, phone: response[0].phone }, process.env.SECRET_KEY, { expiresIn: '2d' })
+
+        if (existingUsername) {
+            resolve({
+                err: 2,
+                msg: 'Username has been already used!',
+                token: null
+            })
+            return
+        }
+
+        // Check if email already exists (required for login)
+        if (email) {
+            const existingEmail = await db.User.findOne({
+                where: { email }
+            })
+
+            if (existingEmail) {
+                resolve({
+                    err: 2,
+                    msg: 'Email has been already used!',
+                    token: null
+                })
+                return
+            }
+        }
+
+        // Create new user with only fields that exist in database
+        const userData = {
+            username,
+            password: hashPassword(password),
+            role,
+            email, // Email is now required
+            status: 'active'
+        }
+
+        // Add optional fields only if provided
+        if (store_id) userData.store_id = store_id
+
+        const newUser = await db.User.create(userData)
+
+        const token = jwt.sign({
+            user_id: newUser.user_id,
+            username: newUser.username,
+            role: newUser.role
+        }, process.env.SECRET_KEY, { expiresIn: '2d' })
+
         resolve({
-            err: token ? 0 : 2,
-            msg: token ? 'Register is successfully !' : 'Phone number has been aldready used !',
-            token: token || null
+            err: 0,
+            msg: 'Register is successfully!',
+            token: token,
+            user: {
+                user_id: newUser.user_id,
+                username: newUser.username,
+                role: newUser.role,
+                email: newUser.email || null
+            }
         })
 
     } catch (error) {
@@ -31,25 +78,65 @@ export const registerService = ({ phone, password, name }) => new Promise(async 
 
 export const loginService = ({ email, password }) => new Promise(async (resolve, reject) => {
     try {
-        const response = await db.User.findOne({
+        const user = await db.User.findOne({
             where: { email },
-            attributes: ['user_id', 'username', 'email', 'password', 'role'],
-            raw: true
+            attributes: ['user_id', 'username', 'email', 'password', 'role', 'status']
         })
-        let isCorrectPassword = false
-        if (response) {
-            // Support both hashed and plain demo passwords
-            if (typeof response.password === 'string' && response.password.startsWith('$2')) {
-                isCorrectPassword = bcrypt.compareSync(password, response.password)
-            } else {
-                isCorrectPassword = password === response.password
-            }
+
+        if (!user) {
+            resolve({
+                err: 2,
+                msg: 'Email not found!',
+                token: null
+            })
+            return
         }
-        const token = isCorrectPassword && jwt.sign({ id: response.user_id, email: response.email, username: response.username, role: response.role }, process.env.SECRET_KEY, { expiresIn: '2d' })
+
+        // Check if user is active
+        if (user.status !== 'active') {
+            resolve({
+                err: 2,
+                msg: `Account is ${user.status}! Please contact administrator.`,
+                token: null
+            })
+            return
+        }
+
+        // Verify password
+        let isCorrectPassword = false
+        if (typeof user.password === 'string' && user.password.startsWith('$2')) {
+            // Hashed password
+            isCorrectPassword = bcrypt.compareSync(password, user.password)
+        } else {
+            // Plain password (for demo purposes)
+            isCorrectPassword = password === user.password
+        }
+
+        if (!isCorrectPassword) {
+            resolve({
+                err: 2,
+                msg: 'Password is wrong!',
+                token: null
+            })
+            return
+        }
+
+        const token = jwt.sign({
+            user_id: user.user_id,
+            username: user.username,
+            role: user.role
+        }, process.env.SECRET_KEY, { expiresIn: '2d' })
+
         resolve({
-            err: token ? 0 : 2,
-            msg: token ? 'Login is successfully !' : response ? 'Password is wrong !' : 'Email not found !',
-            token: token || null
+            err: 0,
+            msg: 'Login is successfully!',
+            token: token,
+            user: {
+                user_id: user.user_id,
+                username: user.username,
+                role: user.role,
+                email: user.email || null
+            }
         })
 
     } catch (error) {
