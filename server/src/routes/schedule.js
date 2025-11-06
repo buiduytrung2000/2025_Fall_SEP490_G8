@@ -42,6 +42,8 @@ router.delete('/schedules/:id', scheduleController.deleteSchedule);
 
 // Get available shifts (with query params: store_id, start_date, end_date)
 router.get('/schedules/available', scheduleController.getAvailableShifts);
+// Get available employees for a shift (store_id, work_date, shift_template_id, role)
+router.get('/schedules/available-employees', scheduleController.getAvailableEmployees);
 
 // Get schedule statistics (with query params: store_id, role)
 router.get('/schedules/statistics', scheduleController.getScheduleStatistics);

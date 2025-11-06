@@ -1,5 +1,7 @@
 // src/pages/public/Login.js
 import React, { useState } from "react";
+import { Formik, Form, Field } from "formik";
+import { loginValidationSchema } from "../../validation/Login_validation";
 import {
   Box,
   Card,
@@ -9,14 +11,19 @@ import {
   Typography,
   Alert,
   InputAdornment,
-  IconButton
+  IconButton,
+  FormControlLabel,
+  Checkbox,
+  Stack,
+  Link
 } from "@mui/material";
-import { Lock, AccountCircle, Visibility, VisibilityOff, Store } from "@mui/icons-material";
+import { Lock, AccountCircle, Visibility, VisibilityOff, Store, Facebook, Twitter, Google, LockOutlined } from "@mui/icons-material";
+import { toast } from "react-toastify";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -32,15 +39,20 @@ const Login = () => {
     Supplier: "/supplier/portal",
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const validationSchema = loginValidationSchema;
+
+  const handleSubmit = async (values, { setSubmitting }) => {
     setError("");
-    const response = await login(username, password);
+    const response = await login(values.email, values.password);
     if (response.success) {
+      toast.success("Đăng nhập thành công");
       navigate(roleToPath[response.user.role] || "/");
     } else {
-      setError(response.message);
+      const msg = response.message || "Đăng nhập thất bại";
+      setError(msg);
+      toast.error(msg);
     }
+    setSubmitting(false);
   };
 
   return (
@@ -48,10 +60,11 @@ const Login = () => {
       sx={{
         minHeight: "100vh",
         minWidth: "100vw",
-        background: "linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%)",
+        background: "#f7f8fc",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        p: 2
       }}
     >
       <Card
@@ -59,84 +72,108 @@ const Login = () => {
           px: { xs: 2, sm: 4 },
           py: { xs: 2, sm: 4 },
           width: "100%",
-          maxWidth: 390,
-          borderRadius: 5,
-          border: 'none',
-          boxShadow: 9,
-          bgcolor: "rgba(255,255,255,0.92)",
-          backdropFilter: "blur(4px)",
+          maxWidth: 520,
+          borderRadius: 3,
+          boxShadow: 6,
+          bgcolor: "#fff"
         }}
       >
         <CardContent sx={{ p: 0 }}>
-          <Box display="flex" justifyContent="center" alignItems="center" mb={1}>
-            <Store sx={{ fontSize: 54, color: "primary.main", mr: 1 }} />
+          <Box sx={{ position: 'relative', background: '#e8e9ff', borderRadius: 2, p: 2.5, pr: 3, mb: 4, overflow: 'visible', textAlign: 'right' }}>
+            <Typography variant="h6" fontWeight={700} color="#3a57e8" mb={0.5}>
+              Welcome Back !
+            </Typography>
+            <Box sx={{ position: 'absolute', left: 20, bottom: -34, width: 84, height: 84, borderRadius: '50%', bgcolor: '#fff', boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Store sx={{ fontSize: 36, color: '#3a57e8' }} />
+            </Box>
           </Box>
 
-          <Typography variant="h5" fontWeight={700} color="primary.main" align="center" mb={0.5}>
-            Đăng nhập hệ thống CCMS
-          </Typography>
-          <Typography variant="body2" color="GrayText" align="center" mb={2}>
-            Quản lý bán hàng & lịch làm việc
-          </Typography>
+         
 
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          <Formik
+            initialValues={{ email: "", password: "" }}
+            validationSchema={validationSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ errors, touched, isSubmitting, handleChange, values, setFieldValue }) => (
+              <Form autoComplete="off">
+                <TextField
+                  fullWidth
+                  name="email"
+                  label="Username"
+                  value={values.email}
+                  onChange={(e) => { handleChange(e); setEmail(e.target.value); }}
+                  margin="normal"
+                  autoFocus
+                  placeholder="Enter username"
+                  error={touched.email && Boolean(errors.email)}
+                  helperText={touched.email && errors.email}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start"><AccountCircle /></InputAdornment>
+                    )
+                  }}
+                />
 
-          <form onSubmit={handleLogin} autoComplete="off">
-            <TextField
-              fullWidth
-              label="Tên đăng nhập"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              margin="normal"
-              required
-              autoFocus
-              placeholder="Ví dụ: admin, manager, cashier ..."
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start"><AccountCircle /></InputAdornment>
-                )
-              }}
-            />
+                <TextField
+                  fullWidth
+                  name="password"
+                  label="Mật khẩu"
+                  type={showPass ? "text" : "password"}
+                  value={values.password}
+                  onChange={(e) => { handleChange(e); setPassword(e.target.value); }}
+                  margin="normal"
+                  placeholder="Enter Password"
+                  error={touched.password && Boolean(errors.password)}
+                  helperText={touched.password && errors.password}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start"><Lock /></InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton aria-label="toggle password visibility" onClick={() => setShowPass(v => !v)} edge="end" size="small">
+                          {showPass ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                />
 
-            <TextField
-              fullWidth
-              label="Mật khẩu"
-              type={showPass ? "text" : "password"}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              margin="normal"
-              required
-              placeholder="VD: 123"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start"><Lock /></InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton aria-label="toggle password visibility" onClick={() => setShowPass(v => !v)} edge="end" size="small">
-                      {showPass ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
+                <FormControlLabel sx={{ mt: 0.5 }} control={<Checkbox size="small" color="primary" onChange={(e) => setFieldValue('rememberMe', e.target.checked)} />} label={<Typography variant="body2">Remember me</Typography>} />
 
-            <Button
-              fullWidth
-              type="submit"
-              size="large"
-              variant="contained"
-              sx={{ mt: 2, borderRadius: 3, fontWeight: 700, boxShadow: 2 }}
-            >
-              Đăng nhập
-            </Button>
-          </form>
+                <Button
+                  fullWidth
+                  type="submit"
+                  size="large"
+                  variant="contained"
+                  disabled={isSubmitting}
+                  sx={{ mt: 1.5, borderRadius: 2, fontWeight: 700, boxShadow: 2, textTransform: 'none' }}
+                >
+                  {isSubmitting ? "Đang đăng nhập..." : "Log In"}
+                </Button>
 
-          <Box mt={3} textAlign="center">
-            <Alert severity="info" variant="outlined" sx={{ fontSize: 13, px: 2, py: 0.5, mb: 1 }}>
-              <strong>Tài khoản demo:</strong> admin, manager, cashier, warehouse, supplier<br />Mật khẩu: <b>123</b>
-            </Alert>
-            <Typography variant="caption" color="GrayText">
+                <Box textAlign="center" mt={3}>
+                  <Typography variant="subtitle2" color="text.secondary">Sign in with</Typography>
+                  <Stack direction="row" spacing={2} justifyContent="center" mt={1.2}>
+                    <IconButton size="small" sx={{ bgcolor: '#eef2ff', color: '#3b5998' }}><Facebook fontSize="small" /></IconButton>
+                    <IconButton size="small" sx={{ bgcolor: '#eef2ff', color: '#1DA1F2' }}><Twitter fontSize="small" /></IconButton>
+                    <IconButton size="small" sx={{ bgcolor: '#eef2ff', color: '#DB4437' }}><Google fontSize="small" /></IconButton>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" mt={2}>
+                    <LockOutlined sx={{ fontSize: 16, color: 'text.disabled' }} />
+                    <Link component="button" variant="body2" color="primary">Forgot your password?</Link>
+                  </Stack>
+                </Box>
+              </Form>
+            )}
+          </Formik>
+
+          <Box mt={3.5} textAlign="center">
+            <Typography variant="body2" color="text.secondary">
+              Don’t have an account ? <Link component="button" color="primary">Signup now</Link>
+            </Typography>
+            <Typography variant="caption" color="GrayText" display="block" mt={2.5}>
               © 2025 CCMS
             </Typography>
           </Box>

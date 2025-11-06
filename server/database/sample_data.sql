@@ -32,15 +32,15 @@ INSERT INTO Supplier (name, contact, email, address) VALUES
 ('Fashion Supplier Ltd.', 'Jane Smith', 'jane@fashionsupplier.com', '200 Fashion Avenue'),
 ('Food Supplier Inc.', 'Bob Wilson', 'bob@foodsupplier.com', '300 Food Boulevard');
 
--- 4. Insert Users (Employees)
-INSERT INTO User (username, password, role, store_id, email, status) VALUES
-('ceo_admin', '$2b$10$example_hash_here', 'CEO', NULL, 'ceo@ccms.com', 'active'),
-('manager_store1', '$2b$10$example_hash_here', 'Store_Manager', 1, 'manager1@ccms.com', 'active'),
-('cashier_store1_1', '$2b$10$example_hash_here', 'Cashier', 1, 'cashier1@ccms.com', 'active'),
-('cashier_store1_2', '$2b$10$example_hash_here', 'Cashier', 1, 'cashier2@ccms.com', 'active'),
-('cashier_store1_3', '$2b$10$example_hash_here', 'Cashier', 1, 'cashier3@ccms.com', 'active'),
-('warehouse_staff1', '$2b$10$example_hash_here', 'Warehouse', 1, 'warehouse1@ccms.com', 'active'),
-('supplier_rep1', '$2b$10$example_hash_here', 'Supplier', NULL, 'supplier1@ccms.com', 'active');
+-- Note: includes phone column
+INSERT INTO User (username, password, role, store_id, email, phone, status) VALUES
+('ceo_admin', '123', 'CEO', NULL, 'ceo@ccms.com', '0900000001', 'active'),
+('manager_store1', '123', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', 'active'),
+('cashier_store1_1', '123', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', 'active'),
+('cashier_store1_2', '123', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', 'active'),
+('cashier_store1_3', '123', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', 'active'),
+('warehouse_staff1', '123', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', 'active'),
+('supplier_rep1', '123', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', 'active');
 
 -- 5. Insert Products
 INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES

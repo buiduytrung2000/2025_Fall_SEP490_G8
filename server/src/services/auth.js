@@ -29,17 +29,26 @@ export const registerService = ({ phone, password, name }) => new Promise(async 
     }
 })
 
-export const loginService = ({ phone, password }) => new Promise(async (resolve, reject) => {
+export const loginService = ({ email, password }) => new Promise(async (resolve, reject) => {
     try {
         const response = await db.User.findOne({
-            where: { phone },
+            where: { email },
+            attributes: ['user_id', 'username', 'email', 'password', 'role'],
             raw: true
         })
-        const isCorrectPassword = response && bcrypt.compareSync(password, response.password)
-        const token = isCorrectPassword && jwt.sign({ id: response.id, phone: response.phone }, process.env.SECRET_KEY, { expiresIn: '2d' })
+        let isCorrectPassword = false
+        if (response) {
+            // Support both hashed and plain demo passwords
+            if (typeof response.password === 'string' && response.password.startsWith('$2')) {
+                isCorrectPassword = bcrypt.compareSync(password, response.password)
+            } else {
+                isCorrectPassword = password === response.password
+            }
+        }
+        const token = isCorrectPassword && jwt.sign({ id: response.user_id, email: response.email, username: response.username, role: response.role }, process.env.SECRET_KEY, { expiresIn: '2d' })
         resolve({
             err: token ? 0 : 2,
-            msg: token ? 'Login is successfully !' : response ? 'Password is wrong !' : 'Phone number not found !',
+            msg: token ? 'Login is successfully !' : response ? 'Password is wrong !' : 'Email not found !',
             token: token || null
         })
 

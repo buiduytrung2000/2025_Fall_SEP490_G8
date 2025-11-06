@@ -1,6 +1,6 @@
 // src/pages/Employee/MySchedule.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { getSchedules, getStaff } from '../../api/mockApi';
+import { getMySchedules } from '../../api/scheduleApi';
 import { useAuth } from '../../contexts/AuthContext'; // Dùng để biết ai đang đăng nhập
 
 // Import các component từ Material-UI (MUI)
@@ -37,13 +37,14 @@ const formatDate = (date) => {
     return `${d}/${m}`;
 };
 const weekDayNames = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
-const shiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
+// Will be populated from backend data
+const defaultShiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
 // --- HẾT HÀM HELPER ---
 
 const MySchedule = () => {
     const [currentDate, setCurrentDate] = useState(new Date('2025-10-23T10:00:00')); // Tuần 43
     const [schedule, setSchedule] = useState({});
-    const [staffList, setStaffList] = useState([]);
+    const [shiftNames, setShiftNames] = useState(defaultShiftNames);
     const [loading, setLoading] = useState(true);
     
     const { user } = useAuth(); // Lấy thông tin user đang đăng nhập
@@ -54,30 +55,39 @@ const MySchedule = () => {
     const endOfWeek = useMemo(() => addDays(startOfWeek, 6), [startOfWeek]);
     const weekDays = useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(startOfWeek, i)), [startOfWeek]);
     
-    const staffMap = useMemo(() => {
-        return staffList.reduce((acc, staff) => {
-            acc[staff.id] = staff.name;
-            return acc;
-        }, {});
-    }, [staffList]);
+    // Build schedule grid: { [date]: { [shiftName]: { mine: true } } }
 
     // useEffect để tải dữ liệu
     useEffect(() => {
+        const start = startOfWeek.toISOString().split('T')[0];
+        const end = endOfWeek.toISOString().split('T')[0];
         setLoading(true);
-        Promise.all([getSchedules(startOfWeek), getStaff()])
-            .then(([scheduleData, staffData]) => {
-                setSchedule(scheduleData);
-                setStaffList(staffData);
-
-                // Tìm ID của nhân viên đang đăng nhập
-                const currentUser = staffData.find(staff => staff.name === user.name);
-                if (currentUser) {
-                    setMyStaffId(currentUser.id);
+        getMySchedules(start, end)
+            .then(res => {
+                if (res && res.err === 0) {
+                    const rows = res.data || [];
+                    const namesSet = new Set();
+                    const grid = {};
+                    rows.forEach(r => {
+                        const dateKey = r.work_date;
+                        const name = `${r.shiftTemplate.name} (${r.shiftTemplate.start_time.slice(0,5)} - ${r.shiftTemplate.end_time.slice(0,5)})`;
+                        namesSet.add(name);
+                        if (!grid[dateKey]) grid[dateKey] = {};
+                        grid[dateKey][name] = { mine: true };
+                    });
+                    setShiftNames(Array.from(namesSet).length ? Array.from(namesSet) : defaultShiftNames);
+                    setSchedule(grid);
+                } else {
+                    setShiftNames(defaultShiftNames);
+                    setSchedule({});
                 }
             })
-            .catch(console.error)
+            .catch(() => {
+                setShiftNames(defaultShiftNames);
+                setSchedule({});
+            })
             .finally(() => setLoading(false));
-    }, [startOfWeek, user.name]); // Thêm user.name vào dependencies
+    }, [startOfWeek, endOfWeek]);
 
     // --- Hàm cho các nút bấm (cho phép xem tuần khác) ---
     const handlePrevWeek = () => {
@@ -130,9 +140,7 @@ const MySchedule = () => {
                                     {weekDays.map((day) => {
                                         const dayKey = day.toISOString().split('T')[0];
                                         const shiftData = schedule[dayKey] ? schedule[dayKey][shiftName] : null;
-                                        
-                                        // Kiểm tra xem ca này có phải của tôi không
-                                        const isMyShift = (shiftData && shiftData.employeeId === myStaffId);
+                                        const isMyShift = !!shiftData;
 
                                         return (
                                             <TableCell 
