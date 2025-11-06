@@ -164,7 +164,7 @@ export const createSchedule = async (req, res) => {
     try {
         const data = {
             ...req.body,
-            created_by: req.user.id
+            created_by: req.user?.user_id || req.user?.id
         };
 
         // Check for conflicts before creating
@@ -201,13 +201,22 @@ export const updateSchedule = async (req, res) => {
         // If updating user_id, work_date, or shift_template_id, check for conflicts
         if (data.user_id || data.work_date || data.shift_template_id) {
             const schedule = await scheduleService.getScheduleById(id);
-            if (schedule.err !== 0) {
+            if (schedule.err !== 0 || !schedule.data) {
                 return res.status(404).json(schedule);
             }
 
-            const userId = data.user_id || schedule.data.user_id;
-            const workDate = data.work_date || schedule.data.work_date;
-            const shiftTemplateId = data.shift_template_id || schedule.data.shift_template_id;
+            // Safely access schedule data (handle both Sequelize instance and plain object)
+            const scheduleData = schedule.data.get ? schedule.data.get({ plain: true }) : schedule.data;
+            const userId = data.user_id || scheduleData.user_id;
+            const workDate = data.work_date || scheduleData.work_date;
+            const shiftTemplateId = data.shift_template_id || scheduleData.shift_template_id;
+
+            if (!userId || !workDate || !shiftTemplateId) {
+                return res.status(400).json({
+                    err: 1,
+                    msg: 'Missing required schedule information for conflict check'
+                });
+            }
 
             const conflictCheck = await scheduleService.checkScheduleConflicts(
                 userId,
@@ -215,9 +224,9 @@ export const updateSchedule = async (req, res) => {
                 shiftTemplateId
             );
 
-            if (conflictCheck.data.has_conflicts) {
+            if (conflictCheck && conflictCheck.data && conflictCheck.data.has_conflicts) {
                 // Exclude current schedule from conflicts
-                const relevantConflicts = conflictCheck.data.conflicts.filter(
+                const relevantConflicts = (conflictCheck.data.conflicts || []).filter(
                     c => c.schedule_id !== parseInt(id)
                 );
 
@@ -357,7 +366,7 @@ export const createShiftChangeRequest = async (req, res) => {
     try {
         const data = {
             ...req.body,
-            from_user_id: req.body.from_user_id || req.user.id
+            from_user_id: req.body.from_user_id || req.user?.user_id || req.user?.id
         };
 
         const response = await scheduleService.createShiftChangeRequest(data);
@@ -439,7 +448,7 @@ export const reviewShiftChangeRequest = async (req, res) => {
         const response = await scheduleService.updateShiftChangeRequestStatus(
             id,
             status,
-            req.user.id,
+            req.user?.user_id || req.user?.id,
             review_notes
         );
         return res.status(response.err === 0 ? 200 : 404).json(response);

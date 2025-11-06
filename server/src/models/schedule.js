@@ -93,11 +93,6 @@ module.exports = (sequelize, DataTypes) => {
     updatedAt: 'updated_at',
     indexes: [
       {
-        unique: true,
-        fields: ['store_id', 'shift_template_id', 'work_date'],
-        name: 'unique_schedule_store_shift_date'
-      },
-      {
         fields: ['store_id']
       },
       {

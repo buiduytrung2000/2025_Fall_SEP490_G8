@@ -24,20 +24,27 @@ const modalStyle = {
     borderRadius: 2,
 };
 
-const ChangeShiftModal = ({ show, onHide, onSave, shiftInfo, staffList }) => {
+const ChangeShiftModal = ({ show, onHide, onSave, shiftInfo, staffList = [] }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
-    // Cập nhật state nội bộ khi modal được mở với thông tin ca làm mới
+    const toIdString = (v) => (v === null || v === undefined ? '' : String(v));
+
+    // Đồng bộ giá trị Select với danh sách option hiện tại
     useEffect(() => {
-        if (shiftInfo) {
-            setSelectedEmployeeId(shiftInfo.employeeId || '');
+        const desired = toIdString(shiftInfo?.employeeId);
+        const optionIds = new Set(staffList.map(s => toIdString(s.id)));
+        if (desired && optionIds.has(desired)) {
+            setSelectedEmployeeId(desired);
+        } else {
+            // Nếu chưa có option tương ứng (VD: staffList chưa load), set rỗng để tránh out-of-range
+            setSelectedEmployeeId('');
         }
-    }, [shiftInfo]);
+    }, [shiftInfo, staffList]);
 
     if (!shiftInfo) return null; // Không render gì nếu không có thông tin
 
     const handleSaveClick = () => {
-        onSave(selectedEmployeeId);
+        onSave(selectedEmployeeId || null);
     };
 
     return (
@@ -63,7 +70,7 @@ const ChangeShiftModal = ({ show, onHide, onSave, shiftInfo, staffList }) => {
                         onChange={(e) => setSelectedEmployeeId(e.target.value)}
                     >
                         {staffList.map(staff => (
-                            <MenuItem key={staff.id} value={staff.id}>
+                            <MenuItem key={staff.id} value={toIdString(staff.id)}>
                                 {staff.name} ({staff.role})
                             </MenuItem>
                         ))}

@@ -12,8 +12,6 @@ import { Edit, Delete, PersonAdd } from '@mui/icons-material'; // <-- Thêm icon
 const StaffManagement = () => {
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    // ... (các state và hàm xử lý modal giữ nguyên)
     const [showFormModal, setShowFormModal] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentStaff, setCurrentStaff] = useState(null);
