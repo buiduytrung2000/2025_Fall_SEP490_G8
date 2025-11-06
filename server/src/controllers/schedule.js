@@ -164,7 +164,7 @@ export const createSchedule = async (req, res) => {
     try {
         const data = {
             ...req.body,
-            created_by: req.user.id
+            created_by: req.user?.user_id || req.user?.id
         };
 
         // Check for conflicts before creating
@@ -357,7 +357,7 @@ export const createShiftChangeRequest = async (req, res) => {
     try {
         const data = {
             ...req.body,
-            from_user_id: req.body.from_user_id || req.user.id
+            from_user_id: req.body.from_user_id || req.user?.user_id || req.user?.id
         };
 
         const response = await scheduleService.createShiftChangeRequest(data);
@@ -439,7 +439,7 @@ export const reviewShiftChangeRequest = async (req, res) => {
         const response = await scheduleService.updateShiftChangeRequestStatus(
             id,
             status,
-            req.user.id,
+            req.user?.user_id || req.user?.id,
             review_notes
         );
         return res.status(response.err === 0 ? 200 : 404).json(response);

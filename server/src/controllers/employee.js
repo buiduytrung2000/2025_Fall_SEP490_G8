@@ -18,7 +18,8 @@ export const getEmployees = async (req, res) => {
 
         // Scope by manager's store
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const currentUserId = req.user?.user_id || req.user?.id;
+            const info = await employeeService.getStoreInfoByUserId(currentUserId);
             if (!info?.store_id) return res.status(403).json({ err: 1, msg: 'Manager has no store assigned' });
             filters.store_id = info.store_id;
         }
@@ -44,7 +45,7 @@ export const getEmployeeById = async (req, res) => {
         const { id } = req.params;
         const response = await employeeService.getEmployeeById(id);
         if (req.user?.role === 'Store_Manager' && response?.data) {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             if (response.data.store_id !== info.store_id) {
                 return res.status(403).json({ err: 1, msg: 'Forbidden: cross-store access' });
             }
@@ -96,7 +97,7 @@ export const createEmployee = async (req, res) => {
 
         // Managers can only create within their store
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             if (!info?.store_id) return res.status(403).json({ err: 1, msg: 'Manager has no store assigned' });
             data.store_id = info.store_id;
         }
@@ -140,7 +141,7 @@ export const updateEmployee = async (req, res) => {
 
         // Managers can only update employees in their store
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             const target = await employeeService.getEmployeeById(id);
             if (!target?.data || target.data.store_id !== info.store_id) {
                 return res.status(403).json({ err: 1, msg: 'Forbidden: cross-store update' });
@@ -165,7 +166,7 @@ export const deleteEmployee = async (req, res) => {
         const { permanent } = req.query; // If permanent=true, hard delete, else soft delete (deactivate)
 
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             const target = await employeeService.getEmployeeById(id);
             if (!target?.data || target.data.store_id !== info.store_id) {
                 return res.status(403).json({ err: 1, msg: 'Forbidden: cross-store delete' });
@@ -193,7 +194,7 @@ export const activateEmployee = async (req, res) => {
     try {
         const { id } = req.params;
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             const target = await employeeService.getEmployeeById(id);
             if (!target?.data || target.data.store_id !== info.store_id) {
                 return res.status(403).json({ err: 1, msg: 'Forbidden: cross-store activate' });
@@ -219,7 +220,7 @@ export const getEmployeeStatistics = async (req, res) => {
         if (role) filters.role = role;
 
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             filters.store_id = info.store_id;
         }
 
@@ -244,7 +245,7 @@ export const getEmployeesByStore = async (req, res) => {
         if (role) filters.role = role;
 
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             if (parseInt(store_id) !== info.store_id) {
                 return res.status(403).json({ err: 1, msg: 'Forbidden: cross-store access' });
             }
@@ -271,7 +272,7 @@ export const getEmployeesByRole = async (req, res) => {
         if (status) filters.status = status;
 
         if (req.user?.role === 'Store_Manager') {
-            const info = await employeeService.getStoreInfoByUserId(req.user.id);
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
             filters.store_id = info.store_id;
         }
 
