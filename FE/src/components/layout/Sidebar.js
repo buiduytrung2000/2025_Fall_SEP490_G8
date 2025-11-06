@@ -1,23 +1,24 @@
 // src/components/layout/Sidebar.js
-import React from 'react';
+import React, { useState } from 'react';
 import { Nav, Button } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import '../../assets/Sidebar.css';
+import ConfirmationModal from '../common/ConfirmationModal';
 
 // Import icons (Thêm FaBars)
 import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
-    FaBars, FaUserClock, FaCashRegister , FaChartPie// Icon cho nút Toggle
+    FaBars, FaUserClock, FaCashRegister, FaChartPie// Icon cho nút Toggle
 } from 'react-icons/fa';
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
 const navLinks = {
-    Admin: [ { to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" } ],
+    Admin: [{ to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" }],
     Manager: [
-      { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },
+        { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },
         { to: "/manager/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
         { to: "/manager/orders", icon: <FaTruck />, text: "Đơn nhập hàng" },
         { to: "/manager/inventory", icon: <FaWarehouse />, text: "Quản lý Tồn kho" },
@@ -29,17 +30,17 @@ const navLinks = {
         { to: "/cashier/pos", icon: <FaCashRegister />, text: "Bán hàng (POS)" },
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" }
     ],
-    CEO: [ { to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" } ],
+    CEO: [{ to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" }],
     Warehouse: [
         { to: "/warehouse/inventory", icon: <FaWarehouse />, text: "Tồn kho" },
         { to: "/warehouse/pricing", icon: <FaBox />, text: "Quản lý giá SP" },
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "QL đơn chi nhánh" },
     ],
-    Supplier: [ { to: "/supplier/portal", icon: <FaTruck />, text: "Đơn đặt hàng" } ],
+    Supplier: [{ to: "/supplier/portal", icon: <FaTruck />, text: "Đơn đặt hàng" }],
 };
 
 const getMenuHeading = (role) => {
-    switch(role) {
+    switch (role) {
         case 'Admin': return 'Admin Tools';
         case 'Manager': return 'Quản lý Cửa hàng';
         case 'CEO': return 'Báo cáo';
@@ -56,11 +57,19 @@ const getMenuHeading = (role) => {
 const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const handleLogout = () => {
         logout();
         navigate('/login');
     }
+
+    const requestLogout = () => setShowConfirm(true);
+    const cancelLogout = () => setShowConfirm(false);
+    const confirmLogout = () => {
+        setShowConfirm(false);
+        handleLogout();
+    };
 
     const userNavLinks = user ? navLinks[user.role] || [] : [];
     const menuHeading = user ? getMenuHeading(user.role) : 'Menu';
@@ -85,7 +94,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
             {/* 2. Phần Điều Hướng Chính */}
             <Nav className="flex-column sidebar-nav flex-grow-1">
                 <span className="menu-heading">{menuHeading}</span>
-                
+
                 {userNavLinks.map((link) => (
                     <LinkContainer to={link.to} key={link.to}>
                         {/* Thêm 'title' để hiển thị tooltip khi thu gọn */}
@@ -96,7 +105,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
                     </LinkContainer>
                 ))}
             </Nav>
-            
+
             {/* 3. Phần Footer (Thông tin user & Đăng xuất) */}
             <div className="sidebar-footer">
                 {user && (
@@ -105,11 +114,18 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
                         <span className="user-role">{user.role}</span>
                     </div>
                 )}
-                <Button variant="secondary" className="w-100 btn-logout" onClick={handleLogout} title="Đăng xuất">
+                <Button variant="secondary" className="w-100 btn-logout" onClick={requestLogout} title="Đăng xuất">
                     <FaSignOutAlt className="logout-icon" />
                     <span className="nav-text">Đăng xuất</span>
                 </Button>
             </div>
+            <ConfirmationModal
+                show={showConfirm}
+                onHide={cancelLogout}
+                onConfirm={confirmLogout}
+                title="Xác nhận đăng xuất"
+                message="Bạn có chắc chắn muốn đăng xuất không?"
+            />
         </div>
     );
 };

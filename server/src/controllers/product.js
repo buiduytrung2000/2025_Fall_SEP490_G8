@@ -85,3 +85,21 @@ export const remove = async (req, res) => {
     }
 }
 
+// GET PRODUCTS BY STORE
+export const getByStore = async (req, res) => {
+    const { store_id } = req.params
+    try {
+        if (!store_id) return res.status(400).json({
+            err: 1,
+            msg: 'Missing store_id'
+        })
+        const response = await productService.getByStore(store_id)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+

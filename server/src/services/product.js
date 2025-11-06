@@ -171,3 +171,37 @@ export const remove = (product_id) => new Promise(async (resolve, reject) => {
     }
 })
 
+// GET PRODUCTS BY STORE
+export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
+    try {
+        const inventories = await db.Inventory.findAll({
+            where: { store_id },
+            include: [
+                {
+                    model: db.Product,
+                    as: 'product'
+                }
+            ],
+            nest: true
+        })
+
+        const data = inventories.map(inv => ({
+            inventory_id: inv.inventory_id,
+            store_id: inv.store_id,
+            product_id: inv.product_id,
+            stock: inv.stock,
+            min_stock_level: inv.min_stock_level,
+            reorder_point: inv.reorder_point,
+            product: inv.product
+        }))
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data
+        })
+    } catch (error) {
+        reject(error)
+    }
+})
+

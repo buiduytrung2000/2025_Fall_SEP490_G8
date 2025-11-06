@@ -67,7 +67,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-        localStorage.removeItem('user');
+        try {
+            localStorage.removeItem('user');
+            localStorage.removeItem('store_id');
+        } catch {}
         setUser(null);
     };
 

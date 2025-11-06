@@ -1,11 +1,13 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Container, Row, Col, Form, Button, ListGroup, Card, InputGroup } from 'react-bootstrap';
 import { 
     FaBars, FaSearch, FaQrcode, FaCartPlus, 
     FaShoppingCart, FaUserCircle, FaTimes 
 } from 'react-icons/fa';
 import '../../assets/POS.css'; 
+import { getProductsByStore } from '../../api/productApi';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Hàm helper để format tiền tệ
 const formatCurrency = (number) => {
@@ -30,11 +32,47 @@ const initialCart = [
 
 
 const POS = () => {
-    const [products, setProducts] = useState(mockProducts);
+    const { user } = useAuth();
+    const [products, setProducts] = useState([]);
     const [cart, setCart] = useState(initialCart);
     const [activeFilter, setActiveFilter] = useState('Tất cả');
     const [searchTerm, setSearchTerm] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+
+    // Tải sản phẩm theo store_id của cashier
+    useEffect(() => {
+        const load = async () => {
+            // Ưu tiên lấy store_id từ user (nếu backend cung cấp), fallback từ localStorage hoặc 1 để test
+            const storedStoreId = (() => {
+                if (user && user.store_id) return user.store_id;
+                try {
+                    const persisted = localStorage.getItem('store_id');
+                    if (persisted) return Number(persisted);
+                } catch {}
+                return 1; // fallback test
+            })();
+
+            const res = await getProductsByStore(storedStoreId);
+            if (res && res.err === 0 && Array.isArray(res.data)) {
+                const mapped = res.data.map(item => {
+                    const p = item.product || {};
+                    return {
+                        id: p.product_id,
+                        name: p.name || 'Sản phẩm',
+                        price: Number(p.hq_price || 0),
+                        oldPrice: undefined,
+                        category: p.category?.category_name || 'Tất cả',
+                        code: p.sku || ''
+                    };
+                });
+                setProducts(mapped);
+            } else {
+                setProducts([]);
+            }
+        };
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.store_id]);
 
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {

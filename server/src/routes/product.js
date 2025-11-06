@@ -4,6 +4,7 @@ import * as productController from '../controllers/product'
 const router = express.Router()
 
 router.get('/', productController.getAll)
+router.get('/by-store/:store_id', productController.getByStore)
 router.get('/:product_id', productController.getOne)
 router.post('/', productController.create)
 router.put('/:product_id', productController.update)
