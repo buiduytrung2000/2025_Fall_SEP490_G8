@@ -23,16 +23,12 @@ module.exports = (sequelize, DataTypes) => {
             primaryKey: true,
             autoIncrement: true
         },
-        supplier_name: {
+        name: {
             type: DataTypes.STRING(255),
             allowNull: false
         },
-        contact_name: {
-            type: DataTypes.STRING(100),
-            allowNull: true
-        },
-        phone: {
-            type: DataTypes.STRING(20),
+        contact: {
+            type: DataTypes.STRING(255),
             allowNull: true
         },
         address: {
@@ -47,7 +43,9 @@ module.exports = (sequelize, DataTypes) => {
         sequelize,
         modelName: 'Supplier',
         tableName: 'Supplier',
-        timestamps: false
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: 'updated_at'
     });
     return Supplier;
 };

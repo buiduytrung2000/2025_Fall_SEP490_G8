@@ -23,6 +23,13 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'supplier',
                 onDelete: 'SET NULL'
             });
+
+            // Product has many PricingRules
+            Product.hasMany(models.PricingRule, {
+                foreignKey: 'product_id',
+                as: 'pricingRules',
+                onDelete: 'CASCADE'
+            });
         }
     }
     Product.init({
