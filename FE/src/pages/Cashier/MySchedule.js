@@ -1,7 +1,6 @@
 // src/pages/Employee/MySchedule.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { getMySchedules } from '../../api/scheduleApi';
-import { useAuth } from '../../contexts/AuthContext'; // Dùng để biết ai đang đăng nhập
+import { getMySchedules, getShiftTemplates } from '../../api/scheduleApi';
 
 // Import các component từ Material-UI (MUI)
 import {
@@ -37,25 +36,59 @@ const formatDate = (date) => {
     return `${d}/${m}`;
 };
 const weekDayNames = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
-// Will be populated from backend data
-const defaultShiftNames = ['Ca Sáng (06:00 - 14:00)', 'Ca Tối (14:00 - 22:00)'];
+
+const fallbackShiftTemplates = [
+    { id: 'default-morning', label: 'Ca Sáng (06:00 - 14:00)' },
+    { id: 'default-afternoon', label: 'Ca Chiều (14:00 - 22:00)' },
+    { id: 'default-night', label: 'Ca Đêm (22:00 - 06:00)' }
+];
+
+const formatShiftLabel = (template) => {
+    if (!template) return '';
+    const start = template.start_time ? template.start_time.slice(0, 5) : '??';
+    const end = template.end_time ? template.end_time.slice(0, 5) : '??';
+    return `${template.name || 'Ca'} (${start} - ${end})`;
+};
 // --- HẾT HÀM HELPER ---
 
 const MySchedule = () => {
-    const [currentDate, setCurrentDate] = useState(new Date('2025-10-23T10:00:00')); // Tuần 43
+    const [currentDate, setCurrentDate] = useState(() => new Date());
     const [schedule, setSchedule] = useState({});
-    const [shiftNames, setShiftNames] = useState(defaultShiftNames);
+    const [shiftTemplates, setShiftTemplates] = useState(fallbackShiftTemplates);
     const [loading, setLoading] = useState(true);
-    
-    const { user } = useAuth(); // Lấy thông tin user đang đăng nhập
-    const [myStaffId, setMyStaffId] = useState(null);
+    const [error, setError] = useState(null);
 
     // Tính toán các biến ngày tháng
     const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
     const endOfWeek = useMemo(() => addDays(startOfWeek, 6), [startOfWeek]);
     const weekDays = useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(startOfWeek, i)), [startOfWeek]);
     
-    // Build schedule grid: { [date]: { [shiftName]: { mine: true } } }
+    // Build schedule grid: { [date]: { [shiftTemplateId]: { mine: true } } }
+
+    useEffect(() => {
+        let mounted = true;
+
+        getShiftTemplates()
+            .then(res => {
+                if (!mounted) return;
+                if (res && res.err === 0) {
+                    const templates = (res.data || []).map(t => ({
+                        id: String(t.shift_template_id),
+                        label: formatShiftLabel(t)
+                    }));
+                    if (templates.length) {
+                        setShiftTemplates(templates);
+                    }
+                }
+            })
+            .catch(() => {
+                // Giữ fallback nếu lỗi
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     // useEffect để tải dữ liệu
     useEffect(() => {
@@ -66,28 +99,55 @@ const MySchedule = () => {
             .then(res => {
                 if (res && res.err === 0) {
                     const rows = res.data || [];
-                    const namesSet = new Set();
                     const grid = {};
+                    const scheduleTemplates = new Map();
                     rows.forEach(r => {
                         const dateKey = r.work_date;
-                        const name = `${r.shiftTemplate.name} (${r.shiftTemplate.start_time.slice(0,5)} - ${r.shiftTemplate.end_time.slice(0,5)})`;
-                        namesSet.add(name);
+                        const templateId = String(r.shift_template_id || r.shiftTemplate?.shift_template_id || '');
                         if (!grid[dateKey]) grid[dateKey] = {};
-                        grid[dateKey][name] = { mine: true };
+                        if (templateId) {
+                            grid[dateKey][templateId] = { mine: true };
+                            if (r.shiftTemplate) {
+                                scheduleTemplates.set(templateId, formatShiftLabel(r.shiftTemplate));
+                            }
+                        }
                     });
-                    setShiftNames(Array.from(namesSet).length ? Array.from(namesSet) : defaultShiftNames);
+                    if (scheduleTemplates.size) {
+                        setShiftTemplates(prev => {
+                            const existingIds = new Set(prev.map(t => t.id));
+                            const additions = [];
+                            scheduleTemplates.forEach((label, id) => {
+                                if (!existingIds.has(id)) {
+                                    additions.push({ id, label });
+                                }
+                            });
+                            return additions.length ? [...prev, ...additions] : prev;
+                        });
+                    }
                     setSchedule(grid);
+                    setError(null);
                 } else {
-                    setShiftNames(defaultShiftNames);
+                    setShiftTemplates(prev => prev.length ? prev : fallbackShiftTemplates);
                     setSchedule({});
+                    setError(res?.msg || 'Không thể tải lịch làm việc.');
                 }
             })
             .catch(() => {
-                setShiftNames(defaultShiftNames);
+                setShiftTemplates(prev => prev.length ? prev : fallbackShiftTemplates);
                 setSchedule({});
+                setError('Có lỗi xảy ra khi tải lịch làm việc.');
             })
             .finally(() => setLoading(false));
     }, [startOfWeek, endOfWeek]);
+
+    const hasSchedules = useMemo(() => {
+        return shiftTemplates.some(shift => {
+            return weekDays.some(day => {
+                const dayKey = day.toISOString().split('T')[0];
+                return !!(schedule[dayKey] && schedule[dayKey][shift.id]);
+            });
+        });
+    }, [shiftTemplates, weekDays, schedule]);
 
     // --- Hàm cho các nút bấm (cho phép xem tuần khác) ---
     const handlePrevWeek = () => {
@@ -115,54 +175,69 @@ const MySchedule = () => {
             {/* --- Bảng lịch --- */}
             <TableContainer component={Paper} sx={{ boxShadow: 3, borderRadius: 2 }}>
                 {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+                        <CircularProgress />
+                    </Box>
                 ) : (
-                    <Table sx={{ minWidth: 650, borderCollapse: 'collapse' }} aria-label="schedule table">
-                        <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                            <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', border: '1px solid #e0e0e0', width: '150px' }}>
-                                    CA LÀM VIỆC
-                                </TableCell>
-                                {weekDays.map((day, index) => (
-                                    <TableCell key={index} align="center" sx={{ fontWeight: 'bold', fontSize: '1rem', border: '1px solid #e0e0e0' }}>
-                                        {weekDayNames[index]} ({formatDate(day)})
+                    <>
+                        {!hasSchedules && (
+                            <Box sx={{ p: 2, textAlign: 'center' }}>
+                                <Typography variant="body1">
+                                    {error || 'Bạn chưa có lịch làm việc trong tuần này.'}
+                                </Typography>
+                            </Box>
+                        )}
+                        <Table sx={{ minWidth: 650, borderCollapse: 'collapse' }} aria-label="schedule table">
+                            <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', border: '1px solid #e0e0e0', width: '150px' }}>
+                                        CA LÀM VIỆC
                                     </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {shiftNames.map(shiftName => (
-                                <TableRow key={shiftName}>
-                                    <TableCell component="th" scope="row" sx={{ fontWeight: 500, border: '1px solid #e0e0e0' }}>
-                                        {shiftName}
-                                    </TableCell>
-                                    
-                                    {weekDays.map((day) => {
-                                        const dayKey = day.toISOString().split('T')[0];
-                                        const shiftData = schedule[dayKey] ? schedule[dayKey][shiftName] : null;
-                                        const isMyShift = !!shiftData;
+                                    {weekDays.map((day, index) => (
+                                        <TableCell
+                                            key={index}
+                                            align="center"
+                                            sx={{ fontWeight: 'bold', fontSize: '1rem', border: '1px solid #e0e0e0' }}
+                                        >
+                                            {weekDayNames[index]} ({formatDate(day)})
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {shiftTemplates.map(shift => (
+                                    <TableRow key={shift.id}>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 500, border: '1px solid #e0e0e0' }}>
+                                            {shift.label}
+                                        </TableCell>
 
-                                        return (
-                                            <TableCell 
-                                                key={dayKey} 
-                                                align="center" 
-                                                sx={{ 
-                                                    border: '1px solid #e0e0e0', 
-                                                    p: 2,
-                                                    // Đánh dấu ca của mình
-                                                    backgroundColor: isMyShift ? '#e7f0ff' : 'inherit',
-                                                    fontWeight: isMyShift ? 'bold' : 'normal',
-                                                    color: isMyShift ? '#0a58ca' : 'inherit'
-                                                }}
-                                            >
-                                                {isMyShift ? "CÓ LỊCH" : "-"}
-                                            </TableCell>
-                                        );
-                                    })}
-                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                                        {weekDays.map(day => {
+                                            const dayKey = day.toISOString().split('T')[0];
+                                            const shiftData = schedule[dayKey] ? schedule[dayKey][shift.id] : null;
+                                            const isMyShift = !!shiftData;
+
+                                            return (
+                                                <TableCell
+                                                    key={dayKey}
+                                                    align="center"
+                                                    sx={{
+                                                        border: '1px solid #e0e0e0',
+                                                        p: 2,
+                                                        // Đánh dấu ca của mình
+                                                        backgroundColor: isMyShift ? '#e7f0ff' : 'inherit',
+                                                        fontWeight: isMyShift ? 'bold' : 'normal',
+                                                        color: isMyShift ? '#0a58ca' : 'inherit'
+                                                    }}
+                                                >
+                                                    {isMyShift ? 'CÓ LỊCH' : '-'}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </>
                 )}
             </TableContainer>
         </Box>
