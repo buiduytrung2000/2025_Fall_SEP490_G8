@@ -103,3 +103,16 @@ export const getByStore = async (req, res) => {
     }
 }
 
+// GET PRODUCTS FOR PRICE MANAGEMENT
+export const getForPriceManagement = async (req, res) => {
+    try {
+        const response = await productService.getForPriceManagement(req.query)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+

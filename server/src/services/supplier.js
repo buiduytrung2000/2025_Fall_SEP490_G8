@@ -38,9 +38,8 @@ export const getOne = (supplier_id) => new Promise(async (resolve, reject) => {
 export const create = (body) => new Promise(async (resolve, reject) => {
     try {
         const response = await db.Supplier.create({
-            supplier_name: body.supplier_name,
-            contact_name: body.contact_name,
-            phone: body.phone,
+            name: body.name || body.supplier_name,
+            contact: body.contact || body.contact_name,
             address: body.address,
             email: body.email
         })
@@ -57,14 +56,16 @@ export const create = (body) => new Promise(async (resolve, reject) => {
 // UPDATE SUPPLIER
 export const update = (supplier_id, body) => new Promise(async (resolve, reject) => {
     try {
+        const updateData = {}
+        if (body.name !== undefined) updateData.name = body.name
+        if (body.supplier_name !== undefined) updateData.name = body.supplier_name
+        if (body.contact !== undefined) updateData.contact = body.contact
+        if (body.contact_name !== undefined) updateData.contact = body.contact_name
+        if (body.address !== undefined) updateData.address = body.address
+        if (body.email !== undefined) updateData.email = body.email
+
         const [affectedRows] = await db.Supplier.update(
-            {
-                supplier_name: body.supplier_name,
-                contact_name: body.contact_name,
-                phone: body.phone,
-                address: body.address,
-                email: body.email
-            },
+            updateData,
             {
                 where: { supplier_id }
             }

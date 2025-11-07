@@ -33,11 +33,11 @@ export const getOne = async (req, res) => {
 
 // CREATE SUPPLIER
 export const create = async (req, res) => {
-    const { supplier_name } = req.body
+    const { name, supplier_name } = req.body
     try {
-        if (!supplier_name) return res.status(400).json({
+        if (!name && !supplier_name) return res.status(400).json({
             err: 1,
-            msg: 'Missing required fields: supplier_name'
+            msg: 'Missing required fields: name'
         })
         const response = await supplierService.create(req.body)
         return res.status(200).json(response)

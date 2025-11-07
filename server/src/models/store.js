@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'store_id',
         as: 'shiftChangeRequests'
       });
+      Store.hasMany(models.PricingRule, {
+        foreignKey: 'store_id',
+        as: 'pricingRules'
+      });
     }
   }
   Store.init({

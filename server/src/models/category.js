@@ -23,19 +23,25 @@ module.exports = (sequelize, DataTypes) => {
             primaryKey: true,
             autoIncrement: true
         },
-        category_name: {
-            type: DataTypes.STRING(100),
+        name: {
+            type: DataTypes.STRING(255),
             allowNull: false
         },
-        description: {
-            type: DataTypes.TEXT,
-            allowNull: true
+        parent_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Category',
+                key: 'category_id'
+            }
         }
     }, {
         sequelize,
         modelName: 'Category',
         tableName: 'Category',
-        timestamps: false
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: 'updated_at'
     });
     return Category;
 };

@@ -58,4 +58,3 @@ export async function getAvailableEmployees(storeId, workDate, shiftTemplateId, 
     return res.json();
 }
 
-

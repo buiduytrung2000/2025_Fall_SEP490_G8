@@ -33,11 +33,11 @@ export const getOne = async (req, res) => {
 
 // CREATE CATEGORY
 export const create = async (req, res) => {
-    const { category_name } = req.body
+    const { name, category_name } = req.body
     try {
-        if (!category_name) return res.status(400).json({
+        if (!name && !category_name) return res.status(400).json({
             err: 1,
-            msg: 'Missing required fields: category_name'
+            msg: 'Missing required fields: name'
         })
         const response = await categoryService.create(req.body)
         return res.status(200).json(response)

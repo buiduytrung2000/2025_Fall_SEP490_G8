@@ -55,10 +55,10 @@ const ChangeShiftModal = ({ show, onHide, onSave, shiftInfo, staffList = [] }) =
         >
             <Box sx={modalStyle}>
                 <Typography id="change-shift-modal-title" variant="h6" component="h2" fontWeight="bold">
-                    Thay đổi nhân viên
+                    {shiftInfo?.mode === 'replace' ? 'Đổi nhân viên' : 'Thêm nhân viên'}
                 </Typography>
                 <Typography sx={{ mt: 1, mb: 2, color: 'text.secondary' }}>
-                    {shiftInfo.day} - {shiftInfo.shiftName}
+                    {(shiftInfo?.dayLabel || shiftInfo?.day) + ' - ' + (shiftInfo?.shiftLabel || shiftInfo?.shiftName)}
                 </Typography>
                 
                 <FormControl fullWidth>

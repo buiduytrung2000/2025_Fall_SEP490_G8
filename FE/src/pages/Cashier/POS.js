@@ -56,12 +56,14 @@ const POS = () => {
             if (res && res.err === 0 && Array.isArray(res.data)) {
                 const mapped = res.data.map(item => {
                     const p = item.product || {};
+                    const currentPrice = Number(p.current_price || p.hq_price || 0);
+                    const hqPrice = Number(p.hq_price || 0);
                     return {
                         id: p.product_id,
                         name: p.name || 'Sản phẩm',
-                        price: Number(p.hq_price || 0),
-                        oldPrice: undefined,
-                        category: p.category?.category_name || 'Tất cả',
+                        price: currentPrice,
+                        oldPrice: currentPrice !== hqPrice ? hqPrice : undefined,
+                        category: p.category?.name || p.category?.category_name || 'Tất cả',
                         code: p.sku || ''
                     };
                 });

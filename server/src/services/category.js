@@ -38,8 +38,8 @@ export const getOne = (category_id) => new Promise(async (resolve, reject) => {
 export const create = (body) => new Promise(async (resolve, reject) => {
     try {
         const response = await db.Category.create({
-            category_name: body.category_name,
-            description: body.description
+            name: body.name || body.category_name,
+            parent_id: body.parent_id || null
         })
         resolve({
             err: 0,
@@ -54,11 +54,13 @@ export const create = (body) => new Promise(async (resolve, reject) => {
 // UPDATE CATEGORY
 export const update = (category_id, body) => new Promise(async (resolve, reject) => {
     try {
+        const updateData = {}
+        if (body.name !== undefined) updateData.name = body.name
+        if (body.category_name !== undefined) updateData.name = body.category_name
+        if (body.parent_id !== undefined) updateData.parent_id = body.parent_id
+
         const [affectedRows] = await db.Category.update(
-            {
-                category_name: body.category_name,
-                description: body.description
-            },
+            updateData,
             {
                 where: { category_id }
             }

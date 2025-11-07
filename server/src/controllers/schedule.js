@@ -137,7 +137,11 @@ export const getEmployeeSchedules = async (req, res) => {
 // Get my schedules (current user)
 export const getMySchedules = async (req, res) => {
     try {
-        const { id } = req.user;
+        // Prefer authenticated user; fallback to explicit query for non-auth calls
+        const authId = req.user?.id || req.user?.user_id;
+        const requestedId = req.query.user_id ? parseInt(req.query.user_id) : undefined;
+        const effectiveUserId = authId || requestedId;
+
         const { start_date, end_date } = req.query;
 
         if (!start_date || !end_date) {
@@ -149,7 +153,14 @@ export const getMySchedules = async (req, res) => {
             req.query.end_date = endDate.toISOString().split('T')[0];
         }
 
-        const response = await scheduleService.getEmployeeSchedules(id, req.query.start_date, req.query.end_date);
+        if (!effectiveUserId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing user context: provide Authorization token or user_id'
+            });
+        }
+
+        const response = await scheduleService.getEmployeeSchedules(effectiveUserId, req.query.start_date, req.query.end_date);
         return res.status(200).json(response);
     } catch (error) {
         return res.status(500).json({
