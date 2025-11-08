@@ -61,10 +61,20 @@ const InvoicesManagement = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+        justifyContent="space-between" 
+        sx={{ mb: 2 }}
+        spacing={2}
+      >
         <Box>
-          <Typography variant="h4" fontWeight={700}>Hóa đơn nhập kho</Typography>
-          <Typography color="text.secondary">Duyệt hoặc từ chối hóa đơn của kho</Typography>
+          <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+            Hóa đơn nhập kho
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            Duyệt hoặc từ chối hóa đơn của kho
+          </Typography>
         </Box>
         <TextField
           select
@@ -72,7 +82,7 @@ const InvoicesManagement = () => {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           label="Lọc trạng thái"
-          sx={{ width: 220 }}
+          sx={{ width: { xs: '100%', sm: 220 } }}
         >
           {['All', 'Pending', 'Approved', 'Rejected'].map(s => (
             <MenuItem key={s} value={s}>{s}</MenuItem>
@@ -80,12 +90,21 @@ const InvoicesManagement = () => {
         </TextField>
       </Stack>
 
-      <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-        <Table sx={{ minWidth: 800 }}>
+      <TableContainer component={Paper} sx={{ borderRadius: 2, overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+        <Table sx={{ minWidth: 700 }}>
           <TableHead>
             <TableRow>
               {columns.map(c => (
-                <TableCell key={c.key} sx={{ fontWeight: 700 }}>{c.label}</TableCell>
+                <TableCell 
+                  key={c.key} 
+                  sx={{ 
+                    fontWeight: 700,
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {c.label}
+                </TableCell>
               ))}
             </TableRow>
           </TableHead>
@@ -95,15 +114,35 @@ const InvoicesManagement = () => {
               const color = r.status === 'Approved' ? 'success' : (r.status === 'Rejected' ? 'error' : 'warning');
               return (
                 <TableRow key={r.id} hover>
-                  <TableCell>{r.id}</TableCell>
-                  <TableCell>{r.supplier}</TableCell>
-                  <TableCell>{r.date}</TableCell>
-                  <TableCell>{formatVnd(r.total)}</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{r.id}</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{r.supplier}</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{r.date}</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{formatVnd(r.total)}</TableCell>
                   <TableCell><Chip size="small" color={color} label={r.status} /></TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Button disabled={!isPending || loading} variant="contained" color="success" onClick={() => handleApprove(r.id)}>Approve</Button>
-                      <Button disabled={!isPending || loading} variant="outlined" color="error" onClick={() => handleReject(r.id)}>Reject</Button>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { xs: 150, sm: 'auto' } }}>
+                      <Button 
+                        disabled={!isPending || loading} 
+                        variant="contained" 
+                        color="success" 
+                        onClick={() => handleApprove(r.id)}
+                        size="small"
+                        fullWidth={{ xs: true, sm: false }}
+                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                      >
+                        Approve
+                      </Button>
+                      <Button 
+                        disabled={!isPending || loading} 
+                        variant="outlined" 
+                        color="error" 
+                        onClick={() => handleReject(r.id)}
+                        size="small"
+                        fullWidth={{ xs: true, sm: false }}
+                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                      >
+                        Reject
+                      </Button>
                     </Stack>
                   </TableCell>
                 </TableRow>

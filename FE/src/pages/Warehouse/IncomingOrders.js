@@ -61,21 +61,49 @@ const IncomingOrders = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+        justifyContent="space-between" 
+        sx={{ mb: 2 }}
+        spacing={2}
+      >
         <Box>
-          <Typography variant="h4" fontWeight={700}>Đơn nhập từ cửa hàng</Typography>
-          <Typography color="text.secondary">Tiếp nhận và duyệt đơn do cửa hàng gửi</Typography>
+          <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+            Đơn nhập từ cửa hàng
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            Tiếp nhận và duyệt đơn do cửa hàng gửi
+          </Typography>
         </Box>
-        <TextField select size="small" value={status} onChange={(e) => setStatus(e.target.value)} label="Lọc trạng thái" sx={{ width: 220 }}>
+        <TextField 
+          select 
+          size="small" 
+          value={status} 
+          onChange={(e) => setStatus(e.target.value)} 
+          label="Lọc trạng thái" 
+          sx={{ width: { xs: '100%', sm: 220 } }}
+        >
           {['All', 'Pending', 'Approved', 'Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
         </TextField>
       </Stack>
 
-      <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+      <TableContainer component={Paper} sx={{ borderRadius: 2, overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
         <Table sx={{ minWidth: 800 }}>
           <TableHead>
             <TableRow>
-              {columns.map(c => (<TableCell key={c.key} sx={{ fontWeight: 700 }}>{c.label}</TableCell>))}
+              {columns.map(c => (
+                <TableCell 
+                  key={c.key} 
+                  sx={{ 
+                    fontWeight: 700,
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {c.label}
+                </TableCell>
+              ))}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -91,11 +119,39 @@ const IncomingOrders = () => {
                   <TableCell>{Number(r.total).toLocaleString('vi-VN')}</TableCell>
                   <TableCell><Chip size="small" color={color} label={r.status} /></TableCell>
                   <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      <Button disabled={!isPending || loading} variant="contained" color="success" onClick={() => handleApprove(r.id)}>Approve</Button>
-                      <Button disabled={!isPending || loading} variant="outlined" color="error" onClick={() => handleReject(r.id)}>Reject</Button>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { xs: 200, sm: 'auto' } }}>
+                      <Button 
+                        disabled={!isPending || loading} 
+                        variant="contained" 
+                        color="success" 
+                        onClick={() => handleApprove(r.id)}
+                        size="small"
+                        fullWidth={{ xs: true, sm: false }}
+                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                      >
+                        Approve
+                      </Button>
+                      <Button 
+                        disabled={!isPending || loading} 
+                        variant="outlined" 
+                        color="error" 
+                        onClick={() => handleReject(r.id)}
+                        size="small"
+                        fullWidth={{ xs: true, sm: false }}
+                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                      >
+                        Reject
+                      </Button>
                       {r.perishable && isPending && (
-                        <Button variant="outlined" onClick={() => handleForward(r)}>Forward to Supplier</Button>
+                        <Button 
+                          variant="outlined" 
+                          onClick={() => handleForward(r)}
+                          size="small"
+                          fullWidth={{ xs: true, sm: false }}
+                          sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                        >
+                          Forward to Supplier
+                        </Button>
                       )}
                     </Stack>
                   </TableCell>

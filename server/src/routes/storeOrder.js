@@ -1,0 +1,14 @@
+import express from 'express';
+import * as storeOrderController from '../controllers/storeOrder';
+import verifyToken from '../middlewares/verifyToken';
+
+const router = express.Router();
+
+// Create store order
+router.post('/', verifyToken, storeOrderController.createStoreOrder);
+
+// Get store orders
+router.get('/', verifyToken, storeOrderController.getStoreOrders);
+
+export default router;
+

@@ -13,6 +13,7 @@ import {
     TableHead,
     TableRow,
     Chip,
+    Stack,
 } from '@mui/material';
 import { getWarehouseInventory, getWarehouseCapacity } from '../../api/mockApi';
 
@@ -59,25 +60,47 @@ const InventoryManagement = () => {
                 </Paper>
             )}
 
-            <Paper sx={{ p: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <TextField placeholder="Tìm kiếm sản phẩm" value={q} onChange={(e) => setQ(e.target.value)} size="small" sx={{ minWidth: 280 }} />
-                <TextField select label="Danh mục" size="small" value={category} onChange={(e) => setCategory(e.target.value)} sx={{ width: 220 }}>
-                    {categories.map(c => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
-                </TextField>
-                <TextField select label="Trạng thái" size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ width: 220 }}>
-                    {['Tất cả', 'Đủ hàng', 'Sắp hết', 'Hết hàng'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-                </TextField>
+            <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap">
+                    <TextField 
+                        placeholder="Tìm kiếm sản phẩm" 
+                        value={q} 
+                        onChange={(e) => setQ(e.target.value)} 
+                        size="small" 
+                        sx={{ width: { xs: '100%', sm: 280 } }} 
+                    />
+                    <TextField 
+                        select 
+                        label="Danh mục" 
+                        size="small" 
+                        value={category} 
+                        onChange={(e) => setCategory(e.target.value)} 
+                        sx={{ width: { xs: '100%', sm: 220 } }}
+                    >
+                        {categories.map(c => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+                    </TextField>
+                    <TextField 
+                        select 
+                        label="Trạng thái" 
+                        size="small" 
+                        value={status} 
+                        onChange={(e) => setStatus(e.target.value)} 
+                        sx={{ width: { xs: '100%', sm: 220 } }}
+                    >
+                        {['Tất cả', 'Đủ hàng', 'Sắp hết', 'Hết hàng'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+                    </TextField>
+                </Stack>
             </Paper>
 
-            <Typography variant="h6" sx={{ mb: 1 }}>Chi tiết tồn kho</Typography>
-            <TableContainer component={Paper}>
-                <Table>
+            <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>Chi tiết tồn kho</Typography>
+            <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+                <Table sx={{ minWidth: 700 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Mã SP</TableCell>
-                            <TableCell>Tên SP</TableCell>
-                            <TableCell>Danh mục</TableCell>
-                            <TableCell>Đơn vị</TableCell>
+                            <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã SP</TableCell>
+                            <TableCell sx={{ minWidth: 150, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Tên SP</TableCell>
+                            <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Danh mục</TableCell>
+                            <TableCell sx={{ minWidth: 80, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Đơn vị</TableCell>
                             <TableCell>Tồn kho</TableCell>
                             <TableCell>Tồn tối thiểu</TableCell>
                             <TableCell>Trạng thái</TableCell>

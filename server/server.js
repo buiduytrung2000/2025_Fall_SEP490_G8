@@ -16,7 +16,23 @@ initRoutes(app)
 connectDatabase()
 
 const port = process.env.PORT || 5000
-const listener = app.listen(port, () => {
-    console.log(`Server is running on the port ${listener.address().port}`)
-})
+
+// Function to start server
+const startServer = () => {
+    const server = app.listen(port, () => {
+        console.log(`Server is running on the port ${server.address().port}`)
+    })
+
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`Port ${port} is already in use. Please stop the other process or use a different port.`)
+            console.error(`You can kill the process using: netstat -ano | findstr :${port} then taskkill /F /PID <PID>`)
+            process.exit(1)
+        } else {
+            throw err
+        }
+    })
+}
+
+startServer()
 

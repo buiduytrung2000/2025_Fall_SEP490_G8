@@ -44,29 +44,57 @@ const ShiftReports = () => {
         </Grid>
       )}
 
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
-          <TextField label="Từ ngày" type="date" value={from} onChange={(e) => setFrom(e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
-          <TextField label="Đến ngày" type="date" value={to} onChange={(e) => setTo(e.target.value)} size="small" InputLabelProps={{ shrink: true }} />
-          <Button variant="contained" onClick={load}>Lọc</Button>
-          <Box flexGrow={1} />
-          <Typography fontWeight={600}>Tổng doanh thu: {totalRevenue.toLocaleString('vi-VN')} đ</Typography>
-          <Typography fontWeight={600}>Tổng đơn: {totalOrders}</Typography>
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
+          <TextField 
+            label="Từ ngày" 
+            type="date" 
+            value={from} 
+            onChange={(e) => setFrom(e.target.value)} 
+            size="small" 
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          />
+          <TextField 
+            label="Đến ngày" 
+            type="date" 
+            value={to} 
+            onChange={(e) => setTo(e.target.value)} 
+            size="small" 
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          />
+          <Button 
+            variant="contained" 
+            onClick={load}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            Lọc
+          </Button>
+          <Box flexGrow={1} sx={{ display: { xs: 'none', md: 'block' } }} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+              Tổng doanh thu: {totalRevenue.toLocaleString('vi-VN')} đ
+            </Typography>
+            <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+              Tổng đơn: {totalOrders}
+            </Typography>
+          </Stack>
         </Stack>
       </Paper>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+        <Table sx={{ minWidth: 800 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã ca</TableCell>
-              <TableCell>Ngày</TableCell>
-              <TableCell>Ca</TableCell>
-              <TableCell>Thu ngân</TableCell>
-              <TableCell>Số đơn</TableCell>
-              <TableCell>Doanh thu</TableCell>
-              <TableCell>Hoàn tiền</TableCell>
-              <TableCell>Chênh lệch</TableCell>
+              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã ca</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ngày</TableCell>
+              <TableCell sx={{ minWidth: 80, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ca</TableCell>
+              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Thu ngân</TableCell>
+              <TableCell sx={{ minWidth: 80, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Số đơn</TableCell>
+              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Doanh thu</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Hoàn tiền</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Chênh lệch</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
