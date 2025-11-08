@@ -47,7 +47,6 @@ import {
   ChevronRight,
   AddCircleOutline,
   CalendarToday,
-  People,
   SwapHoriz,
   CheckCircle,
   RadioButtonUnchecked,
@@ -87,11 +86,6 @@ const formatDate = (date) => {
   const m = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${d}/${m}`;
 };
-const getMonthYear = (date) => {
-  return date
-    .toLocaleString("vi-VN", { month: "long", year: "numeric" })
-    .toUpperCase();
-};
 const weekDayNames = [
   "Thứ Hai",
   "Thứ Ba",
@@ -106,7 +100,6 @@ const defaultShiftNames = ["Ca Sáng (06:00 - 14:00)", "Ca Tối (14:00 - 22:00)
 const ScheduleManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const isTablet = useMediaQuery(theme.breakpoints.between("md", "lg"));
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedule, setSchedule] = useState({});
@@ -142,7 +135,6 @@ const ScheduleManagement = () => {
 
   const getAttendanceStatus = (workDate, shiftTemplate) => {
     const today = new Date();
-    const workDateObj = new Date(workDate);
     const todayStr = toLocalDateKey(today);
 
     if (workDate > todayStr) {
@@ -374,7 +366,7 @@ const ScheduleManagement = () => {
       }
     };
     load();
-  }, [startOfWeek]);
+  }, [startOfWeek, endOfWeek, user.id]);
 
   const handleOpenModal = async (
     dayKey,
@@ -512,12 +504,12 @@ const ScheduleManagement = () => {
   };
 
   // --- THAY ĐỔI: Tắt chức năng các nút bấm ---
-  const handleSaveSchedule = () => {
-    console.log("Chức năng 'Lưu' chưa được kích hoạt.");
-  };
-  const handleAddStaffClick = () => {
-    console.log("Chức năng 'Thêm Nhân viên' chưa được kích hoạt.");
-  };
+  // const handleSaveSchedule = () => {
+  //   // Chức năng 'Lưu' chưa được kích hoạt
+  // };
+  // const handleAddStaffClick = () => {
+  //   // Chức năng 'Thêm Nhân viên' chưa được kích hoạt
+  // };
 
   // Week navigation handlers
   const handlePrevWeek = () => {
@@ -605,10 +597,6 @@ const ScheduleManagement = () => {
                     );
                     const templateId = tpl?.shift_template_id || tpl?.id;
                     const shiftList = schedule[dayKey]?.[templateId] || [];
-                    const hasAssignee = shiftList.length > 0;
-                    const names = shiftList.map(
-                      (it) => staffMap[String(it.user_id)] || `#${it.user_id}`
-                    );
 
                     return (
                       <Box

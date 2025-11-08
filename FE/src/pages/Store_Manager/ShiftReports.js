@@ -1,5 +1,5 @@
 // src/pages/Store_Manager/ShiftReports.js
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
   Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Chip, Stack, Button
@@ -21,11 +21,14 @@ const ShiftReports = () => {
   const [from, setFrom] = useState('2025-11-03');
   const [to, setTo] = useState('2025-11-04');
 
-  const load = () => {
+  const load = useCallback(() => {
     getShiftKpis().then(setKpis);
     getShiftSummaries(from, to).then(setRows);
-  };
-  useEffect(() => { load(); }, []);
+  }, [from, to]);
+
+  useEffect(() => { 
+    load(); 
+  }, [load]);
 
   const totalRevenue = useMemo(() => rows.reduce((s, r) => s + r.revenue, 0), [rows]);
   const totalOrders = useMemo(() => rows.reduce((s, r) => s + r.orders, 0), [rows]);

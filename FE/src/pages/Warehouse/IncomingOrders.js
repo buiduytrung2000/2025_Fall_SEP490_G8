@@ -16,7 +16,7 @@ import {
   TextField,
   Stack
 } from '@mui/material';
-import { getStoreOrders, approveStoreOrder, rejectStoreOrder, forwardStoreOrderToSupplier, approveAndSendToSupplier } from '../../api/mockApi';
+import { getStoreOrders, rejectStoreOrder, forwardStoreOrderToSupplier, approveAndSendToSupplier } from '../../api/mockApi';
 
 const columns = [
   { key: 'id', label: 'Mã đơn' },

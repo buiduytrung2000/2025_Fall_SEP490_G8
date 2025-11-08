@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Container, Row, Col, Form, Button, ListGroup, Card, InputGroup } from 'react-bootstrap';
+import { Form, Button, InputGroup } from 'react-bootstrap';
 import { 
-    FaBars, FaSearch, FaQrcode, FaCartPlus, 
+     FaSearch, FaQrcode, FaCartPlus, 
     FaShoppingCart, FaUserCircle, FaTimes 
 } from 'react-icons/fa';
 import '../../assets/POS.css'; 
@@ -14,27 +14,12 @@ const formatCurrency = (number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
 }
 
-// Dữ liệu sản phẩm giả (mock data)
-const mockProducts = [
-    { id: 1, name: 'Bánh Chocolate', price: 22000, oldPrice: 25000, category: 'Đồ ăn', code: 'BC001' },
-    { id: 2, name: 'Coca Cola', price: 10800, category: 'Đồ uống', code: 'CC002' },
-    { id: 3, name: 'Kẹo Chocopie', price: 47000, category: 'Đồ ăn', code: 'KC003' },
-    { id: 4, name: 'Nước suối Aquafina', price: 5000, category: 'Đồ uống', code: 'NS004' },
-    { id: 5, name: 'Bim bim Ostar', price: 7000, category: 'Đồ ăn', code: 'BB005' },
-];
-
-// Dữ liệu giỏ hàng giả ban đầu (khớp với wireframe)
-const initialCart = [
-    { id: 1, name: 'Bánh Chocolate', price: 22000, qty: 2 },
-    { id: 2, name: 'Coca Cola', price: 10800, qty: 1 },
-    { id: 3, name: 'Kẹo Chocopie', price: 47000, qty: 1 },
-];
 
 
 const POS = () => {
     const { user } = useAuth();
     const [products, setProducts] = useState([]);
-    const [cart, setCart] = useState(initialCart);
+    const [cart, setCart] = useState([]);
     const [activeFilter, setActiveFilter] = useState('Tất cả');
     const [searchTerm, setSearchTerm] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
@@ -73,8 +58,7 @@ const POS = () => {
             }
         };
         load();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.store_id]);
+    }, [user]);
 
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {

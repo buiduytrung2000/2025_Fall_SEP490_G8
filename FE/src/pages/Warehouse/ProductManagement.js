@@ -1,4 +1,4 @@
-// src/pages/Manager/ProductManagement.js
+// src/pages/Warehouse/ProductManagement.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Spinner } from 'react-bootstrap';
 import { getProducts } from '../../api/mockApi';
@@ -159,3 +159,4 @@ const ProductManagement = () => {
     );
 };
 export default ProductManagement;
+

@@ -78,11 +78,19 @@ export const createStoreOrder = async (req, res) => {
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             
-            // Validate SKU or name
-            if ((!item.sku || item.sku.trim() === '') && (!item.name || item.name.trim() === '')) {
+            // Validate SKU - required
+            if (!item.sku || item.sku.trim() === '') {
                 return res.status(400).json({
                     err: 1,
-                    msg: `Item ${i + 1}: SKU or name is required`
+                    msg: `Item ${i + 1}: SKU is required`
+                });
+            }
+            
+            // Validate name - required
+            if (!item.name || item.name.trim() === '') {
+                return res.status(400).json({
+                    err: 1,
+                    msg: `Item ${i + 1}: Product name is required`
                 });
             }
             
@@ -95,12 +103,12 @@ export const createStoreOrder = async (req, res) => {
                 });
             }
             
-            // Validate unit_price
+            // Validate unit_price - required and must be > 0
             const unitPrice = parseFloat(item.unit_price);
-            if (isNaN(unitPrice) || unitPrice < 0) {
+            if (isNaN(unitPrice) || unitPrice <= 0) {
                 return res.status(400).json({
                     err: 1,
-                    msg: `Item ${i + 1}: Unit price must be greater than or equal to 0`
+                    msg: `Item ${i + 1}: Unit price is required and must be greater than 0`
                 });
             }
         }

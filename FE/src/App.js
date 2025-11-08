@@ -19,7 +19,6 @@ import Register from "./pages/public/Register";
 import Unauthorized from "./pages/public/Unauthorized";
 import POS from "./pages/Cashier/POS";
 import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
-import ManagerProducts from "./pages/Store_Manager/ProductManagement";
 import AdminPermissions from "./pages/Admin/AdminPermissions";
 import CEODashboard from "./pages/CEO/CEODashboard";
 import InventoryManagement from "./pages/Warehouse/InventoryManagement";
@@ -34,6 +33,7 @@ import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
+import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
 // Component để chuyển hướng người dùng đã đăng nhập
@@ -70,14 +70,6 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Manager"]}>
                   <ManagerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/manager/products"
-              element={
-                <ProtectedRoute allowedRoles={["Manager"]}>
-                  <ManagerProducts />
                 </ProtectedRoute>
               }
             />
@@ -153,6 +145,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <InventoryManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/products"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <WarehouseProductManagement />
                 </ProtectedRoute>
               }
             />

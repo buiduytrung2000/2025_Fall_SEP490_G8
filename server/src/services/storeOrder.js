@@ -42,11 +42,19 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             
-            // Validate SKU or name
-            if ((!item.sku || item.sku.trim() === '') && (!item.name || item.name.trim() === '')) {
+            // Validate SKU - required
+            if (!item.sku || item.sku.trim() === '') {
                 return resolve({
                     err: 1,
-                    msg: `Item ${i + 1}: SKU or name is required`
+                    msg: `Item ${i + 1}: SKU is required`
+                });
+            }
+            
+            // Validate name - required
+            if (!item.name || item.name.trim() === '') {
+                return resolve({
+                    err: 1,
+                    msg: `Item ${i + 1}: Product name is required`
                 });
             }
             
@@ -59,12 +67,12 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
                 });
             }
             
-            // Validate unit_price
+            // Validate unit_price - required and must be > 0
             const unitPrice = parseFloat(item.unit_price);
-            if (isNaN(unitPrice) || unitPrice < 0) {
+            if (isNaN(unitPrice) || unitPrice <= 0) {
                 return resolve({
                     err: 1,
-                    msg: `Item ${i + 1}: Unit price must be greater than or equal to 0`
+                    msg: `Item ${i + 1}: Unit price is required and must be greater than 0`
                 });
             }
         }
@@ -246,18 +254,20 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
 // Get store orders
 export const getStoreOrders = (storeId, filters = {}) => new Promise(async (resolve, reject) => {
     try {
-        let whereClause = {};
+
+        // Build WHERE clause with table prefix to avoid ambiguous column errors
+        let whereConditions = [];
         if (storeId) {
-            whereClause.store_id = storeId;
+            whereConditions.push('so.store_id = :store_id');
         }
-
         if (filters.status && filters.status !== 'All') {
-            whereClause.status = filters.status;
+            whereConditions.push('so.status = :status');
+        }
+        if (filters.order_type && filters.order_type !== 'All') {
+            whereConditions.push('so.order_type = :order_type');
         }
 
-        if (filters.order_type && filters.order_type !== 'All') {
-            whereClause.order_type = filters.order_type;
-        }
+        const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
         const query = `
             SELECT 
@@ -267,12 +277,24 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
             FROM StoreOrder so
             LEFT JOIN User u ON so.created_by = u.user_id
             LEFT JOIN Store s ON so.store_id = s.store_id
-            ${Object.keys(whereClause).length > 0 ? 'WHERE ' + Object.keys(whereClause).map(key => `${key} = :${key}`).join(' AND ') : ''}
+            ${whereClause}
             ORDER BY so.created_at DESC
         `;
 
+        // Prepare replacements object
+        const replacements = {};
+        if (storeId) {
+            replacements.store_id = storeId;
+        }
+        if (filters.status && filters.status !== 'All') {
+            replacements.status = filters.status.toLowerCase();
+        }
+        if (filters.order_type && filters.order_type !== 'All') {
+            replacements.order_type = filters.order_type;
+        }
+
         const orders = await db.sequelize.query(query, {
-            replacements: whereClause,
+            replacements: replacements,
             type: db.sequelize.QueryTypes.SELECT
         });
 

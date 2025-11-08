@@ -4,7 +4,7 @@ import {
   Box, Paper, Typography, TextField, MenuItem, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, Stack
 } from '@mui/material';
-import { getStoreOrders, updateStoreOrderStatus } from '../../api/mockApi';
+import { getStoreOrders } from '../../api/mockApi';
 import { useNavigate } from 'react-router-dom';
 
 const Kpi = ({ label, value }) => (
