@@ -51,7 +51,7 @@ const OrderUpdate = () => {
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Cập nhật trạng thái đơn hàng</Typography>
       <Grid container spacing={2}>
-        <Grid item xs={12} md={7}>
+        <Grid item xs={12} lg={7}>
           <Paper sx={{ p: 2, mb: 2 }}>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
@@ -81,19 +81,19 @@ const OrderUpdate = () => {
             ))}
           </Paper>
 
-          <Typography variant="h6" sx={{ mb: 1 }}>Sản phẩm trong đơn hàng</Typography>
-          <TableContainer component={Paper} sx={{ mb: 2 }}>
-            <Table>
+          <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>Sản phẩm trong đơn hàng</Typography>
+          <TableContainer component={Paper} sx={{ mb: 2, overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>Sản phẩm</TableCell>
-                  <TableCell>Mã SP</TableCell>
-                  <TableCell>Đơn vị</TableCell>
-                  <TableCell>SL đặt</TableCell>
-                  <TableCell>SL thực tế</TableCell>
-                  <TableCell>Đơn giá xuất</TableCell>
-                  <TableCell>Thành tiền</TableCell>
-                  <TableCell>Trạng thái</TableCell>
+                  <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Sản phẩm</TableCell>
+                  <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã SP</TableCell>
+                  <TableCell sx={{ minWidth: 80, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Đơn vị</TableCell>
+                  <TableCell sx={{ minWidth: 80, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>SL đặt</TableCell>
+                  <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>SL thực tế</TableCell>
+                  <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Đơn giá xuất</TableCell>
+                  <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Thành tiền</TableCell>
+                  <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Trạng thái</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -118,7 +118,7 @@ const OrderUpdate = () => {
           </TableContainer>
         </Grid>
 
-        <Grid item xs={12} md={5}>
+        <Grid item xs={12} lg={5}>
           <Paper sx={{ p: 2, mb: 2 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>Cập nhật trạng thái</Typography>
             <Stack spacing={2}>
@@ -136,10 +136,42 @@ const OrderUpdate = () => {
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" sx={{ mb: 1 }}>Thao tác nhanh</Typography>
             <Stack spacing={1}>
-              <Button variant="outlined" onClick={() => quickUpdate('Đã kiểm tra')}>Đánh dấu hoàn tất kiểm tra</Button>
-              <Button variant="outlined" onClick={() => quickUpdate('Đóng gói')}>Chuyển sang đóng gói</Button>
-              <Button variant="outlined" color="error" onClick={() => quickUpdate('Báo cáo vấn đề')}>Báo cáo vấn đề</Button>
-              <Button variant="outlined">In phiếu xuất kho</Button>
+              <Button 
+                variant="outlined" 
+                onClick={() => quickUpdate('Đã kiểm tra')}
+                fullWidth
+                size="small"
+                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+              >
+                Đánh dấu hoàn tất kiểm tra
+              </Button>
+              <Button 
+                variant="outlined" 
+                onClick={() => quickUpdate('Đóng gói')}
+                fullWidth
+                size="small"
+                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+              >
+                Chuyển sang đóng gói
+              </Button>
+              <Button 
+                variant="outlined" 
+                color="error" 
+                onClick={() => quickUpdate('Báo cáo vấn đề')}
+                fullWidth
+                size="small"
+                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+              >
+                Báo cáo vấn đề
+              </Button>
+              <Button 
+                variant="outlined"
+                fullWidth
+                size="small"
+                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+              >
+                In phiếu xuất kho
+              </Button>
             </Stack>
           </Paper>
 

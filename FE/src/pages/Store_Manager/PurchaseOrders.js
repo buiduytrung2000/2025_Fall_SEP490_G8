@@ -4,8 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Tabs,
-  Tab,
   TextField,
   Button,
   IconButton,
@@ -16,16 +14,26 @@ import {
   TableHead,
   TableRow,
   Stack,
-  MenuItem
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Chip,
+  Divider,
+  Grid,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
-import { createStoreOrder, getStoreOrders } from '../../api/mockApi';
+import { createStoreOrder, getStoreOrders } from '../../api/storeOrderApi';
+import { toast } from 'react-toastify';
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
 
 const PurchaseOrders = () => {
-  const [mainTab, setMainTab] = useState('Create');
-  const [tab, setTab] = useState('ToWarehouse');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [target, setTarget] = useState('Main Warehouse');
   const [supplier, setSupplier] = useState('Coca-Cola');
   const [lines, setLines] = useState([emptyLine()]);
@@ -34,6 +42,9 @@ const PurchaseOrders = () => {
   const [typeFilter, setTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [perishable, setPerishable] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [openModal, setOpenModal] = useState(false);
+  const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
 
@@ -44,76 +55,266 @@ const PurchaseOrders = () => {
   };
 
   const handleSubmit = async () => {
+    // Validation: Check if there are any items
+    if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
+      toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+      return;
+    }
+
+    // Validation: Check target_warehouse
+    if (!target || target.trim() === '') {
+      toast.error('Vui lòng nhập tên kho nhận hàng');
+      return;
+    }
+
+    // Validation: Validate each item
+    const validItems = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      
+      // Skip completely empty lines
+      if ((!l.sku || l.sku.trim() === '') && (!l.name || l.name.trim() === '') && (!l.qty || l.qty === '') && (!l.price || l.price === '')) {
+        continue;
+      }
+      
+      // Validate SKU - required
+      if (!l.sku || l.sku.trim() === '') {
+        toast.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
+        return;
+      }
+      
+      // Validate name - required
+      if (!l.name || l.name.trim() === '') {
+        toast.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
+        return;
+      }
+      
+      // Validate quantity
+      const qty = parseInt(l.qty);
+      if (isNaN(qty) || qty <= 0) {
+        toast.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
+        return;
+      }
+      
+      // Validate unit price - required and must be > 0
+      const price = parseFloat(l.price);
+      if (isNaN(price) || price <= 0) {
+        toast.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
+        return;
+      }
+      
+      validItems.push({
+        sku: (l.sku || '').trim(),
+        name: (l.name || '').trim(),
+        quantity: qty,
+        unit_price: price
+      });
+    }
+
+    // Validation: Check if there are valid items
+    if (validItems.length === 0) {
+      toast.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
+      return;
+    }
+
     setSubmitting(true);
-    const payload = {
-      type: tab,
-      target: tab === 'ToWarehouse' ? target : supplier,
-      createdBy: 'Shop Manager A',
-      date: new Date().toISOString().slice(0,10),
-      items: lines.length,
-      total,
-      perishable,
-      supplier: perishable && tab === 'ToWarehouse' ? supplier : (tab === 'ToSupplier' ? supplier : undefined)
-    };
-    await createStoreOrder(payload);
-    setSubmitting(false);
-    // Reset đơn
-    setLines([emptyLine()]);
-    setPerishable(false);
+    try {
+      const payload = {
+        order_type: 'ToWarehouse',
+        target_warehouse: target.trim(),
+        supplier_id: null,
+        items: validItems,
+        perishable: perishable,
+        notes: null
+      };
+
+      const result = await createStoreOrder(payload);
+      
+      if (result.err === 0) {
+        toast.success('Tạo đơn hàng thành công!');
+        // Reset đơn
+        setLines([emptyLine()]);
+        setPerishable(false);
+        setTarget('Main Warehouse');
+        setSupplier('Coca-Cola');
+        // Đóng modal tạo đơn
+        setOpenCreateOrderModal(false);
+        // Refresh danh sách đơn
+        getStoreOrders({
+          status: statusFilter,
+          order_type: typeFilter
+        }).then(setOrders);
+      } else {
+        toast.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
+      }
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast.error('Lỗi khi tạo đơn hàng: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
-    if (mainTab === 'List') {
-      getStoreOrders().then(setOrders);
-    }
-  }, [mainTab]);
+    getStoreOrders({
+      status: statusFilter,
+      order_type: typeFilter
+    }).then(setOrders);
+  }, [statusFilter, typeFilter]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>Tạo đơn và theo dõi đơn đã tạo</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => setOpenCreateOrderModal(true)}
+          sx={{ minWidth: { xs: 'auto', sm: 160 } }}
+        >
+          Tạo đơn hàng
+        </Button>
+      </Box>
 
-      <Paper sx={{ mb: 2 }}>
-        <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)}>
-          <Tab label="Tạo đơn" value="Create" />
-          <Tab label="Đơn đã tạo" value="List" />
-        </Tabs>
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <TextField 
+            select 
+            size="small" 
+            label="Loại đơn" 
+            value={typeFilter} 
+            onChange={(e) => setTypeFilter(e.target.value)} 
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          >
+            {['All','ToWarehouse','ToSupplier'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
+          </TextField>
+          <TextField 
+            select 
+            size="small" 
+            label="Trạng thái" 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)} 
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          >
+            {['All','Pending','Approved','Rejected'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
+          </TextField>
+        </Stack>
       </Paper>
 
-      {mainTab === 'Create' && (
-        <>
-          <Paper sx={{ mb: 2 }}>
-            <Tabs value={tab} onChange={(_, v) => setTab(v)} aria-label="order type tabs">
-              <Tab label="Nhập từ Kho" value="ToWarehouse" />
-              <Tab label="Nhập từ Nhà cung cấp" value="ToSupplier" />
-            </Tabs>
-          </Paper>
-
-          <Paper sx={{ p: 2, mb: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            {tab === 'ToWarehouse' ? (
-              <>
-                <TextField label="Kho nhận" size="small" value={target} onChange={(e) => setTarget(e.target.value)} sx={{ width: 320 }} />
-                <TextField select size="small" label="Hàng tươi sống?" value={perishable ? 'Yes' : 'No'} onChange={(e) => setPerishable(e.target.value === 'Yes')} sx={{ width: 180 }}>
-                  <MenuItem value="No">No</MenuItem>
-                  <MenuItem value="Yes">Yes</MenuItem>
-                </TextField>
-                {perishable && (
-                  <TextField label="Nhà cung cấp tươi sống" size="small" value={supplier} onChange={(e) => setSupplier(e.target.value)} sx={{ width: 260 }} />
-                )}
-              </>
-            ) : (
-              <TextField label="Nhà cung cấp" size="small" value={supplier} onChange={(e) => setSupplier(e.target.value)} sx={{ width: 320 }} />
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <Table sx={{ minWidth: 700 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ minWidth: 100 }}>Mã đơn</TableCell>
+              <TableCell sx={{ minWidth: 100 }}>Loại</TableCell>
+              <TableCell sx={{ minWidth: 150 }}>Nơi nhận/NCC</TableCell>
+              <TableCell sx={{ minWidth: 100 }}>Ngày</TableCell>
+              <TableCell sx={{ minWidth: 80 }}>Số dòng</TableCell>
+              <TableCell sx={{ minWidth: 120 }}>Tổng tiền</TableCell>
+              <TableCell sx={{ minWidth: 100 }}>Trạng thái</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {orders.map(o => (
+              <TableRow 
+                key={o.store_order_id} 
+                hover 
+                onClick={() => {
+                  setSelectedOrder(o);
+                  setOpenModal(true);
+                }}
+                sx={{ cursor: 'pointer' }}
+              >
+                <TableCell>{o.store_order_id || o.order_code || 'N/A'}</TableCell>
+                <TableCell>{o.order_type || 'N/A'}</TableCell>
+                <TableCell>{o.target_warehouse || o.supplier_name || 'N/A'}</TableCell>
+                <TableCell>{new Date(o.created_at).toLocaleDateString('vi-VN')}</TableCell>
+                <TableCell>{o.items ? o.items.length : 0}</TableCell>
+                <TableCell>{Number(o.total_amount || 0).toLocaleString('vi-VN')} đ</TableCell>
+                <TableCell>
+                  <Chip 
+                    size="small" 
+                    label={o.status || 'pending'} 
+                    color={
+                      o.status === 'approved' ? 'success' :
+                      o.status === 'rejected' ? 'error' :
+                      o.status === 'shipped' ? 'info' :
+                      o.status === 'delivered' ? 'success' :
+                      'warning'
+                    }
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+            {!orders.length && (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  Chưa có đơn nào
+                </TableCell>
+              </TableRow>
             )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Create Order Modal */}
+      <Dialog
+        open={openCreateOrderModal}
+        onClose={() => setOpenCreateOrderModal(false)}
+        maxWidth="lg"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={700}>
+            Tạo đơn hàng mới
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
+              <TextField 
+                label="Kho nhận" 
+                size="small" 
+                value={target} 
+                onChange={(e) => setTarget(e.target.value)} 
+                sx={{ width: { xs: '100%', sm: 280, md: 320 } }} 
+              />
+              <TextField 
+                select 
+                size="small" 
+                label="Hàng tươi sống?" 
+                value={perishable ? 'Yes' : 'No'} 
+                onChange={(e) => setPerishable(e.target.value === 'Yes')} 
+                sx={{ width: { xs: '100%', sm: 180 } }}
+              >
+                <MenuItem value="No">No</MenuItem>
+                <MenuItem value="Yes">Yes</MenuItem>
+              </TextField>
+              {perishable && (
+                <TextField 
+                  label="Nhà cung cấp tươi sống" 
+                  size="small" 
+                  value={supplier} 
+                  onChange={(e) => setSupplier(e.target.value)} 
+                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }} 
+                />
+              )}
+            </Stack>
           </Paper>
 
-          <TableContainer component={Paper} sx={{ mb: 2 }}>
-            <Table>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Chi tiết sản phẩm</Typography>
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: { xs: '50vh', md: '60vh' }, overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>SKU</TableCell>
-                  <TableCell>Tên hàng</TableCell>
-                  <TableCell>Số lượng</TableCell>
-                  <TableCell>Đơn giá</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>SKU</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 150, sm: 200 } }}>Tên hàng</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá</TableCell>
                   <TableCell width={64}></TableCell>
                 </TableRow>
               </TableHead>
@@ -121,89 +322,216 @@ const PurchaseOrders = () => {
                 {lines.map((l, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <TextField size="small" value={l.sku} onChange={(e) => updateLine(idx, 'sku', e.target.value)} />
+                      <TextField 
+                        size="small" 
+                        value={l.sku} 
+                        onChange={(e) => updateLine(idx, 'sku', e.target.value)} 
+                        sx={{ width: { xs: 100, sm: 120 } }}
+                      />
                     </TableCell>
                     <TableCell>
-                      <TextField size="small" fullWidth value={l.name} onChange={(e) => updateLine(idx, 'name', e.target.value)} />
+                      <TextField 
+                        size="small" 
+                        fullWidth 
+                        value={l.name} 
+                        onChange={(e) => updateLine(idx, 'name', e.target.value)} 
+                        sx={{ minWidth: { xs: 150, sm: 200 } }}
+                      />
                     </TableCell>
                     <TableCell>
-                      <TextField size="small" type="number" value={l.qty} onChange={(e) => updateLine(idx, 'qty', e.target.value)} sx={{ width: 120 }} />
+                      <TextField 
+                        size="small" 
+                        type="number" 
+                        value={l.qty} 
+                        onChange={(e) => updateLine(idx, 'qty', e.target.value)} 
+                        sx={{ width: { xs: 80, sm: 120 } }} 
+                      />
                     </TableCell>
                     <TableCell>
-                      <TextField size="small" type="number" value={l.price} onChange={(e) => updateLine(idx, 'price', e.target.value)} sx={{ width: 160 }} />
+                      <TextField 
+                        size="small" 
+                        type="number" 
+                        value={l.price} 
+                        onChange={(e) => updateLine(idx, 'price', e.target.value)} 
+                        sx={{ width: { xs: 100, sm: 160 } }} 
+                      />
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton onClick={() => removeLine(idx)}><Delete /></IconButton>
+                      <IconButton size="small" onClick={() => removeLine(idx)}><Delete /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell colSpan={5}>
-                    <Button startIcon={<Add />} onClick={addLine}>Thêm dòng</Button>
+                    <Button startIcon={<Add />} onClick={addLine} size="small">Thêm dòng</Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>
+                    Tổng tiền:
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
+                    {total.toLocaleString('vi-VN')} đ
                   </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCreateOrderModal(false)} variant="outlined" disabled={submitting}>
+            Hủy
+          </Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={submitting || !lines.length}>
+            {submitting ? 'Đang tạo...' : 'Tạo đơn hàng'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">Tổng tiền: {total.toLocaleString('vi-VN')} đ</Typography>
-            <Button variant="contained" onClick={handleSubmit} disabled={submitting || !lines.length}>Tạo đơn</Button>
-          </Stack>
-        </>
-      )}
-
-      {mainTab === 'List' && (
-        <>
-          <Paper sx={{ p: 2, mb: 2, display: 'flex', gap: 2 }}>
-            <TextField select size="small" label="Loại đơn" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} sx={{ width: 220 }}>
-              {['All','ToWarehouse','ToSupplier'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
-            </TextField>
-            <TextField select size="small" label="Trạng thái" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} sx={{ width: 220 }}>
-              {['All','Pending','Approved','Rejected'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
-            </TextField>
-          </Paper>
-
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Mã đơn</TableCell>
-                  <TableCell>Loại</TableCell>
-                  <TableCell>Nơi nhận/NCC</TableCell>
-                  <TableCell>Ngày</TableCell>
-                  <TableCell>Số dòng</TableCell>
-                  <TableCell>Tổng tiền</TableCell>
-                  <TableCell>Trạng thái</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {orders
-                  .filter(o => (typeFilter === 'All' || o.type === typeFilter))
-                  .filter(o => (statusFilter === 'All' || o.status === statusFilter))
-                  .map(o => (
-                  <TableRow key={o.id} hover>
-                    <TableCell>{o.id}</TableCell>
-                    <TableCell>{o.type}</TableCell>
-                    <TableCell>{o.target}</TableCell>
-                    <TableCell>{o.date}</TableCell>
-                    <TableCell>{o.items}</TableCell>
-                    <TableCell>{Number(o.total).toLocaleString('vi-VN')}</TableCell>
-                    <TableCell>{o.status}</TableCell>
-                  </TableRow>
-                ))}
-                {!orders.length && (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                      Chưa có đơn nào
-                    </TableCell>
-                  </TableRow>
+      {/* Order Detail Modal */}
+      <Dialog 
+        open={openModal} 
+        onClose={() => setOpenModal(false)}
+        maxWidth="md"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={700}>
+            Chi tiết đơn hàng #{selectedOrder?.store_order_id || 'N/A'}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {selectedOrder && (
+            <Box>
+              {/* Order Information */}
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">Mã đơn hàng</Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {selectedOrder.store_order_id || selectedOrder.order_code || 'N/A'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">Loại đơn</Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {selectedOrder.order_type === 'ToWarehouse' ? 'Nhập từ Kho' : 'Nhập từ Nhà cung cấp'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedOrder.order_type === 'ToWarehouse' ? 'Kho nhận' : 'Nhà cung cấp'}
+                  </Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {selectedOrder.target_warehouse || selectedOrder.supplier_name || 'N/A'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">Ngày tạo</Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {new Date(selectedOrder.created_at).toLocaleString('vi-VN')}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
+                  <Chip 
+                    size="small" 
+                    label={selectedOrder.status || 'pending'} 
+                    color={
+                      selectedOrder.status === 'approved' ? 'success' :
+                      selectedOrder.status === 'rejected' ? 'error' :
+                      selectedOrder.status === 'shipped' ? 'info' :
+                      selectedOrder.status === 'delivered' ? 'success' :
+                      'warning'
+                    }
+                    sx={{ mt: 0.5 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">Hàng tươi sống</Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {selectedOrder.perishable ? 'Có' : 'Không'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary">Tổng tiền</Typography>
+                  <Typography variant="h6" color="primary" fontWeight={700}>
+                    {Number(selectedOrder.total_amount || 0).toLocaleString('vi-VN')} đ
+                  </Typography>
+                </Grid>
+                {selectedOrder.notes && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2" color="text.secondary">Ghi chú</Typography>
+                    <Typography variant="body1">
+                      {selectedOrder.notes}
+                    </Typography>
+                  </Grid>
                 )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Order Items */}
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+                Danh sách sản phẩm ({selectedOrder.items?.length || 0} sản phẩm)
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>STT</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Tên hàng</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Số lượng</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Đơn giá</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Thành tiền</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                      selectedOrder.items.map((item, idx) => (
+                        <TableRow key={idx} hover>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>{item.sku || 'N/A'}</TableCell>
+                          <TableCell>{item.product_name || item.name || 'N/A'}</TableCell>
+                          <TableCell align="right">{item.quantity || 0}</TableCell>
+                          <TableCell align="right">
+                            {Number(item.unit_price || 0).toLocaleString('vi-VN')} đ
+                          </TableCell>
+                          <TableCell align="right">
+                            {Number(item.subtotal || (item.quantity || 0) * (item.unit_price || 0)).toLocaleString('vi-VN')} đ
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                          Không có sản phẩm
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {selectedOrder.items && selectedOrder.items.length > 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>
+                          Tổng cộng:
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
+                          {Number(selectedOrder.total_amount || 0).toLocaleString('vi-VN')} đ
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenModal(false)} variant="outlined">
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

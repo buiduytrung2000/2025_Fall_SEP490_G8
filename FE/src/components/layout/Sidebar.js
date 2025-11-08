@@ -19,7 +19,6 @@ const navLinks = {
     Admin: [{ to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" }],
     Manager: [
         { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },
-        { to: "/manager/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
         { to: "/manager/orders", icon: <FaTruck />, text: "Đơn nhập hàng" },
         { to: "/manager/inventory", icon: <FaWarehouse />, text: "Quản lý Tồn kho" },
         { to: "/manager/reports/shifts", icon: <FaChartPie />, text: "Báo cáo ca làm" },
@@ -33,6 +32,7 @@ const navLinks = {
     CEO: [{ to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" }],
     Warehouse: [
         { to: "/warehouse/inventory", icon: <FaWarehouse />, text: "Tồn kho" },
+        { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
         { to: "/warehouse/pricing", icon: <FaBox />, text: "Quản lý giá SP" },
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "QL đơn chi nhánh" },
     ],

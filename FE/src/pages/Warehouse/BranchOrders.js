@@ -4,7 +4,7 @@ import {
   Box, Paper, Typography, TextField, MenuItem, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, Stack
 } from '@mui/material';
-import { getStoreOrders, updateStoreOrderStatus } from '../../api/mockApi';
+import { getStoreOrders } from '../../api/mockApi';
 import { useNavigate } from 'react-router-dom';
 
 const Kpi = ({ label, value }) => (
@@ -52,15 +52,45 @@ const BranchOrders = () => {
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý đơn hàng từ chi nhánh</Typography>
 
-      <Paper sx={{ p: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <TextField select label="Chi nhánh" size="small" value={branch} onChange={(e) => setBranch(e.target.value)} sx={{ width: 220 }}>
-          {branches.map(b => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
-        </TextField>
-        <TextField select label="Trạng thái" size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ width: 220 }}>
-          {['Tất cả','Pending','Approved','SupplierShipped','Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-        </TextField>
-        <TextField label="Ngày đặt" type="date" size="small" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-        <TextField placeholder="Mã đơn hàng" size="small" value={code} onChange={(e) => setCode(e.target.value)} sx={{ minWidth: 220 }} />
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap">
+          <TextField 
+            select 
+            label="Chi nhánh" 
+            size="small" 
+            value={branch} 
+            onChange={(e) => setBranch(e.target.value)} 
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          >
+            {branches.map(b => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+          </TextField>
+          <TextField 
+            select 
+            label="Trạng thái" 
+            size="small" 
+            value={status} 
+            onChange={(e) => setStatus(e.target.value)} 
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          >
+            {['Tất cả','Pending','Approved','SupplierShipped','Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+          </TextField>
+          <TextField 
+            label="Ngày đặt" 
+            type="date" 
+            size="small" 
+            value={date} 
+            onChange={(e) => setDate(e.target.value)} 
+            InputLabelProps={{ shrink: true }}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          />
+          <TextField 
+            placeholder="Mã đơn hàng" 
+            size="small" 
+            value={code} 
+            onChange={(e) => setCode(e.target.value)} 
+            sx={{ width: { xs: '100%', sm: 220 } }}
+          />
+        </Stack>
       </Paper>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -70,18 +100,18 @@ const BranchOrders = () => {
         <Grid item xs={12} sm={6} md={3}><Kpi label="Đã hủy" value={`${counts.cancelled} đơn hàng`} /></Grid>
       </Grid>
 
-      <Typography variant="h6" sx={{ mb: 1 }}>Danh sách đơn hàng</Typography>
-      <TableContainer component={Paper}>
-        <Table>
+      <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>Danh sách đơn hàng</Typography>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+        <Table sx={{ minWidth: 700 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Mã đơn</TableCell>
-              <TableCell>Chi nhánh</TableCell>
-              <TableCell>Ngày đặt</TableCell>
-              <TableCell>Sản phẩm</TableCell>
-              <TableCell>Tổng tiền</TableCell>
-              <TableCell>Trạng thái</TableCell>
-              <TableCell>Thao tác</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã đơn</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Chi nhánh</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ngày đặt</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Sản phẩm</TableCell>
+              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Tổng tiền</TableCell>
+              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Trạng thái</TableCell>
+              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -94,8 +124,16 @@ const BranchOrders = () => {
                 <TableCell>{Number(o.total).toLocaleString('vi-VN')}</TableCell>
                 <TableCell><Chip size="small" label={o.status} color={o.status==='Rejected'?'error':(o.status==='Pending'?'warning':'success')} /></TableCell>
                 <TableCell>
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="outlined" size="small" onClick={() => handleUpdate(o)}>Cập nhật</Button>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      onClick={() => handleUpdate(o)}
+                      fullWidth={{ xs: true, sm: false }}
+                      sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                    >
+                      Cập nhật
+                    </Button>
                   </Stack>
                 </TableCell>
               </TableRow>

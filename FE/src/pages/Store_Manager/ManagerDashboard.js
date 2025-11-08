@@ -14,6 +14,8 @@ import {
   TableHead,
   TableRow,
   Chip,
+  useMediaQuery,
+  useTheme
 } from "@mui/material";
 import { Bar } from "react-chartjs-2";
 import { TrendingUp, People, CalendarToday, AttachMoney, ShoppingCart, Assessment, Inventory2 } from "@mui/icons-material";
@@ -52,6 +54,8 @@ const StatCard = ({ label, value, icon, gradient }) => (
 );
 
 const ManagerDashboard = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [kpis, setKpis] = useState(null);
   const [revenueData, setRevenueData] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
@@ -124,9 +128,18 @@ const ManagerDashboard = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4" fontWeight={700}>Tổng quan cửa hàng</Typography>
-        <Chip icon={<Assessment />} label="Hôm nay" color="primary" />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        justifyContent: 'space-between', 
+        mb: 3,
+        gap: 2
+      }}>
+        <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+          Tổng quan cửa hàng
+        </Typography>
+        <Chip icon={<Assessment />} label="Hôm nay" color="primary" size={isMobile ? 'small' : 'medium'} />
       </Box>
 
       {/* STAT CARDS */}
@@ -146,7 +159,7 @@ const ManagerDashboard = () => {
               <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TrendingUp color="primary" /> Doanh thu 7 ngày qua
               </Typography>
-              <Box sx={{ height: 300 }}>
+              <Box sx={{ height: { xs: 250, sm: 300 }, width: '100%' }}>
                 <Bar data={revenueChartData} options={revenueChartOptions} />
               </Box>
             </CardContent>
@@ -181,14 +194,14 @@ const ManagerDashboard = () => {
               <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Inventory2 color="primary" /> Top sản phẩm bán chạy
               </Typography>
-              <TableContainer>
+              <TableContainer sx={{ overflowX: 'auto' }}>
                 <Table>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Sản phẩm</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>Đã bán</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>Doanh thu</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Sản phẩm</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Đã bán</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Doanh thu</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
