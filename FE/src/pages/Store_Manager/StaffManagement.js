@@ -174,7 +174,6 @@ const StaffManagement = () => {
                             <Form.Label>Vai trò</Form.Label>
                             <Form.Select defaultValue={currentStaff?.role}>
                                 <option value="Cashier">Thu ngân (Cashier)</option>
-                                <option value="Warehouse Staff">Nhân viên kho (Warehouse)</option>
                             </Form.Select>
                         </Form.Group>
                         <div className="d-flex justify-content-end">

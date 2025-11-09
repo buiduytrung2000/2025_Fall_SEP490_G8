@@ -3,17 +3,17 @@ import {
     Button, Dialog, DialogTitle, DialogContent, DialogActions, 
     TextField, IconButton, Box, Typography, MenuItem, Select, 
     FormControl, InputLabel, CircularProgress, Alert, Chip,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Checkbox
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Checkbox,
+    Accordion, AccordionSummary, AccordionDetails, Divider
 } from '@mui/material';
-import { MaterialReactTable } from 'material-react-table';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { 
     getAllProducts,
     getProductsForPriceManagement,
     getProductPriceHistory, 
     createPricingRule, 
     updatePricingRule,
-    deletePricingRule,
-    getCurrentPrice
+    deletePricingRule
 } from '../../api/productApi';
 import { useAuth } from '../../contexts/AuthContext';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,7 +29,9 @@ const ProductPriceManagement = () => {
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showPriceModal, setShowPriceModal] = useState(false);
     const [priceHistory, setPriceHistory] = useState([]);
+    const [priceHistories, setPriceHistories] = useState({}); // Lưu lịch sử của nhiều sản phẩm: { product_id: [history] }
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [loadingHistories, setLoadingHistories] = useState({}); // Lưu trạng thái loading của từng sản phẩm
     // Get store_id from localStorage or default to 1
     const selectedStoreId = (() => {
         const stored = localStorage.getItem('store_id');
@@ -175,6 +177,68 @@ const ProductPriceManagement = () => {
         }
     };
 
+    // Load lịch sử giá cho nhiều sản phẩm
+    const loadPriceHistories = async (products) => {
+        if (!products || products.length === 0) {
+            setPriceHistories({});
+            return;
+        }
+        
+        // Set loading state cho tất cả sản phẩm
+        const loadingStates = {};
+        products.forEach(p => {
+            const productId = p.product_id || p.id;
+            if (productId) {
+                loadingStates[productId] = true;
+            }
+        });
+        setLoadingHistories(loadingStates);
+
+        // Load lịch sử cho từng sản phẩm
+        const histories = {};
+        const promises = products.map(async (product) => {
+            const productId = product.product_id || product.id;
+            if (!productId) return;
+
+            try {
+                const response = await getProductPriceHistory(productId, selectedStoreId);
+                if (response.err === 0) {
+                    const history = (response.data || []).map(rule => ({
+                        rule_id: rule.rule_id,
+                        type: rule.type,
+                        value: parseFloat(rule.value),
+                        start_date: rule.start_date ? rule.start_date.split('T')[0] : '',
+                        end_date: rule.end_date ? rule.end_date.split('T')[0] : '',
+                        created_at: rule.created_at,
+                        store: rule.store
+                    }));
+                    histories[productId] = {
+                        product: product,
+                        history: history
+                    };
+                } else {
+                    histories[productId] = {
+                        product: product,
+                        history: []
+                    };
+                }
+            } catch (err) {
+                histories[productId] = {
+                    product: product,
+                    history: []
+                };
+            } finally {
+                setLoadingHistories(prev => ({
+                    ...prev,
+                    [productId]: false
+                }));
+            }
+        });
+
+        await Promise.all(promises);
+        setPriceHistories(histories);
+    };
+
     const handleShowPriceModal = async (product) => {
         setSelectedProduct(product);
         setEditingRule(null);
@@ -193,16 +257,24 @@ const ProductPriceManagement = () => {
         setEditingRule(rule);
         setPriceType(rule.type);
         setPriceValue(rule.value.toString());
-        setStartDate(rule.start_date);
-        setEndDate(rule.end_date || '');
+        // Format dates properly for date input (YYYY-MM-DD)
+        const startDateFormatted = rule.start_date 
+            ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
+            : new Date().toISOString().split('T')[0];
+        const endDateFormatted = rule.end_date 
+            ? (rule.end_date.includes('T') ? rule.end_date.split('T')[0] : rule.end_date)
+            : '';
+        setStartDate(startDateFormatted);
+        setEndDate(endDateFormatted);
         setShowPriceModal(true);
     };
 
     const handleClosePriceModal = () => {
         setShowPriceModal(false);
-        setSelectedProduct(null);
         setEditingRule(null);
-        setPriceHistory([]);
+        // Không xóa selectedProduct và priceHistory khi đóng modal
+        // Chỉ xóa khi thực sự bỏ chọn checkbox hoặc bỏ chọn tất cả
+        // Điều này giúp giữ nguyên lịch sử giá khi người dùng hủy thao tác
     };
 
     const handleSavePrice = async (e) => {
@@ -266,7 +338,16 @@ const ProductPriceManagement = () => {
                 // Reload products to show updated prices
                 await loadProducts();
             } else {
-                toast.error(response.msg || 'Có lỗi xảy ra');
+                // Translate error messages to Vietnamese
+                let errorMsg = response.msg || 'Có lỗi xảy ra';
+                if (errorMsg.includes('Overlapping pricing rule')) {
+                    errorMsg = 'Quy tắc giá bị trùng lặp. Vui lòng kiểm tra lịch sử giá và chọn khoảng thời gian khác.';
+                } else if (errorMsg.includes('Start date must be before end date')) {
+                    errorMsg = 'Ngày bắt đầu phải trước ngày kết thúc';
+                } else if (errorMsg.includes('Missing required fields')) {
+                    errorMsg = 'Vui lòng điền đầy đủ các trường bắt buộc';
+                }
+                toast.error(errorMsg);
             }
         } catch (err) {
             toast.error('Lỗi kết nối: ' + err.message);
@@ -587,6 +668,10 @@ const ProductPriceManagement = () => {
                             onClick={() => {
                                 setSelectedProducts([]);
                                 setRowSelection({});
+                                // Xóa lịch sử khi bỏ chọn tất cả
+                                setPriceHistories({});
+                                setSelectedProduct(null);
+                                setPriceHistory([]);
                             }}
                         >
                             Bỏ chọn tất cả
@@ -609,7 +694,7 @@ const ProductPriceManagement = () => {
                                             <Checkbox
                                                 indeterminate={selectedProducts.length > 0 && selectedProducts.length < products.length}
                                                 checked={products.length > 0 && selectedProducts.length === products.length}
-                                                onChange={(e) => {
+                                                onChange={async (e) => {
                                                     if (e.target.checked) {
                                                         setSelectedProducts([...products]);
                                                         const selection = {};
@@ -617,9 +702,20 @@ const ProductPriceManagement = () => {
                                                             selection[String(p.product_id || p.id || idx)] = true;
                                                         });
                                                         setRowSelection(selection);
+                                                        // Load lịch sử của tất cả sản phẩm
+                                                        if (products.length === 1) {
+                                                            setSelectedProduct(products[0]);
+                                                            await loadPriceHistory(products[0].product_id || products[0].id);
+                                                        } else {
+                                                            await loadPriceHistories(products);
+                                                        }
                                                     } else {
                                                         setSelectedProducts([]);
                                                         setRowSelection({});
+                                                        // Xóa lịch sử khi bỏ chọn tất cả
+                                                        setPriceHistories({});
+                                                        setSelectedProduct(null);
+                                                        setPriceHistory([]);
                                                     }
                                                 }}
                                             />
@@ -643,22 +739,48 @@ const ProductPriceManagement = () => {
                                                 <TableCell padding="checkbox">
                                                     <Checkbox
                                                         checked={isSelected}
-                                                        onChange={(e) => {
+                                                        onChange={async (e) => {
                                                             if (e.target.checked) {
-                                                                setSelectedProducts(prev => [...prev, product]);
+                                                                const newSelected = [...selectedProducts, product];
+                                                                setSelectedProducts(newSelected);
                                                                 setRowSelection(prev => ({
                                                                     ...prev,
                                                                     [String(product.product_id || product.id)]: true
                                                                 }));
+                                                                // Nếu chỉ có 1 sản phẩm, set selectedProduct và load priceHistory
+                                                                if (newSelected.length === 1) {
+                                                                    setSelectedProduct(newSelected[0]);
+                                                                    await loadPriceHistory(newSelected[0].product_id || newSelected[0].id);
+                                                                } else {
+                                                                    // Nếu có nhiều sản phẩm, load priceHistories
+                                                                    await loadPriceHistories(newSelected);
+                                                                }
                                                             } else {
-                                                                setSelectedProducts(prev => prev.filter(p => 
+                                                                const newSelected = selectedProducts.filter(p => 
                                                                     p.product_id !== product.product_id && p.id !== product.id
-                                                                ));
+                                                                );
+                                                                setSelectedProducts(newSelected);
                                                                 setRowSelection(prev => {
                                                                     const newSelection = { ...prev };
                                                                     delete newSelection[String(product.product_id || product.id)];
                                                                     return newSelection;
                                                                 });
+                                                                // Load lại lịch sử của các sản phẩm còn lại
+                                                                if (newSelected.length > 0) {
+                                                                    if (newSelected.length === 1) {
+                                                                        // Nếu chỉ còn 1 sản phẩm, set selectedProduct và load priceHistory
+                                                                        setSelectedProduct(newSelected[0]);
+                                                                        await loadPriceHistory(newSelected[0].product_id || newSelected[0].id);
+                                                                    } else {
+                                                                        // Nếu còn nhiều sản phẩm, load priceHistories
+                                                                        await loadPriceHistories(newSelected);
+                                                                    }
+                                                                } else {
+                                                                    // Nếu không còn sản phẩm nào được chọn, xóa lịch sử
+                                                                    setPriceHistories({});
+                                                                    setSelectedProduct(null);
+                                                                    setPriceHistory([]);
+                                                                }
                                                             }
                                                         }}
                                                     />
@@ -767,105 +889,246 @@ const ProductPriceManagement = () => {
             )}
 
             {/* Price history section */}
-            {selectedProduct && (
+            {selectedProducts.length > 0 && (
                 <Box sx={{ mt: 4 }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                        Lịch sử giá: {selectedProduct.name} ({selectedProduct.sku})
+                        Lịch sử giá ({selectedProducts.length} sản phẩm)
                     </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        sx={{ mb: 2 }}
-                        onClick={() => {
-                            setEditingRule(null);
-                            setPriceType('fixed_price');
-                            setPriceValue(selectedProduct.hq_price || '0');
-                            setStartDate(new Date().toISOString().split('T')[0]);
-                            const nextYear = new Date();
-                            nextYear.setFullYear(nextYear.getFullYear() + 1);
-                            setEndDate(nextYear.toISOString().split('T')[0]);
-                            setShowPriceModal(true);
-                        }}
-                    >
-                        Thêm quy tắc giá mới
-                    </Button>
-                    {loadingHistory ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                            <CircularProgress />
-                        </Box>
-                    ) : (
-                        <Paper elevation={2} sx={{ mt: 2 }}>
-                            <TableContainer>
-                                <Table>
-                                    <TableHead>
-                                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Loại</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Giá trị</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Ngày bắt đầu</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Ngày kết thúc</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 'bold' }}>Thao tác</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {priceHistory && priceHistory.length > 0 ? (
-                                            priceHistory.slice(0, 5).map((rule) => {
-                                                const typeLabels = {
-                                                    'fixed_price': 'Giá cố định',
-                                                    'markup': 'Tăng giá',
-                                                    'markdown': 'Giảm giá'
-                                                };
-                                                const typeColors = {
-                                                    'fixed_price': 'primary',
-                                                    'markup': 'error',
-                                                    'markdown': 'success'
-                                                };
-                                                return (
-                                                    <TableRow key={rule.rule_id} hover>
-                                                        <TableCell>
-                                                            <Chip 
-                                                                label={typeLabels[rule.type] || rule.type}
-                                                                color={typeColors[rule.type] || 'default'}
-                                                                size="small"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            {rule.type === 'fixed_price' 
-                                                                ? formatCurrency(rule.value)
-                                                                : `${rule.value}%`
-                                                            }
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {rule.end_date ? new Date(rule.end_date).toLocaleDateString('vi-VN') : 'Không giới hạn'}
-                                                        </TableCell>
-                                                        <TableCell align="center">
-                                                            <IconButton 
-                                                                color="error" 
-                                                                size="small"
-                                                                onClick={() => handleDeleteRule(rule.rule_id)}
-                                                                title="Xóa"
-                                                            >
-                                                                <DeleteIcon />
-                                                            </IconButton>
-                                                        </TableCell>
+                    
+                    {selectedProducts.length === 1 ? (
+                        // Hiển thị lịch sử của 1 sản phẩm (giữ nguyên cách cũ)
+                        selectedProduct && (
+                            <Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                    <Typography variant="subtitle1" fontWeight="bold">
+                                        {selectedProduct.name} ({selectedProduct.sku})
+                                    </Typography>
+                                </Box>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    sx={{ mb: 2 }}
+                                    onClick={() => {
+                                        setEditingRule(null);
+                                        setPriceType('fixed_price');
+                                        setPriceValue(selectedProduct.hq_price || '0');
+                                        setStartDate(new Date().toISOString().split('T')[0]);
+                                        const nextYear = new Date();
+                                        nextYear.setFullYear(nextYear.getFullYear() + 1);
+                                        setEndDate(nextYear.toISOString().split('T')[0]);
+                                        setShowPriceModal(true);
+                                    }}
+                                >
+                                    Thêm quy tắc giá mới
+                                </Button>
+                                {loadingHistory ? (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                                        <CircularProgress />
+                                    </Box>
+                                ) : (
+                                    <Paper elevation={2} sx={{ mt: 2 }}>
+                                        <TableContainer>
+                                            <Table>
+                                                <TableHead>
+                                                    <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Loại</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Giá trị</TableCell>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Ngày bắt đầu</TableCell>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Ngày kết thúc</TableCell>
+                                                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>Thao tác</TableCell>
                                                     </TableRow>
-                                                );
-                                            })
-                                        ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {priceHistory && priceHistory.length > 0 ? (
+                                                        priceHistory.map((rule) => {
+                                                            const typeLabels = {
+                                                                'fixed_price': 'Giá cố định',
+                                                                'markup': 'Tăng giá',
+                                                                'markdown': 'Giảm giá'
+                                                            };
+                                                            const typeColors = {
+                                                                'fixed_price': 'primary',
+                                                                'markup': 'error',
+                                                                'markdown': 'success'
+                                                            };
+                                                            return (
+                                                                <TableRow key={rule.rule_id} hover>
+                                                                    <TableCell>
+                                                                        <Chip 
+                                                                            label={typeLabels[rule.type] || rule.type}
+                                                                            color={typeColors[rule.type] || 'default'}
+                                                                            size="small"
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell align="right">
+                                                                        {rule.type === 'fixed_price' 
+                                                                            ? formatCurrency(rule.value)
+                                                                            : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
+                                                                        }
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {rule.end_date ? new Date(rule.end_date).toLocaleDateString('vi-VN') : 'Không giới hạn'}
+                                                                    </TableCell>
+                                                                    <TableCell align="center">
+                                                                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                                            <IconButton 
+                                                                                color="primary" 
+                                                                                size="small"
+                                                                                onClick={() => handleEditRule(rule)}
+                                                                                title="Chỉnh sửa"
+                                                                            >
+                                                                                <EditIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                            <IconButton 
+                                                                                color="error" 
+                                                                                size="small"
+                                                                                onClick={() => handleDeleteRule(rule.rule_id)}
+                                                                                title="Xóa"
+                                                                            >
+                                                                                <DeleteIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                        </Box>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    Chưa có lịch sử giá
+                                                                </Typography>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    </Paper>
+                                )}
+                            </Box>
+                        )
+                    ) : (
+                        // Hiển thị lịch sử của nhiều sản phẩm bằng Accordion
+                        <Box>
+                            {selectedProducts.map((product) => {
+                                const productId = product.product_id || product.id;
+                                const productHistory = priceHistories[productId];
+                                const isLoading = loadingHistories[productId];
+
+                                return (
+                                    <Accordion key={productId} sx={{ mb: 2 }}>
+                                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 2 }}>
+                                                <Typography variant="subtitle1" fontWeight="bold">
+                                                    {product.name} ({product.sku})
+                                                </Typography>
+                                                {productHistory && (
+                                                    <Chip 
+                                                        label={`${productHistory.history?.length || 0} quy tắc`}
+                                                        size="small"
+                                                        color={productHistory.history?.length > 0 ? 'primary' : 'default'}
+                                                    />
+                                                )}
+                                            </Box>
+                                        </AccordionSummary>
+                                        <AccordionDetails>
+                                            {isLoading ? (
+                                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                                                    <CircularProgress size={24} />
+                                                </Box>
+                                            ) : productHistory && productHistory.history && productHistory.history.length > 0 ? (
+                                                <TableContainer>
+                                                    <Table size="small">
+                                                        <TableHead>
+                                                            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                                                                <TableCell sx={{ fontWeight: 'bold' }}>Loại</TableCell>
+                                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Giá trị</TableCell>
+                                                                <TableCell sx={{ fontWeight: 'bold' }}>Ngày bắt đầu</TableCell>
+                                                                <TableCell sx={{ fontWeight: 'bold' }}>Ngày kết thúc</TableCell>
+                                                                <TableCell align="center" sx={{ fontWeight: 'bold' }}>Thao tác</TableCell>
+                                                            </TableRow>
+                                                        </TableHead>
+                                                        <TableBody>
+                                                            {productHistory.history.map((rule) => {
+                                                                const typeLabels = {
+                                                                    'fixed_price': 'Giá cố định',
+                                                                    'markup': 'Tăng giá',
+                                                                    'markdown': 'Giảm giá'
+                                                                };
+                                                                const typeColors = {
+                                                                    'fixed_price': 'primary',
+                                                                    'markup': 'error',
+                                                                    'markdown': 'success'
+                                                                };
+                                                                return (
+                                                                    <TableRow key={rule.rule_id} hover>
+                                                                        <TableCell>
+                                                                            <Chip 
+                                                                                label={typeLabels[rule.type] || rule.type}
+                                                                                color={typeColors[rule.type] || 'default'}
+                                                                                size="small"
+                                                                            />
+                                                                        </TableCell>
+                                                                        <TableCell align="right">
+                                                                            {rule.type === 'fixed_price' 
+                                                                                ? formatCurrency(rule.value)
+                                                                                : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {rule.end_date ? new Date(rule.end_date).toLocaleDateString('vi-VN') : 'Không giới hạn'}
+                                                                        </TableCell>
+                                                                        <TableCell align="center">
+                                                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                                                <IconButton 
+                                                                                    color="primary" 
+                                                                                    size="small"
+                                                                                    onClick={() => {
+                                                                                        setSelectedProduct(product);
+                                                                                        handleEditRule(rule);
+                                                                                    }}
+                                                                                    title="Chỉnh sửa"
+                                                                                >
+                                                                                    <EditIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                                <IconButton 
+                                                                                    color="error" 
+                                                                                    size="small"
+                                                                                    onClick={() => {
+                                                                                        setSelectedProduct(product);
+                                                                                        handleDeleteRule(rule.rule_id);
+                                                                                    }}
+                                                                                    title="Xóa"
+                                                                                >
+                                                                                    <DeleteIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                            </Box>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </TableContainer>
+                                            ) : (
+                                                <Box sx={{ textAlign: 'center', py: 2 }}>
                                                     <Typography variant="body2" color="text.secondary">
                                                         Chưa có lịch sử giá
                                                     </Typography>
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </Paper>
+                                                </Box>
+                                            )}
+                                        </AccordionDetails>
+                                    </Accordion>
+                                );
+                            })}
+                        </Box>
                     )}
                 </Box>
             )}

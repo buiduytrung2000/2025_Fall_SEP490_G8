@@ -368,8 +368,10 @@ export const getCurrentPrice = (product_id, store_id) => new Promise(async (reso
         let currentPrice = hqPrice
 
         if (activeRule.type === 'markup') {
+            // Markup: cộng thêm số tiền
             currentPrice = hqPrice + parseFloat(activeRule.value)
         } else if (activeRule.type === 'markdown') {
+            // Markdown: trừ đi số tiền
             currentPrice = hqPrice - parseFloat(activeRule.value)
         } else if (activeRule.type === 'fixed_price') {
             currentPrice = parseFloat(activeRule.value)
