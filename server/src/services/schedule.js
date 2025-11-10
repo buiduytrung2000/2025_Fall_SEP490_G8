@@ -656,20 +656,126 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
         if (status === 'approved') {
             // If approved, swap the users in schedules
             const fromSchedule = request.fromSchedule;
+            
+            if (!fromSchedule) {
+                resolve({
+                    err: 1,
+                    msg: 'From schedule not found',
+                    data: null
+                });
+                return;
+            }
+
+            // Get request data (handle both Sequelize instance and plain object)
+            const requestData = request.get ? request.get({ plain: true }) : request;
             const toSchedule = request.toSchedule;
 
-            if (request.request_type === 'swap' && toSchedule) {
-                // Swap: exchange users between two schedules
-                const tempUserId = fromSchedule.user_id;
-                await fromSchedule.update({ user_id: toSchedule.user_id });
-                await toSchedule.update({ user_id: tempUserId });
-            } else if (request.request_type === 'give_away' && request.to_user_id) {
+            if (requestData.request_type === 'swap') {
+                if (toSchedule) {
+                    // Swap: exchange users between two schedules
+                    const tempUserId = fromSchedule.user_id;
+                    if (toSchedule.user_id) {
+                        await fromSchedule.update({ user_id: toSchedule.user_id });
+                        await toSchedule.update({ user_id: tempUserId });
+                    } else {
+                        // To schedule is empty, just move user
+                        await toSchedule.update({ user_id: tempUserId });
+                        // Xóa schedule cũ
+                        await fromSchedule.destroy();
+                    }
+                } else if (requestData.to_work_date && requestData.to_shift_template_id) {
+                    // Swap với ca trống - tìm schedule ở ca trống (nếu có)
+                    try {
+                        // Validate dữ liệu
+                        if (!fromSchedule.store_id) {
+                            throw new Error('Store ID is missing from fromSchedule');
+                        }
+                        if (!fromSchedule.user_id) {
+                            throw new Error('User ID is missing from fromSchedule');
+                        }
+                        if (!requestData.to_shift_template_id) {
+                            throw new Error('Shift template ID is missing');
+                        }
+                        if (!requestData.to_work_date) {
+                            throw new Error('Work date is missing');
+                        }
+                        if (!reviewerId) {
+                            throw new Error('Reviewer ID is missing');
+                        }
+
+                        const toShiftTemplateId = parseInt(requestData.to_shift_template_id);
+                        const toWorkDate = requestData.to_work_date;
+                        const fromUserId = fromSchedule.user_id;
+
+                        // Kiểm tra xem đã có schedule ở ca trống chưa (có thể có schedule nhưng user_id = null)
+                        const existingSchedule = await db.Schedule.findOne({
+                            where: {
+                                store_id: fromSchedule.store_id,
+                                shift_template_id: toShiftTemplateId,
+                                work_date: toWorkDate
+                            }
+                        });
+
+                        if (existingSchedule) {
+                            // Đã có schedule ở ca trống
+                            if (existingSchedule.user_id && existingSchedule.user_id === fromUserId) {
+                                // Cùng user, cùng ca - xóa fromSchedule
+                                await fromSchedule.destroy();
+                            } else if (existingSchedule.user_id) {
+                                // Đã có nhân viên khác - swap
+                                const tempUserId = fromSchedule.user_id;
+                                await existingSchedule.update({ user_id: tempUserId, status: 'confirmed' });
+                                // Xóa schedule cũ
+                                await fromSchedule.destroy();
+                            } else {
+                                // Schedule trống (user_id = null) - chỉ cần gán user
+                                await existingSchedule.update({ user_id: fromUserId, status: 'confirmed' });
+                                // Xóa schedule cũ
+                                await fromSchedule.destroy();
+                            }
+                        } else {
+                            // Chưa có schedule - tạo mới
+                            // Nhưng kiểm tra xem có trùng với fromSchedule không
+                            if (fromSchedule.shift_template_id === toShiftTemplateId && 
+                                fromSchedule.work_date === toWorkDate) {
+                                // Cùng ca - xóa schedule cũ
+                                await fromSchedule.destroy();
+                            } else {
+                                // Khác ca - tạo schedule mới
+                                const scheduleData = {
+                                    store_id: fromSchedule.store_id,
+                                    user_id: fromUserId,
+                                    shift_template_id: toShiftTemplateId,
+                                    work_date: toWorkDate,
+                                    status: 'confirmed',
+                                    created_by: reviewerId
+                                };
+
+                                const newSchedule = await db.Schedule.create(scheduleData);
+                                
+                                // Xóa schedule cũ
+                                await fromSchedule.destroy();
+                            }
+                        }
+                    } catch (createError) {
+                        throw new Error('Failed to process empty shift swap: ' + (createError.message || createError.toString()));
+                    }
+                } else {
+                    // Swap nhưng không có to_schedule và không có thông tin ca trống
+                    // Có thể là để quản lý tự phân công - xóa schedule cũ
+                    await fromSchedule.destroy();
+                }
+            } else if (requestData.request_type === 'give_away' && requestData.to_user_id) {
                 // Give away: transfer the shift to another user
-                await fromSchedule.update({ user_id: request.to_user_id });
-            } else if (request.request_type === 'take_over') {
+                await fromSchedule.update({ user_id: requestData.to_user_id });
+            } else if (requestData.request_type === 'take_over') {
                 // Take over: request.to_user_id should be the one taking over
-                if (request.to_user_id) {
-                    await fromSchedule.update({ user_id: request.to_user_id });
+                if (requestData.to_user_id) {
+                    await fromSchedule.update({ user_id: requestData.to_user_id });
+                } else {
+                    // Take over nhưng không có to_user_id - để quản lý tự phân công
+                    // Xóa schedule cũ
+                    await fromSchedule.destroy();
                 }
             }
         }
