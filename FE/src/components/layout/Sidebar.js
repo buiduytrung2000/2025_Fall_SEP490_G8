@@ -11,7 +11,7 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
-    FaBars, FaUserClock, FaCashRegister, FaChartPie// Icon cho nút Toggle
+    FaBars, FaUserClock, FaCashRegister, FaChartPie, FaExchangeAlt// Icon cho nút Toggle
 } from 'react-icons/fa';
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
@@ -24,10 +24,12 @@ const navLinks = {
         { to: "/manager/reports/shifts", icon: <FaChartPie />, text: "Báo cáo ca làm" },
         { to: "/manager/staff", icon: <FaUserFriends />, text: "Quản lý Nhân viên" },
         { to: "/manager/schedule", icon: <FaCalendarAlt />, text: "Lịch làm việc" },
+        { to: "/manager/shift-change-requests", icon: <FaExchangeAlt />, text: "Yêu cầu đổi ca" },
     ],
     Cashier: [
         { to: "/cashier/pos", icon: <FaCashRegister />, text: "Bán hàng (POS)" },
-        { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" }
+        { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" },
+        { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" }
     ],
     CEO: [{ to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" }],
     Warehouse: [

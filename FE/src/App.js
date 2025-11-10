@@ -32,10 +32,12 @@ import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
 import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
+import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
 import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
+import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -114,6 +116,14 @@ function App() {
               }
             />
             <Route
+              path="/manager/shift-change-requests"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <ShiftChangeRequestManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/ceo/dashboard"
               element={
                 <ProtectedRoute allowedRoles={["CEO"]}>
@@ -136,6 +146,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Cashier", "Warehouse"]}>
                   <MySchedule />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/shift-change-request"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <ShiftChangeRequest />
                 </ProtectedRoute>
               }
             />

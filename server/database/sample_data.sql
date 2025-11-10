@@ -170,11 +170,13 @@ INSERT INTO Schedule (store_id, user_id, shift_template_id, work_date, status, n
 (1, 4, 2, '2024-12-22', 'draft', 'Ca tối chủ nhật - chưa xác nhận', 2);
 
 -- 19. Insert Shift Change Requests (Yêu cầu đổi ca)
-INSERT INTO ShiftChangeRequest (store_id, from_schedule_id, from_user_id, to_user_id, to_schedule_id, request_type, reason, status, reviewed_by, reviewed_at) VALUES
--- Yêu cầu đổi ca đã được duyệt
-(1, 5, 4, 3, 6, 'swap', 'Có việc đột xuất vào buổi sáng thứ tư', 'approved', 2, '2024-12-15 10:30:00'),
--- Yêu cầu đổi ca đang chờ duyệt
-(1, 14, 4, NULL, NULL, 'give_away', 'Không thể làm ca tối chủ nhật', 'pending', NULL, NULL),
--- Yêu cầu đổi ca bị từ chối
-(1, 12, 5, 3, 8, 'swap', 'Muốn đổi ca để đi chơi', 'rejected', 2, '2024-12-15 14:20:00');
+INSERT INTO ShiftChangeRequest (store_id, from_schedule_id, from_user_id, to_user_id, to_schedule_id, to_work_date, to_shift_template_id, request_type, reason, status, reviewed_by, reviewed_at) VALUES
+-- Yêu cầu đổi ca đã được duyệt (swap với schedule có sẵn)
+(1, 5, 4, 3, 6, NULL, NULL, 'swap', 'Có việc đột xuất vào buổi sáng thứ tư', 'approved', 2, '2024-12-15 10:30:00'),
+-- Yêu cầu đổi ca đang chờ duyệt (give away - để quản lý tự phân công)
+(1, 14, 4, NULL, NULL, NULL, NULL, 'give_away', 'Không thể làm ca tối chủ nhật', 'pending', NULL, NULL),
+-- Yêu cầu đổi ca bị từ chối (swap với schedule có sẵn)
+(1, 12, 5, 3, 8, NULL, NULL, 'swap', 'Muốn đổi ca để đi chơi', 'rejected', 2, '2024-12-15 14:20:00'),
+-- Yêu cầu đổi ca với ca trống (swap với ca trống - ví dụ)
+(1, 3, 3, NULL, NULL, '2024-12-25', 2, 'swap', 'Muốn đổi sang ca tối ngày 25/12', 'pending', NULL, NULL);
 

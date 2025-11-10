@@ -49,6 +49,12 @@ const formatShiftLabel = (template) => {
     const end = template.end_time ? template.end_time.slice(0, 5) : '??';
     return `${template.name || 'Ca'} (${start} - ${end})`;
 };
+const toLocalDateKey = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
 // --- HẾT HÀM HELPER ---
 
 const MySchedule = () => {
@@ -92,8 +98,8 @@ const MySchedule = () => {
 
     // useEffect để tải dữ liệu
     useEffect(() => {
-        const start = startOfWeek.toISOString().split('T')[0];
-        const end = endOfWeek.toISOString().split('T')[0];
+        const start = toLocalDateKey(startOfWeek);
+        const end = toLocalDateKey(endOfWeek);
         setLoading(true);
         getMySchedules(start, end)
             .then(res => {
@@ -143,7 +149,7 @@ const MySchedule = () => {
     const hasSchedules = useMemo(() => {
         return shiftTemplates.some(shift => {
             return weekDays.some(day => {
-                const dayKey = day.toISOString().split('T')[0];
+                const dayKey = toLocalDateKey(day);
                 return !!(schedule[dayKey] && schedule[dayKey][shift.id]);
             });
         });
@@ -212,7 +218,7 @@ const MySchedule = () => {
                                         </TableCell>
 
                                         {weekDays.map(day => {
-                                            const dayKey = day.toISOString().split('T')[0];
+                                            const dayKey = toLocalDateKey(day);
                                             const shiftData = schedule[dayKey] ? schedule[dayKey][shift.id] : null;
                                             const isMyShift = !!shiftData;
 
