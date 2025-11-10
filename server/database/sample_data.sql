@@ -42,6 +42,7 @@ INSERT INTO User (username, password, role, store_id, email, phone, status) VALU
 ('warehouse_staff1', '123', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', 'active'),
 ('supplier_rep1', '123', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', 'active');
 
+
 -- 5. Insert Products
 INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
 ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 999.99, 'Latest iPhone model with Pro features'),
