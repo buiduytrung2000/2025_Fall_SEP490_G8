@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS User (
     role ENUM('CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Supplier') NOT NULL,
     store_id INT NULL,
     email VARCHAR(255),
+    phone VARCHAR(20),
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
