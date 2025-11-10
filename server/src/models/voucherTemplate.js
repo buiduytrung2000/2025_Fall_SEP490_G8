@@ -2,30 +2,22 @@
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
-  class CustomerVoucher extends Model {
+  class VoucherTemplate extends Model {
     static associate(models) {
-      // Define association with Customer
-      CustomerVoucher.belongsTo(models.Customer, {
-        foreignKey: 'customer_id',
-        as: 'customer'
-      });
+      // No direct associations needed
     }
   }
   
-  CustomerVoucher.init({
-    customer_voucher_id: {
+  VoucherTemplate.init({
+    voucher_template_id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
     },
-    customer_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
-    voucher_code: {
-      type: DataTypes.STRING(50),
+    voucher_code_prefix: {
+      type: DataTypes.STRING(20),
       allowNull: false,
-      unique: true
+      comment: 'Tiền tố mã voucher'
     },
     voucher_name: {
       type: DataTypes.STRING(255),
@@ -52,35 +44,24 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
       comment: 'Số điểm tích lũy tối thiểu để nhận voucher'
     },
-    start_date: {
-      type: DataTypes.DATE,
-      allowNull: false
-    },
-    end_date: {
-      type: DataTypes.DATE,
-      allowNull: false
-    },
-    status: {
-      type: DataTypes.ENUM('available', 'used', 'expired'),
-      defaultValue: 'available'
-    },
-    used_at: {
-      type: DataTypes.DATE,
-      allowNull: true
-    },
-    transaction_id: {
+    validity_days: {
       type: DataTypes.INTEGER,
-      allowNull: true
+      defaultValue: 30,
+      comment: 'Số ngày voucher có hiệu lực'
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
     }
   }, {
     sequelize,
-    modelName: 'CustomerVoucher',
-    tableName: 'CustomerVoucher',
+    modelName: 'VoucherTemplate',
+    tableName: 'VoucherTemplate',
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at'
   });
   
-  return CustomerVoucher;
+  return VoucherTemplate;
 };
 

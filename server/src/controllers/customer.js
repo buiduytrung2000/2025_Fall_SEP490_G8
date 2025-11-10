@@ -103,3 +103,24 @@ export const remove = async (req, res) => {
     }
 }
 
+// UPDATE LOYALTY POINTS
+export const updateLoyaltyPoints = async (req, res) => {
+    const { customer_id } = req.params
+    const { purchase_amount } = req.body
+    try {
+        if (!customer_id || !purchase_amount) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing customer_id or purchase_amount'
+            })
+        }
+        const response = await customerService.updateLoyaltyPoints(customer_id, purchase_amount)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at customer controller: ' + error
+        })
+    }
+}
+

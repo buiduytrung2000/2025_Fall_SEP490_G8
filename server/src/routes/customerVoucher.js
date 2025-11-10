@@ -19,5 +19,8 @@ router.post('/validate', voucherController.validateVoucher)
 // Create voucher
 router.post('/', voucherController.createVoucher)
 
+// Generate vouchers for existing customer
+router.post('/customer/:customer_id/generate', voucherController.generateVouchersForCustomer)
+
 export default router
 

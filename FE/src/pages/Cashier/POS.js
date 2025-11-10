@@ -9,7 +9,7 @@ import '../../assets/POS.css';
 import { getProductsByStore } from '../../api/productApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
-import { getAvailableVouchers, validateVoucher } from '../../api/voucherApi';
+import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
 import { toast } from 'react-toastify';
 
 // Hàm helper để format tiền tệ
@@ -201,6 +201,20 @@ const POS = () => {
             const res = await getAvailableVouchers(customerId);
             if (res && res.err === 0) {
                 setVouchers(res.data || []);
+
+                // Nếu không có voucher nào, tự động tạo voucher cho khách hàng
+                if (res.data.length === 0) {
+                    toast.info('Đang tạo voucher cho khách hàng...');
+                    const generateRes = await generateVouchersForCustomer(customerId);
+                    if (generateRes && generateRes.err === 0) {
+                        toast.success(generateRes.msg);
+                        // Reload vouchers
+                        const reloadRes = await getAvailableVouchers(customerId);
+                        if (reloadRes && reloadRes.err === 0) {
+                            setVouchers(reloadRes.data || []);
+                        }
+                    }
+                }
             } else {
                 setVouchers([]);
             }
@@ -243,6 +257,48 @@ const POS = () => {
     const handleRemoveVoucher = () => {
         setSelectedVoucher(null);
         toast.info('Đã hủy áp dụng voucher');
+    };
+
+    // Xử lý thanh toán
+    const handleCheckout = async () => {
+        if (cart.length === 0) {
+            toast.warning('Giỏ hàng trống');
+            return;
+        }
+
+        try {
+            // TODO: Implement actual payment processing here
+            // For now, just update loyalty points if customer is selected
+
+            if (selectedCustomer) {
+                // Update loyalty points: 10,000đ = 10 points
+                const res = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
+                if (res && res.err === 0) {
+                    toast.success(`Thanh toán thành công! ${res.msg}`);
+
+                    // Reload vouchers to show newly unlocked vouchers
+                    await loadCustomerVouchers(selectedCustomer.customer_id);
+
+                    // Update customer info to show new points
+                    setSelectedCustomer({
+                        ...selectedCustomer,
+                        loyalty_point: res.data.new_points
+                    });
+                } else {
+                    toast.success('Thanh toán thành công!');
+                }
+            } else {
+                toast.success('Thanh toán thành công!');
+            }
+
+            // Clear cart and voucher
+            setCart([]);
+            setSelectedVoucher(null);
+
+        } catch (error) {
+            console.error('Error during checkout:', error);
+            toast.error('Lỗi khi thanh toán');
+        }
     };
 
     // Xử lý tạo khách hàng mới
@@ -560,8 +616,14 @@ const POS = () => {
                                                     }}
                                                 >
                                                     <div>
-                                                        <strong style={{ fontSize: '13px' }}>{voucher.voucher_name}</strong>
-                                                        <br />
+                                                        <div className="d-flex justify-content-between align-items-start">
+                                                            <strong style={{ fontSize: '13px' }}>{voucher.voucher_name}</strong>
+                                                            {voucher.required_loyalty_points > 0 && (
+                                                                <span className="badge bg-warning text-dark" style={{ fontSize: '10px' }}>
+                                                                    {voucher.required_loyalty_points} điểm
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <small className="text-muted">
                                                             Giảm {voucher.discount_type === 'percentage'
                                                                 ? `${voucher.discount_value}%`
@@ -647,11 +709,12 @@ const POS = () => {
                             <strong>{formatCurrency(total)}</strong>
                         </div>
                     </div>
-                    <Button 
-                        variant="primary" 
-                        size="lg" 
-                        className="w-100 mt-3" 
+                    <Button
+                        variant="primary"
+                        size="lg"
+                        className="w-100 mt-3"
                         disabled={cart.length === 0}
+                        onClick={handleCheckout}
                     >
                         Thanh toán
                     </Button>

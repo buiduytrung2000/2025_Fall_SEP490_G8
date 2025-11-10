@@ -46,3 +46,21 @@ export async function createVoucher(data) {
     return res.json();
 }
 
+// Update customer loyalty points
+export async function updateCustomerLoyaltyPoints(customerId, purchaseAmount) {
+    const res = await fetch(`${API_BASE}/customer/${customerId}/loyalty-points`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ purchase_amount: purchaseAmount })
+    });
+    return res.json();
+}
+
+export async function generateVouchersForCustomer(customerId) {
+    const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+

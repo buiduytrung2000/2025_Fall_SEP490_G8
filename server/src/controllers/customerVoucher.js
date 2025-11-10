@@ -56,6 +56,26 @@ export const validateVoucher = async (req, res) => {
     }
 }
 
+// GENERATE VOUCHERS FOR EXISTING CUSTOMER
+export const generateVouchersForCustomer = async (req, res) => {
+    const { customer_id } = req.params
+    try {
+        if (!customer_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing customer_id'
+            })
+        }
+        const response = await customerVoucherService.generateVouchersForExistingCustomer(customer_id)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at customerVoucher controller: ' + error
+        })
+    }
+}
+
 // CREATE VOUCHER
 export const createVoucher = async (req, res) => {
     try {

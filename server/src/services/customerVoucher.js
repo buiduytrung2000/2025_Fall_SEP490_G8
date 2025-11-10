@@ -1,10 +1,26 @@
 import db from '../models'
 import { Op } from 'sequelize'
 
-// GET AVAILABLE VOUCHERS BY CUSTOMER ID
+// GET AVAILABLE VOUCHERS BY CUSTOMER ID (filtered by loyalty points)
 export const getAvailableVouchersByCustomer = (customerId) => new Promise(async (resolve, reject) => {
     try {
+        // Get customer's loyalty points
+        const customer = await db.Customer.findByPk(customerId, {
+            attributes: ['loyalty_point']
+        });
+
+        if (!customer) {
+            return resolve({
+                err: 1,
+                msg: 'Customer not found',
+                data: []
+            });
+        }
+
+        const customerLoyaltyPoints = customer.loyalty_point || 0;
         const now = new Date();
+
+        // Get vouchers that customer can use based on loyalty points
         const response = await db.CustomerVoucher.findAll({
             where: {
                 customer_id: customerId,
@@ -14,12 +30,15 @@ export const getAvailableVouchersByCustomer = (customerId) => new Promise(async 
                 },
                 end_date: {
                     [Op.gte]: now
+                },
+                required_loyalty_points: {
+                    [Op.lte]: customerLoyaltyPoints
                 }
             },
             attributes: {
                 exclude: ['createdAt', 'updatedAt']
             },
-            order: [['end_date', 'ASC']]
+            order: [['required_loyalty_points', 'DESC'], ['end_date', 'ASC']]
         })
 
         resolve({
@@ -157,3 +176,103 @@ export const createVoucher = (data) => new Promise(async (resolve, reject) => {
     }
 })
 
+// AUTO-GENERATE VOUCHERS FOR CUSTOMER BASED ON LOYALTY POINTS
+export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => new Promise(async (resolve, reject) => {
+    try {
+        // Get all active voucher templates that customer qualifies for
+        const templates = await db.VoucherTemplate.findAll({
+            where: {
+                is_active: true,
+                required_loyalty_points: {
+                    [Op.lte]: loyaltyPoints
+                }
+            },
+            order: [['required_loyalty_points', 'DESC']]
+        });
+
+        if (templates.length === 0) {
+            return resolve({
+                err: 0,
+                msg: 'No voucher templates available',
+                data: []
+            });
+        }
+
+        const newVouchers = [];
+        const now = new Date();
+
+        for (const template of templates) {
+            // Check if customer already has this type of voucher
+            const existingVoucher = await db.CustomerVoucher.findOne({
+                where: {
+                    customer_id: customerId,
+                    voucher_code: {
+                        [Op.like]: `${template.voucher_code_prefix}%`
+                    },
+                    status: 'available'
+                }
+            });
+
+            // Only create if customer doesn't have this voucher yet
+            if (!existingVoucher) {
+                const voucherCode = `${template.voucher_code_prefix}-${customerId}-${Date.now()}`;
+                const endDate = new Date(now);
+                endDate.setDate(endDate.getDate() + template.validity_days);
+
+                const newVoucher = await db.CustomerVoucher.create({
+                    customer_id: customerId,
+                    voucher_code: voucherCode,
+                    voucher_name: template.voucher_name,
+                    discount_type: template.discount_type,
+                    discount_value: template.discount_value,
+                    min_purchase_amount: template.min_purchase_amount,
+                    max_discount_amount: template.max_discount_amount,
+                    required_loyalty_points: template.required_loyalty_points,
+                    start_date: now,
+                    end_date: endDate,
+                    status: 'available'
+                });
+
+                newVouchers.push(newVoucher);
+            }
+        }
+
+        resolve({
+            err: 0,
+            msg: `Đã tạo ${newVouchers.length} voucher mới`,
+            data: newVouchers
+        });
+    } catch (error) {
+        reject(error);
+    }
+})
+
+// GENERATE VOUCHERS FOR EXISTING CUSTOMER (Manual trigger)
+export const generateVouchersForExistingCustomer = (customerId) => new Promise(async (resolve, reject) => {
+    try {
+        // Get customer's current loyalty points
+        const customer = await db.Customer.findByPk(customerId, {
+            attributes: ['customer_id', 'name', 'loyalty_point']
+        });
+
+        if (!customer) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy khách hàng'
+            });
+        }
+
+        const loyaltyPoints = customer.loyalty_point || 0;
+
+        // Use the auto-generate function
+        const result = await autoGenerateVouchersForCustomer(customerId, loyaltyPoints);
+
+        resolve({
+            err: 0,
+            msg: `Đã tạo voucher cho khách hàng ${customer.name} (${loyaltyPoints} điểm). ${result.msg}`,
+            data: result.data
+        });
+    } catch (error) {
+        reject(error);
+    }
+})

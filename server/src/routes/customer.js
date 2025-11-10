@@ -12,6 +12,7 @@ router.get('/search', customerController.searchByPhone)
 router.get('/:customer_id', customerController.getOne)
 router.post('/', customerController.create)
 router.put('/:customer_id', customerController.update)
+router.put('/:customer_id/loyalty-points', customerController.updateLoyaltyPoints)
 router.delete('/:customer_id', customerController.remove)
 
 export default router

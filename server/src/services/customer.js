@@ -159,3 +159,44 @@ export const remove = (customer_id) => new Promise(async (resolve, reject) => {
     }
 })
 
+// UPDATE LOYALTY POINTS AND AUTO-GENERATE VOUCHERS
+// Rule: 100đ = 1 point
+export const updateLoyaltyPoints = (customer_id, purchaseAmount) => new Promise(async (resolve, reject) => {
+    try {
+        const customer = await db.Customer.findByPk(customer_id);
+
+        if (!customer) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy khách hàng'
+            });
+        }
+
+        // Calculate points: 100đ = 1 point
+        const pointsToAdd = Math.floor(purchaseAmount / 100);
+        const oldPoints = customer.loyalty_point || 0;
+        const newPoints = oldPoints + pointsToAdd;
+
+        // Update customer loyalty points
+        await customer.update({
+            loyalty_point: newPoints
+        });
+
+        // Auto-generate vouchers based on new loyalty points
+        const voucherService = require('./customerVoucher');
+        await voucherService.autoGenerateVouchersForCustomer(customer_id, newPoints);
+
+        resolve({
+            err: 0,
+            msg: `Đã cộng ${pointsToAdd} điểm. Tổng điểm: ${newPoints}`,
+            data: {
+                old_points: oldPoints,
+                points_added: pointsToAdd,
+                new_points: newPoints
+            }
+        });
+    } catch (error) {
+        reject(error);
+    }
+})
+
