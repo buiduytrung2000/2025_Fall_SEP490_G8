@@ -38,6 +38,8 @@ import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
 import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
+import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
+import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -158,19 +160,36 @@ function App() {
               }
             />
 
-            <Route
+            {/* <Route
               path="/warehouse/inventory"
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <InventoryManagement />
                 </ProtectedRoute>
               }
-            />
+            /> */}
             <Route
               path="/warehouse/products"
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <WarehouseProductManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/warehouse/inventory"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseInventoryList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/inventory/:id"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseInventoryDetail />
                 </ProtectedRoute>
               }
             />

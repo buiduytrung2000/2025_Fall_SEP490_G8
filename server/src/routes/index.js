@@ -10,6 +10,7 @@ import scheduleRouter from './schedule'
 import employeeRouter from './employee'
 import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
+import warehouseOrderRouter from './warehouseOrder'
 
 const initRoutes = (app) => {
     app.use('/api/v1/auth', authRouter)
@@ -24,10 +25,24 @@ const initRoutes = (app) => {
     app.use('/api/v1/employee', employeeRouter)
     app.use('/api/v1/inventory', inventoryRouter)
     app.use('/api/v1/store-order', storeOrderRouter)
+    app.use('/api/v1/warehouse-order', warehouseOrderRouter)
 
-    return app.use('/', (req, res) => {
-        res.send('server on...')
+    app.get('/', (req, res) => {
+        res.status(200).json({
+            message: 'Server is running...',
+            status: 'OK',
+            timestamp: new Date().toISOString()
+        })
     })
+
+    app.use('*', (req, res) => {
+        res.status(404).json({
+            err: 1,
+            msg: 'Route not found',
+            path: req.originalUrl
+        })
+    })
+
 }
 
 export default initRoutes

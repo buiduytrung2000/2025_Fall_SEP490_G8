@@ -76,70 +76,63 @@ export const registerService = ({ username, password, role, email, store_id }) =
     }
 })
 
-export const loginService = ({ email, password }) => new Promise(async (resolve, reject) => {
+
+export const loginService = async ({ email, password }) => {
     try {
         const user = await db.User.findOne({
             where: { email },
-            attributes: ['user_id', 'username', 'email', 'password', 'role', 'status']
+            raw: true
         })
 
         if (!user) {
-            resolve({
-                err: 2,
-                msg: 'Email not found!',
-                token: null
-            })
-            return
+            return {
+                err: 1,
+                msg: 'Email not found!'
+            }
         }
 
-        // Check if user is active
+        const isPasswordValid = await bcrypt.compare(password, user.password)
+        
+        if (!isPasswordValid) {
+            return {
+                err: 1,
+                msg: 'Invalid password!'
+            }
+        }
+
         if (user.status !== 'active') {
-            resolve({
-                err: 2,
-                msg: `Account is ${user.status}! Please contact administrator.`,
-                token: null
-            })
-            return
+            return {
+                err: 1,
+                msg: 'Account is not active!'
+            }
         }
 
-        // Verify password
-        let isCorrectPassword = false
-        if (typeof user.password === 'string' && user.password.startsWith('$2')) {
-            // Hashed password
-            isCorrectPassword = bcrypt.compareSync(password, user.password)
-        } else {
-            // Plain password (for demo purposes)
-            isCorrectPassword = password === user.password
-        }
+        // Generate token with role included
+        const token = jwt.sign(
+            { 
+                user_id: user.user_id, 
+                email: user.email,
+                role: user.role, // Include role in token
+                store_id: user.store_id
+            },
+            process.env.SECRET_KEY,
+            { expiresIn: '7d' }
+        )
 
-        if (!isCorrectPassword) {
-            resolve({
-                err: 2,
-                msg: 'Password is wrong!',
-                token: null
-            })
-            return
-        }
-
-        const token = jwt.sign({
-            user_id: user.user_id,
-            username: user.username,
-            role: user.role
-        }, process.env.SECRET_KEY, { expiresIn: '2d' })
-
-        resolve({
+        return {
             err: 0,
-            msg: 'Login is successfully!',
-            token: token,
+            msg: 'Login successful!',
+            token,
             user: {
                 user_id: user.user_id,
                 username: user.username,
+                email: user.email,
                 role: user.role,
-                email: user.email || null
+                store_id: user.store_id,
+                status: user.status
             }
-        })
-
+        }
     } catch (error) {
-        reject(error)
+        throw error
     }
-})
+}
