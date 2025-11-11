@@ -475,3 +475,130 @@ export const getTransactionDetails = (transactionId) => new Promise(async (resol
     }
 });
 
+// Get transaction history with filters
+export const getTransactionHistory = (filters = {}) => new Promise(async (resolve, reject) => {
+    try {
+        const { date, payment_method, store_id, cashier_id } = filters;
+
+        const whereClause = {};
+        const paymentWhereClause = {};
+
+        // Filter by date (default to today if not provided)
+        if (date) {
+            whereClause.created_at = {
+                [db.Sequelize.Op.gte]: new Date(date + ' 00:00:00'),
+                [db.Sequelize.Op.lte]: new Date(date + ' 23:59:59')
+            };
+        } else {
+            // Default to today
+            const today = new Date();
+            const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+            const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+            whereClause.created_at = {
+                [db.Sequelize.Op.gte]: startOfDay,
+                [db.Sequelize.Op.lte]: endOfDay
+            };
+        }
+
+        // Filter by store
+        if (store_id) {
+            whereClause.store_id = store_id;
+        }
+
+        // Filter by cashier
+        if (cashier_id) {
+            whereClause.cashier_id = cashier_id;
+        }
+
+        // Filter by payment method
+        if (payment_method) {
+            if (payment_method === 'cash') {
+                paymentWhereClause.method = 'cash';
+            } else if (payment_method === 'qr') {
+                paymentWhereClause.method = 'bank_transfer';
+            }
+        }
+
+        // Only show completed transactions
+        whereClause.status = 'completed';
+
+        const transactions = await db.Transaction.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: db.Payment,
+                    as: 'payment',
+                    where: Object.keys(paymentWhereClause).length > 0 ? paymentWhereClause : undefined,
+                    attributes: ['payment_id', 'method', 'amount', 'status', 'paid_at']
+                },
+                {
+                    model: db.Customer,
+                    as: 'customer',
+                    attributes: ['customer_id', 'name', 'phone'],
+                    required: false
+                },
+                {
+                    model: db.Store,
+                    as: 'store',
+                    attributes: ['store_id', 'name'],
+                    required: false
+                },
+                {
+                    model: db.User,
+                    as: 'cashier',
+                    attributes: ['user_id', 'username', 'email'],
+                    required: false
+                },
+                {
+                    model: db.TransactionItem,
+                    as: 'items',
+                    include: [{
+                        model: db.Product,
+                        as: 'product',
+                        attributes: ['product_id', 'name', 'sku']
+                    }]
+                }
+            ],
+            order: [['created_at', 'DESC']]
+        });
+
+        resolve({
+            err: 0,
+            msg: 'Transaction history retrieved successfully',
+            data: transactions
+        });
+
+    } catch (error) {
+        console.error('Error getting transaction history:', error);
+        resolve({
+            err: -1,
+            msg: 'Failed to get transaction history: ' + error.message
+        });
+    }
+});
+
+// Get user info (store_id, etc.)
+export const getUserInfo = (user_id) => new Promise(async (resolve, reject) => {
+    try {
+        const user = await db.User.findOne({
+            where: { user_id },
+            attributes: ['user_id', 'username', 'role', 'store_id', 'status']
+        });
+
+        if (!user) {
+            return resolve(null);
+        }
+
+        resolve({
+            user_id: user.user_id,
+            username: user.username,
+            role: user.role,
+            store_id: user.store_id,
+            status: user.status
+        });
+    } catch (error) {
+        console.error('Error getting user info:', error);
+        resolve(null);
+    }
+});
+

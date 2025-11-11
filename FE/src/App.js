@@ -36,6 +36,8 @@ import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
+import CashierPaymentHistory from "./pages/Cashier/PaymentHistory";
+import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -114,6 +116,14 @@ function App() {
               }
             />
             <Route
+              path="/manager/payment-history"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <ManagerPaymentHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/ceo/dashboard"
               element={
                 <ProtectedRoute allowedRoles={["CEO"]}>
@@ -127,6 +137,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Cashier"]}>
                   <POS />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/cashier/payment-history"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <CashierPaymentHistory />
                 </ProtectedRoute>
               }
             />

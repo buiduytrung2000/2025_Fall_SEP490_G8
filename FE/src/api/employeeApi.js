@@ -66,4 +66,7 @@ export async function fetchEmployeeStats(params = {}) {
     return res.json();
 }
 
+// Alias for compatibility
+export const getEmployees = fetchEmployees;
+
 

@@ -197,3 +197,68 @@ export const getTransactionDetails = async (req, res) => {
     }
 };
 
+// Get transaction history
+export const getTransactionHistory = async (req, res) => {
+    try {
+        const { date, payment_method, store_id, cashier_id } = req.query;
+        const user = req.user;
+
+        // Build filters
+        const filters = {};
+
+        if (date) {
+            filters.date = date;
+        }
+
+        if (payment_method) {
+            filters.payment_method = payment_method;
+        }
+
+        // For Cashier role: only show their own transactions
+        if (user.role === 'Cashier') {
+            // Get user's store_id from database
+            const userInfo = await paymentService.getUserInfo(user.user_id);
+            if (!userInfo) {
+                return res.status(404).json({
+                    err: 1,
+                    msg: 'User not found'
+                });
+            }
+
+            filters.cashier_id = user.user_id;
+            filters.store_id = userInfo.store_id;
+        }
+        // For Manager role: show all transactions in their store
+        else if (user.role === 'Manager' || user.role === 'Store_Manager') {
+            // Get manager's store_id from database
+            const userInfo = await paymentService.getUserInfo(user.user_id);
+            if (!userInfo) {
+                return res.status(404).json({
+                    err: 1,
+                    msg: 'User not found'
+                });
+            }
+
+            filters.store_id = store_id || userInfo.store_id;
+            if (cashier_id) {
+                filters.cashier_id = cashier_id;
+            }
+        }
+        // For other roles: allow filtering by store_id and cashier_id
+        else {
+            if (store_id) filters.store_id = store_id;
+            if (cashier_id) filters.cashier_id = cashier_id;
+        }
+
+        const response = await paymentService.getTransactionHistory(filters);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+
+    } catch (error) {
+        console.error('Error in getTransactionHistory controller:', error);
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at payment controller: ' + error.message
+        });
+    }
+};
+
