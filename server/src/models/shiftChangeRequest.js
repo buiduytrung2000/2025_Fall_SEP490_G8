@@ -80,6 +80,18 @@ module.exports = (sequelize, DataTypes) => {
         key: 'schedule_id'
       }
     },
+    to_work_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true
+    },
+    to_shift_template_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'ShiftTemplate',
+        key: 'shift_template_id'
+      }
+    },
     request_type: {
       type: DataTypes.ENUM('swap', 'give_away', 'take_over'),
       allowNull: false

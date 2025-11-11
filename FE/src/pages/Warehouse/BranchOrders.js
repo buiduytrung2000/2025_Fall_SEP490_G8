@@ -1,155 +1,355 @@
-// src/pages/Warehouse/BranchOrders.js
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box, Paper, Typography, TextField, MenuItem, Grid, Card, CardContent,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Button, Stack
-} from '@mui/material';
-import { getStoreOrders } from '../../api/mockApi';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Paper,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Button,
+  MenuItem,
+  TextField,
+  Stack,
+  TablePagination,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  Card,
+  CardContent,
+  Grid
+} from '@mui/material';
+import {
+  Visibility as ViewIcon,
+  Refresh as RefreshIcon,
+  FilterList as FilterIcon
+} from '@mui/icons-material';
+import { toast } from 'react-toastify';
+import { getAllWarehouseOrders, getOrderStatistics } from '../../api/warehouseOrderApi';
 
-const Kpi = ({ label, value }) => (
-  <Card sx={{ boxShadow: 1 }}>
-    <CardContent>
-      <Typography color="text.secondary">{label}</Typography>
-      <Typography variant="h6">{value}</Typography>
-    </CardContent>
-  </Card>
-);
+const statusColors = {
+  pending: 'warning',
+  confirmed: 'info',
+  shipped: 'primary',
+  delivered: 'success',
+  cancelled: 'error'
+};
+
+const statusLabels = {
+  pending: 'Chờ xử lý',
+  confirmed: 'Đã xác nhận',
+  shipped: 'Đang giao',
+  delivered: 'Đã giao',
+  cancelled: 'Đã hủy'
+};
+
+const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('vi-VN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 const BranchOrders = () => {
-  const [orders, setOrders] = useState([]);
   const navigate = useNavigate();
-  const [branch, setBranch] = useState('Tất cả');
-  const [status, setStatus] = useState('Tất cả');
-  const [date, setDate] = useState('');
-  const [code, setCode] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [statistics, setStatistics] = useState(null);
 
-  const load = () => { getStoreOrders().then(data => setOrders(data.filter(o => o.type === 'ToWarehouse'))); };
-  useEffect(() => { load(); }, []);
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const branches = useMemo(() => ['Tất cả', ...Array.from(new Set(orders.map(o => o.branch || 'CN1')))], [orders]);
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const response = await getAllWarehouseOrders({
+        page: page + 1,
+        limit: rowsPerPage,
+        status: statusFilter || undefined,
+        search: searchTerm || undefined
+      });
 
-  const filtered = useMemo(() => orders.filter(o => {
-    if (branch !== 'Tất cả' && (o.branch || 'CN1') !== branch) return false;
-    if (status !== 'Tất cả' && o.status !== status) return false;
-    if (date && o.date !== date) return false;
-    if (code && !o.id.toLowerCase().includes(code.toLowerCase())) return false;
-    return true;
-  }), [orders, branch, status, date, code]);
+      if (response.err === 0) {
+        setOrders(response.data.orders || []);
+        setTotalOrders(response.data.pagination.totalOrders || 0);
+      } else {
+        toast.error(response.msg || 'Không thể tải danh sách đơn hàng');
+      }
+    } catch (error) {
+      toast.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const counts = useMemo(() => ({
-    pending: filtered.filter(o => o.status === 'Pending').length,
-    processing: filtered.filter(o => ['Approved','SentToSupplier','ForwardedToSupplier'].includes(o.status)).length,
-    deliveredToday: filtered.filter(o => o.status === 'SupplierShipped' && o.date === new Date().toISOString().slice(0,10)).length,
-    cancelled: filtered.filter(o => ['Rejected','Cancelled'].includes(o.status)).length,
-  }), [filtered]);
+  const loadStatistics = async () => {
+    try {
+      const response = await getOrderStatistics();
+      if (response.err === 0) {
+        setStatistics(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load statistics:', error);
+    }
+  };
 
-  const handleUpdate = (order) => {
-    navigate(`/warehouse/branch-orders/${order.id}`);
+  useEffect(() => {
+    loadOrders();
+  }, [page, rowsPerPage, statusFilter]);
+
+  useEffect(() => {
+    loadStatistics();
+  }, []);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleViewDetail = (orderId) => {
+    navigate(`/warehouse/branch-orders/${orderId}`);
+  };
+
+  const handleSearch = () => {
+    setPage(0);
+    loadOrders();
+  };
+
+  const handleRefresh = () => {
+    setPage(0);
+    setStatusFilter('');
+    setSearchTerm('');
+    loadOrders();
+    loadStatistics();
   };
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý đơn hàng từ chi nhánh</Typography>
+      {/* Header */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        justifyContent="space-between"
+        sx={{ mb: 3 }}
+        spacing={2}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+            Quản lý đơn hàng chi nhánh
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            Xem và cập nhật trạng thái đơn đặt hàng từ các chi nhánh
+          </Typography>
+        </Box>
+        <Tooltip title="Làm mới">
+          <IconButton onClick={handleRefresh} color="primary">
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
+      </Stack>
 
-      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap">
-          <TextField 
-            select 
-            label="Chi nhánh" 
-            size="small" 
-            value={branch} 
-            onChange={(e) => setBranch(e.target.value)} 
-            sx={{ width: { xs: '100%', sm: 220 } }}
+      {/* Statistics Cards */}
+      {statistics && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">
+                  Tổng đơn hàng
+                </Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {statistics.totalOrders}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">
+                  Tổng giá trị
+                </Typography>
+                <Typography variant="h5" fontWeight={700} color="primary">
+                  {formatVnd(statistics.totalAmount)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: 'warning.light' }}>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">
+                  Chờ xử lý
+                </Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {statistics.byStatus?.find(s => s.status === 'pending')?.count || 0}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ bgcolor: 'success.light' }}>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">
+                  Đã giao
+                </Typography>
+                <Typography variant="h4" fontWeight={700}>
+                  {statistics.byStatus?.find(s => s.status === 'delivered')?.count || 0}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Filters */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+          <TextField
+            select
+            size="small"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            label="Trạng thái"
+            sx={{ width: { xs: '100%', sm: 200 } }}
           >
-            {branches.map(b => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+            <MenuItem value="">Tất cả</MenuItem>
+            <MenuItem value="pending">Chờ xử lý</MenuItem>
+            <MenuItem value="confirmed">Đã xác nhận</MenuItem>
+            <MenuItem value="shipped">Đang giao</MenuItem>
+            <MenuItem value="delivered">Đã giao</MenuItem>
+            <MenuItem value="cancelled">Đã hủy</MenuItem>
           </TextField>
-          <TextField 
-            select 
-            label="Trạng thái" 
-            size="small" 
-            value={status} 
-            onChange={(e) => setStatus(e.target.value)} 
-            sx={{ width: { xs: '100%', sm: 220 } }}
+
+          <TextField
+            size="small"
+            placeholder="Tìm kiếm theo tên cửa hàng..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            sx={{ flexGrow: 1 }}
+          />
+
+          <Button
+            variant="contained"
+            startIcon={<FilterIcon />}
+            onClick={handleSearch}
+            sx={{ minWidth: 120 }}
           >
-            {['Tất cả','Pending','Approved','SupplierShipped','Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-          </TextField>
-          <TextField 
-            label="Ngày đặt" 
-            type="date" 
-            size="small" 
-            value={date} 
-            onChange={(e) => setDate(e.target.value)} 
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
-          />
-          <TextField 
-            placeholder="Mã đơn hàng" 
-            size="small" 
-            value={code} 
-            onChange={(e) => setCode(e.target.value)} 
-            sx={{ width: { xs: '100%', sm: 220 } }}
-          />
+            Tìm kiếm
+          </Button>
         </Stack>
       </Paper>
 
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} sm={6} md={3}><Kpi label="Chờ xác nhận" value={`${counts.pending} đơn hàng`} /></Grid>
-        <Grid item xs={12} sm={6} md={3}><Kpi label="Đang xử lý" value={`${counts.processing} đơn hàng`} /></Grid>
-        <Grid item xs={12} sm={6} md={3}><Kpi label="Đã giao hôm nay" value={`${counts.deliveredToday} đơn hàng`} /></Grid>
-        <Grid item xs={12} sm={6} md={3}><Kpi label="Đã hủy" value={`${counts.cancelled} đơn hàng`} /></Grid>
-      </Grid>
-
-      <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: '1rem', sm: '1.25rem' } }}>Danh sách đơn hàng</Typography>
-      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
-        <Table sx={{ minWidth: 700 }}>
+      {/* Orders Table */}
+      <TableContainer component={Paper} sx={{ borderRadius: 2, overflowX: 'auto' }}>
+        <Table sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã đơn</TableCell>
-              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Chi nhánh</TableCell>
-              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ngày đặt</TableCell>
-              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Sản phẩm</TableCell>
-              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Tổng tiền</TableCell>
-              <TableCell sx={{ minWidth: 100, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Trạng thái</TableCell>
-              <TableCell sx={{ minWidth: 120, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Thao tác</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Mã đơn</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Nhà cung cấp</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Ngày tạo</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Dự kiến giao</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Số lượng</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Tổng tiền</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
+              <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.map(o => (
-              <TableRow key={o.id} hover>
-                <TableCell>{o.id}</TableCell>
-                <TableCell>{o.branch || 'CN1'}</TableCell>
-                <TableCell>{o.date}</TableCell>
-                <TableCell>{o.items}SP</TableCell>
-                <TableCell>{Number(o.total).toLocaleString('vi-VN')}</TableCell>
-                <TableCell><Chip size="small" label={o.status} color={o.status==='Rejected'?'error':(o.status==='Pending'?'warning':'success')} /></TableCell>
-                <TableCell>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button 
-                      variant="outlined" 
-                      size="small" 
-                      onClick={() => handleUpdate(o)}
-                      fullWidth={{ xs: true, sm: false }}
-                      sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
-                    >
-                      Cập nhật
-                    </Button>
-                  </Stack>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
-            ))}
-            {!filtered.length && (
+            ) : orders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>Không có dữ liệu</TableCell>
+                <TableCell colSpan={9} align="center" sx={{ py: 8, color: 'text.secondary' }}>
+                  Không có đơn hàng nào
+                </TableCell>
               </TableRow>
+            ) : (
+              orders.map((order) => (
+                <TableRow key={order.order_id} hover>
+                  <TableCell>#{order.order_id}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>
+                      {order.store?.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {order.store?.phone}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {order.supplier?.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{formatDate(order.created_at)}</TableCell>
+                  <TableCell>{formatDate(order.expected_delivery)}</TableCell>
+                  <TableCell>{order.totalItems || 0} sản phẩm</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600} color="primary">
+                      {formatVnd(order.totalAmount)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={statusColors[order.status]}
+                      label={statusLabels[order.status]}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Tooltip title="Xem chi tiết">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleViewDetail(order.order_id)}
+                      >
+                        <ViewIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          component="div"
+          count={totalOrders}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage="Số hàng mỗi trang:"
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} trong ${count}`}
+        />
       </TableContainer>
     </Box>
   );
 };
 
 export default BranchOrders;
-
-

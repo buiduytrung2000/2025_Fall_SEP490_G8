@@ -30,6 +30,42 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'pricingRules',
                 onDelete: 'CASCADE'
             });
+
+            // Product has many OrderItems
+            Product.hasMany(models.OrderItem, {
+                foreignKey: 'product_id',
+                as: 'orderItems',
+                onDelete: 'CASCADE'
+            });
+
+            // Product has many TransactionItems
+            Product.hasMany(models.TransactionItem, {
+                foreignKey: 'product_id',
+                as: 'transactionItems',
+                onDelete: 'CASCADE'
+            });
+
+            // Product belongs to many Promotions through ProductPromotion
+            Product.belongsToMany(models.Promotion, {
+                through: models.ProductPromotion,
+                foreignKey: 'product_id',
+                otherKey: 'promotion_id',
+                as: 'promotions'
+            });
+
+            // Product has many ProductPromotions
+            Product.hasMany(models.ProductPromotion, {
+                foreignKey: 'product_id',
+                as: 'productPromotions',
+                onDelete: 'CASCADE'
+            });
+
+            // Product has many Inventories
+            Product.hasMany(models.Inventory, {
+                foreignKey: 'product_id',
+                as: 'inventories',
+                onDelete: 'CASCADE'
+            });
         }
     }
     Product.init({

@@ -471,3 +471,48 @@ export const reviewShiftChangeRequest = async (req, res) => {
     }
 };
 
+// Cancel shift change request (by the requester)
+export const cancelShiftChangeRequest = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?.user_id || req.user?.id;
+
+        // First, check if the request belongs to the current user
+        const request = await scheduleService.getShiftChangeRequestById(id);
+        if (request.err !== 0 || !request.data) {
+            return res.status(404).json({
+                err: 1,
+                msg: 'Shift change request not found'
+            });
+        }
+
+        const requestData = request.data.get ? request.data.get({ plain: true }) : request.data;
+        if (requestData.from_user_id !== userId) {
+            return res.status(403).json({
+                err: 1,
+                msg: 'You can only cancel your own requests'
+            });
+        }
+
+        if (requestData.status !== 'pending') {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Only pending requests can be cancelled'
+            });
+        }
+
+        const response = await scheduleService.updateShiftChangeRequestStatus(
+            id,
+            'cancelled',
+            userId,
+            'Cancelled by requester'
+        );
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at shift change request controller: ' + error.message
+        });
+    }
+};
+

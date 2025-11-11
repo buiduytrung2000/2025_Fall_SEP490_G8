@@ -7,7 +7,8 @@ import connectDatabase from './src/config/connectDatabase'
 const app = express()
 app.use(cors({
     origin: process.env.CLIENT_URL,
-    methods: ["POST", 'GET', 'PUT', "DELETE"]
+    methods: ["POST", 'GET', 'PUT', "PATCH", "DELETE"],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))

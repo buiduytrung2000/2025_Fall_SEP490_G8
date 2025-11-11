@@ -70,5 +70,8 @@ router.get('/shift-change-requests/:id', scheduleController.getShiftChangeReques
 // Review (approve/reject) shift change request
 router.put('/shift-change-requests/:id/review', scheduleController.reviewShiftChangeRequest);
 
+// Cancel shift change request (by requester)
+router.put('/shift-change-requests/:id/cancel', scheduleController.cancelShiftChangeRequest);
+
 export default router;
 

@@ -32,12 +32,16 @@ import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
 import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
+import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
 import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
 import CashierPaymentHistory from "./pages/Cashier/PaymentHistory";
 import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
+import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
+import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
+import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -124,6 +128,14 @@ function App() {
               }
             />
             <Route
+              path="/manager/shift-change-requests"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <ShiftChangeRequestManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/ceo/dashboard"
               element={
                 <ProtectedRoute allowedRoles={["CEO"]}>
@@ -158,20 +170,45 @@ function App() {
                 </ProtectedRoute>
               }
             />
-
             <Route
+              path="/shift-change-request"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <ShiftChangeRequest />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* <Route
               path="/warehouse/inventory"
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <InventoryManagement />
                 </ProtectedRoute>
               }
-            />
+            /> */}
             <Route
               path="/warehouse/products"
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <WarehouseProductManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/warehouse/inventory"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseInventoryList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/inventory/:id"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseInventoryDetail />
                 </ProtectedRoute>
               }
             />
