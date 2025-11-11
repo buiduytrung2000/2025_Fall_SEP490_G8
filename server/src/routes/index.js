@@ -10,6 +10,7 @@ import scheduleRouter from './schedule'
 import employeeRouter from './employee'
 import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
+import transactionRouter from './transaction'
 
 const initRoutes = (app) => {
     app.use('/api/v1/auth', authRouter)
@@ -24,6 +25,7 @@ const initRoutes = (app) => {
     app.use('/api/v1/employee', employeeRouter)
     app.use('/api/v1/inventory', inventoryRouter)
     app.use('/api/v1/store-order', storeOrderRouter)
+    app.use('/api/v1/transaction', transactionRouter)
 
     return app.use('/', (req, res) => {
         res.send('server on...')

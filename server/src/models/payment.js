@@ -39,7 +39,22 @@ module.exports = (sequelize, DataTypes) => {
     paid_at: {
       type: DataTypes.DATE,
       allowNull: true
-    }
+    },
+    given_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'For cash: amount customer gave'
+    },
+    change_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'For cash: change to return'
+    },
+    // reference: {
+    //   type: DataTypes.STRING(255),
+    //   allowNull: true,
+    //   comment: 'For bank transfer: transaction reference'
+    // }
   }, {
     sequelize,
     modelName: 'Payment',
