@@ -23,6 +23,21 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'store',
                 onDelete: 'CASCADE'
             });
+
+            // PricingRule belongs to many Promotions through PricingRulePromotion
+            PricingRule.belongsToMany(models.Promotion, {
+                through: models.PricingRulePromotion,
+                foreignKey: 'rule_id',
+                otherKey: 'promotion_id',
+                as: 'promotions'
+            });
+
+            // PricingRule has many PricingRulePromotions
+            PricingRule.hasMany(models.PricingRulePromotion, {
+                foreignKey: 'rule_id',
+                as: 'pricingRulePromotions',
+                onDelete: 'CASCADE'
+            });
         }
     }
     PricingRule.init({

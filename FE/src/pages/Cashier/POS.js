@@ -1,12 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Form, Button, InputGroup } from 'react-bootstrap';
-import { 
-     FaSearch, FaQrcode, FaCartPlus, 
-    FaShoppingCart, FaUserCircle, FaTimes 
+import { Form, Button, InputGroup, Modal } from 'react-bootstrap';
+import {
+    FaSearch, FaQrcode, FaCartPlus,
+    FaShoppingCart, FaUserCircle, FaTimes
 } from 'react-icons/fa';
-import '../../assets/POS.css'; 
-import { getProductsByStore } from '../../api/productApi';
+import '../../assets/POS.css';
+import { getProductsByStore, getProduct } from '../../api/productApi';
+import { checkoutCart } from '../../api/transactionApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Hàm helper để format tiền tệ
@@ -22,7 +23,19 @@ const POS = () => {
     const [cart, setCart] = useState([]);
     const [activeFilter, setActiveFilter] = useState('Tất cả');
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchMessage, setSearchMessage] = useState('');
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    // Hide full product list by default
+    const [showProducts, setShowProducts] = useState(false);
     const [customerPhone, setCustomerPhone] = useState('');
+
+    // Payment states
+    const [checkoutMessage, setCheckoutMessage] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [paymentReference, setPaymentReference] = useState('');
+    const [paymentGiven, setPaymentGiven] = useState('');
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
 
     // Tải sản phẩm theo store_id của cashier
     useEffect(() => {
@@ -33,7 +46,7 @@ const POS = () => {
                 try {
                     const persisted = localStorage.getItem('store_id');
                     if (persisted) return Number(persisted);
-                } catch {}
+                } catch { }
                 return 1; // fallback test
             })();
 
@@ -60,12 +73,113 @@ const POS = () => {
         load();
     }, [user]);
 
+    // Handle search submit (Enter key): if term is numeric, try fetch by product id
+    const handleSearchSubmit = async () => {
+        setSearchMessage('');
+        const term = searchTerm.trim();
+        if (!term) return;
+
+        // If the user entered only digits, treat as product_id search
+        if (/^\d+$/.test(term)) {
+            const res = await getProduct(term);
+            if (res && res.err === 0 && res.data) {
+                const p = res.data;
+                const productObj = {
+                    id: p.product_id,
+                    name: p.name || 'Sản phẩm',
+                    price: Number(p.hq_price || 0),
+                    oldPrice: undefined,
+                    category: p.category?.name || 'Tất cả',
+                    code: p.sku || ''
+                };
+
+                // Add to cart (increase qty if exists)
+                setCart(currentCart => {
+                    const item = currentCart.find(i => i.id === productObj.id);
+                    if (item) {
+                        return currentCart.map(i => i.id === productObj.id ? { ...i, qty: i.qty + 1 } : i);
+                    }
+                    return [...currentCart, { ...productObj, qty: 1 }];
+                });
+
+                setSearchMessage('Đã thêm sản phẩm vào giỏ');
+                setSearchTerm('');
+                return;
+            } else {
+                setSearchMessage('Không tìm thấy sản phẩm theo ID');
+                return;
+            }
+        }
+        // otherwise leave to name/code filtering (handled by filteredProducts)
+    };
+
+    // Debounced live suggestions when typing, scoped to products available in the cashier's store
+    useEffect(() => {
+        if (!searchTerm || searchTerm.trim().length === 0) {
+            setSuggestions([]);
+            return;
+        }
+
+        const handle = setTimeout(() => {
+            try {
+                // Use local `products` (already loaded by getProductsByStore) and filter them
+                const mappedAll = products.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    sku: p.code,
+                    price: Number(p.price || 0),
+                    category: p.category || null
+                }));
+
+                const q = searchTerm.trim().toLowerCase();
+                const filtered = mappedAll.filter(m => {
+                    const nameMatch = m.name && m.name.toLowerCase().includes(q);
+                    const skuMatch = m.sku && m.sku.toLowerCase().includes(q);
+                    const idMatch = String(m.id).includes(q);
+                    return nameMatch || skuMatch || idMatch;
+                });
+
+                const limited = filtered.slice(0, 10);
+                setSuggestions(limited);
+                setShowSuggestions(true);
+            } catch (err) {
+                setSuggestions([]);
+            }
+        }, 300);
+
+        return () => clearTimeout(handle);
+    }, [searchTerm, products]);
+
+    // Add product from suggestion to cart
+    const handleSelectSuggestion = (p) => {
+        const productObj = {
+            id: p.id,
+            name: p.name || 'Sản phẩm',
+            price: p.price || 0,
+            oldPrice: undefined,
+            category: p.category || 'Tất cả',
+            code: p.sku || ''
+        };
+
+        // add to cart (reuse handleAddToCart logic but avoid duplicate lookup)
+        setCart(currentCart => {
+            const item = currentCart.find(i => i.id === productObj.id);
+            if (item) return currentCart.map(i => i.id === productObj.id ? { ...i, qty: i.qty + 1 } : i);
+            return [...currentCart, { ...productObj, qty: 1 }];
+        });
+
+        setSearchTerm('');
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSearchMessage('Đã thêm sản phẩm vào giỏ');
+    };
+
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const matchesCategory = activeFilter === 'Tất cả' || p.category === activeFilter;
-            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  p.code.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.code.toLowerCase().includes(searchTerm.toLowerCase());
             return matchesCategory && matchesSearch;
         });
     }, [products, activeFilter, searchTerm]);
@@ -120,7 +234,7 @@ const POS = () => {
             <div className="pos-main">
                 {/* Header */}
                 <header className="pos-header">
-                    
+
                     <h2>CCMS System</h2>
                 </header>
 
@@ -133,45 +247,67 @@ const POS = () => {
                             placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    await handleSearchSubmit();
+                                }
+                            }}
+                            onFocus={() => {
+                                if (suggestions.length > 0) setShowSuggestions(true);
+                            }}
+                            onBlur={() => {
+                                // small timeout to allow suggestion onMouseDown to fire
+                                setTimeout(() => setShowSuggestions(false), 120);
+                            }}
                         />
                         <Button variant="light" className="btn-scan">
                             <FaQrcode className="me-2" /> Quét mã
                         </Button>
                     </InputGroup>
-                </div>
-
-                {/* Filters */}
-                <div className="pos-filters">
-                    {['Tất cả', 'Đồ ăn', 'Đồ uống'].map(filter => (
-                        <Button
-                            key={filter}
-                            variant={activeFilter === filter ? 'primary' : 'outline-secondary'}
-                            onClick={() => setActiveFilter(filter)}
-                        >
-                            {filter}
-                        </Button>
-                    ))}
-                </div>
-
-                {/* Product List */}
-                <div className="pos-product-list">
-                    {filteredProducts.map(product => (
-                        <div className="product-item" key={product.id}>
-                            <span className="product-name">{product.name}</span>
-                            {product.oldPrice && (
-                                <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
-                            )}
-                            <span className="product-price">{formatCurrency(product.price)}</span>
-                            <Button
-                                variant="light"
-                                className="btn-add-cart"
-                                onClick={() => handleAddToCart(product)}
-                            >
-                                <FaCartPlus />
-                            </Button>
+                    {searchMessage && <div className="text-muted small mt-1">{searchMessage}</div>}
+                    {/* Suggestions dropdown */}
+                    {showSuggestions && suggestions.length > 0 && (
+                        <div className="pos-suggestions card mt-1" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                            {suggestions.map(s => (
+                                <div
+                                    key={s.id}
+                                    className="p-2 suggestion-item d-flex justify-content-between align-items-center"
+                                    onMouseDown={() => handleSelectSuggestion(s)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <div>
+                                        <div style={{ fontWeight: 600 }}>{s.name}</div>
+                                        <div className="text-muted small">{s.sku}</div>
+                                    </div>
+                                    <div style={{ marginLeft: 12 }}>{formatCurrency(s.price)}</div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
                 </div>
+
+                {/* Product List (hidden by default) */}
+                {showProducts && (
+                    <div className="pos-product-list">
+                        {filteredProducts.map(product => (
+                            <div className="product-item" key={product.id}>
+                                <span className="product-name">{product.name}</span>
+                                {product.oldPrice && (
+                                    <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
+                                )}
+                                <span className="product-price">{formatCurrency(product.price)}</span>
+                                <Button
+                                    variant="light"
+                                    className="btn-add-cart"
+                                    onClick={() => handleAddToCart(product)}
+                                >
+                                    <FaCartPlus />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* ------------------- BÊN PHẢI: GIỎ HÀNG ------------------- */}
@@ -209,21 +345,21 @@ const POS = () => {
                                 </div>
                                 <div className="cart-item-total">
                                     <span className="item-total-price">{formatCurrency(item.price * item.qty)}</span>
-                                    <FaTimes 
-                                        className="btn-remove-item" 
+                                    <FaTimes
+                                        className="btn-remove-item"
                                         onClick={() => handleRemoveFromCart(item.id)}
                                     />
                                 </div>
                             </div>
                             <div className="qty-adjuster">
-                                <Button 
-                                    variant="outline-secondary" 
+                                <Button
+                                    variant="outline-secondary"
                                     size="sm"
                                     onClick={() => handleUpdateQty(item.id, item.qty - 1)}
                                 >-</Button>
                                 <span className="qty-display">{item.qty}</span>
-                                <Button 
-                                    variant="outline-secondary" 
+                                <Button
+                                    variant="outline-secondary"
                                     size="sm"
                                     onClick={() => handleUpdateQty(item.id, item.qty + 1)}
                                 >+</Button>
@@ -249,16 +385,254 @@ const POS = () => {
                             <strong>{formatCurrency(total)}</strong>
                         </div>
                     </div>
-                    <Button 
-                        variant="primary" 
-                        size="lg" 
-                        className="w-100 mt-3" 
+                    {/* Payment method selector */}
+                    <div className="mb-2 d-flex align-items-center">
+                        <Form.Select
+                            aria-label="Chọn phương thức thanh toán"
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            style={{ width: 220 }}
+                            className="me-2"
+                        >
+                            <option value="cash">Tiền mặt</option>
+                            <option value="bank_transfer">Chuyển khoản</option>
+                        </Form.Select>
+
+                        {paymentMethod === 'bank_transfer' && (
+                            <Form.Control
+                                type="text"
+                                placeholder="Mã GD / Thông tin chuyển khoản"
+                                value={paymentReference}
+                                onChange={(e) => setPaymentReference(e.target.value)}
+                                style={{ width: 300 }}
+                            />
+                        )}
+
+                        {paymentMethod === 'cash' && (
+                            <div className="d-flex align-items-center ms-2">
+                                <Form.Control
+                                    type="number"
+                                    min={0}
+                                    placeholder="Số tiền khách đưa"
+                                    value={paymentGiven}
+                                    onChange={(e) => setPaymentGiven(e.target.value)}
+                                    style={{ width: 220 }}
+                                />
+                                <div className="ms-3">
+                                    <div className="small text-muted">Tiền phải trả:</div>
+                                    <div style={{ fontWeight: 600 }}>{formatCurrency(total)}</div>
+                                </div>
+                                <div className="ms-3">
+                                    <div className="small text-muted">Tiền thối:</div>
+                                    <div
+                                        style={{
+                                            fontWeight: 600,
+                                            color: paymentGiven && Number(paymentGiven) < total ? 'red' : 'inherit'
+                                        }}
+                                    >
+                                        {paymentGiven ? formatCurrency(Math.max(Number(paymentGiven) - total, 0)) : formatCurrency(0)}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <Button
+                        variant="primary"
+                        size="lg"
+                        className="w-100 mt-3"
                         disabled={cart.length === 0}
+                        onClick={async () => {
+                            setCheckoutMessage('');
+                            if (cart.length === 0) return;
+
+                            // For cash, require paymentGiven and ensure >= total
+                            if (paymentMethod === 'cash') {
+                                const givenNum = Number(paymentGiven);
+                                if (!paymentGiven || isNaN(givenNum)) {
+                                    setCheckoutMessage('Vui lòng nhập số tiền khách đưa');
+                                    return;
+                                }
+                                if (givenNum < total) {
+                                    setCheckoutMessage('Số tiền khách đưa nhỏ hơn tổng đơn hàng');
+                                    return;
+                                }
+                            }
+
+                            if (paymentMethod === 'bank_transfer' && !paymentReference.trim()) {
+                                setCheckoutMessage('Vui lòng nhập mã giao dịch/chú thích chuyển khoản');
+                                return;
+                            }
+
+                            // Show confirmation modal
+                            setShowPaymentModal(true);
+                        }}
                     >
                         Thanh toán
                     </Button>
+                    {checkoutMessage && <div className="text-success small mt-2">{checkoutMessage}</div>}
                 </div>
             </div>
+
+            {/* Payment Confirmation Modal */}
+            <Modal show={showPaymentModal} onHide={() => setShowPaymentModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Xác nhận thanh toán</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {paymentMethod === 'cash' ? (
+                        <div>
+                            <div className="mb-3">
+                                <h6>Chi tiết thanh toán</h6>
+                                <div className="d-flex justify-content-between mb-2">
+                                    <span>Tạm tính:</span>
+                                    <strong>{formatCurrency(subtotal)}</strong>
+                                </div>
+                                <div className="d-flex justify-content-between mb-2">
+                                    <span>VAT (10%):</span>
+                                    <strong>{formatCurrency(vat)}</strong>
+                                </div>
+                                <hr />
+                                <div className="d-flex justify-content-between mb-3">
+                                    <span style={{ fontSize: 18, fontWeight: 600 }}>Phải trả:</span>
+                                    <strong style={{ fontSize: 18, color: '#dc3545' }}>
+                                        {formatCurrency(total)}
+                                    </strong>
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Số tiền khách đưa (VND)</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min={0}
+                                        placeholder="Nhập số tiền"
+                                        value={paymentGiven}
+                                        onChange={(e) => setPaymentGiven(e.target.value)}
+                                        autoFocus
+                                    />
+                                </Form.Group>
+                            </div>
+                            <div className="p-3 bg-light rounded">
+                                <div className="d-flex justify-content-between">
+                                    <span className="text-muted">Tiền phải trả lại:</span>
+                                    <span
+                                        style={{
+                                            fontSize: 20,
+                                            fontWeight: 700,
+                                            color: paymentGiven && Number(paymentGiven) < total ? 'red' : '#28a745'
+                                        }}
+                                    >
+                                        {paymentGiven && Number(paymentGiven) >= total
+                                            ? formatCurrency(Number(paymentGiven) - total)
+                                            : formatCurrency(0)}
+                                    </span>
+                                </div>
+                                {paymentGiven && Number(paymentGiven) < total && (
+                                    <div className="text-danger small mt-2">
+                                        ⚠️ Số tiền nhập chưa đủ
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="mb-3">
+                                <h6>Chi tiết thanh toán</h6>
+                                <div className="d-flex justify-content-between mb-2">
+                                    <span>Tạm tính:</span>
+                                    <strong>{formatCurrency(subtotal)}</strong>
+                                </div>
+                                <div className="d-flex justify-content-between mb-2">
+                                    <span>VAT (10%):</span>
+                                    <strong>{formatCurrency(vat)}</strong>
+                                </div>
+                                <hr />
+                                <div className="d-flex justify-content-between mb-3">
+                                    <span style={{ fontSize: 18, fontWeight: 600 }}>Phải trả:</span>
+                                    <strong style={{ fontSize: 18, color: '#dc3545' }}>
+                                        {formatCurrency(total)}
+                                    </strong>
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Mã giao dịch / Tham chiếu</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Nhập mã giao dịch"
+                                        value={paymentReference}
+                                        onChange={(e) => setPaymentReference(e.target.value)}
+                                        autoFocus
+                                    />
+                                </Form.Group>
+                            </div>
+                            <div className="alert alert-info">
+                                <small>Đơn hàng sẽ chờ xác nhận thanh toán chuyển khoản</small>
+                            </div>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPaymentModal(false)}>
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={async () => {
+                            const givenNum = paymentMethod === 'cash' ? Number(paymentGiven) : null;
+                            if (paymentMethod === 'cash' && givenNum < total) {
+                                return;
+                            }
+
+                            const storedStoreId = (() => {
+                                if (user && user.store_id) return user.store_id;
+                                try {
+                                    const persisted = localStorage.getItem('store_id');
+                                    if (persisted) return Number(persisted);
+                                } catch { }
+                                return 1;
+                            })();
+
+                            const given = paymentMethod === 'cash' ? givenNum : null;
+                            const change = paymentMethod === 'cash' ? Math.max(given - total, 0) : 0;
+
+                            const payload = {
+                                store_id: storedStoreId,
+                                customer_id: null,
+                                payment: {
+                                    method: paymentMethod,
+                                    amount: total,
+                                    status: paymentMethod === 'cash' ? 'completed' : 'pending',
+                                    paid_at: paymentMethod === 'cash' ? new Date() : null,
+                                    reference: paymentMethod === 'bank_transfer' ? (paymentReference || null) : null,
+                                    given_amount: paymentMethod === 'cash' ? given : null,
+                                    change_amount: paymentMethod === 'cash' ? change : null
+                                },
+                                items: cart.map(item => ({ product_id: item.id, quantity: item.qty, unit_price: item.price }))
+                            };
+
+                            const res = await checkoutCart(payload);
+                            if (res && res.err === 0) {
+                                const successMsg = paymentMethod === 'cash'
+                                    ? `Thanh toán thành công. Tiền thối: ${formatCurrency(change)}`
+                                    : 'Đã gửi yêu cầu thanh toán chuyển khoản (chờ xác nhận)';
+                                setCheckoutMessage(successMsg);
+                                setCart([]);
+                                setPaymentReference('');
+                                setPaymentMethod('cash');
+                                setPaymentGiven('');
+                                setShowPaymentModal(false);
+                            } else {
+                                setCheckoutMessage(res?.msg || 'Thanh toán thất bại');
+                                setShowPaymentModal(false);
+                            }
+                        }}
+                    >
+                        Xác nhận thanh toán
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

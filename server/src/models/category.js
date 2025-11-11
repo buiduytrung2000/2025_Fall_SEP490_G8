@@ -15,6 +15,20 @@ module.exports = (sequelize, DataTypes) => {
                 foreignKey: 'category_id',
                 as: 'products'
             });
+
+            // Self-referencing: Category belongs to parent Category
+            Category.belongsTo(models.Category, {
+                foreignKey: 'parent_id',
+                as: 'parent',
+                onDelete: 'SET NULL'
+            });
+
+            // Self-referencing: Category has many child Categories
+            Category.hasMany(models.Category, {
+                foreignKey: 'parent_id',
+                as: 'children',
+                onDelete: 'SET NULL'
+            });
         }
     }
     Category.init({
