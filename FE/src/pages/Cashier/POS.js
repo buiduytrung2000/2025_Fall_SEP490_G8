@@ -3,13 +3,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Form, Button, InputGroup, ListGroup, Spinner } from 'react-bootstrap';
 import {
      FaSearch, FaQrcode, FaCartPlus,
-    FaShoppingCart, FaUserCircle, FaTimes
+    FaShoppingCart, FaUserCircle, FaTimes, FaMoneyBillWave, FaCreditCard
 } from 'react-icons/fa';
 import '../../assets/POS.css';
 import { getProductsByStore } from '../../api/productApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
 import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
+import { createCashPayment, createQRPayment } from '../../api/paymentApi';
+import PaymentModal from '../../components/PaymentModal';
 import { toast } from 'react-toastify';
 
 // Hàm helper để format tiền tệ
@@ -38,6 +40,12 @@ const POS = () => {
     const [vouchers, setVouchers] = useState([]);
     const [selectedVoucher, setSelectedVoucher] = useState(null);
     const [loadingVouchers, setLoadingVouchers] = useState(false);
+
+    // Payment states
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [qrPaymentData, setQrPaymentData] = useState(null);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     // Tải sản phẩm theo store_id của cashier
     useEffect(() => {
@@ -259,6 +267,11 @@ const POS = () => {
         toast.info('Đã hủy áp dụng voucher');
     };
 
+    // Xử lý chọn phương thức thanh toán
+    const handleSelectPaymentMethod = (method) => {
+        setSelectedPaymentMethod(method);
+    };
+
     // Xử lý thanh toán
     const handleCheckout = async () => {
         if (cart.length === 0) {
@@ -266,39 +279,117 @@ const POS = () => {
             return;
         }
 
+        if (!selectedPaymentMethod) {
+            toast.warning('Vui lòng chọn phương thức thanh toán');
+            return;
+        }
+
+        setIsProcessingPayment(true);
+
         try {
-            // TODO: Implement actual payment processing here
-            // For now, just update loyalty points if customer is selected
+            // Prepare cart items for payment
+            const cartItems = cart.map(item => ({
+                product_id: item.id,
+                product_name: item.name,
+                quantity: item.qty,
+                unit_price: item.price
+            }));
 
-            if (selectedCustomer) {
-                // Update loyalty points: 10,000đ = 10 points
-                const res = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
+            const paymentData = {
+                store_id: user?.store_id || null,
+                cashier_id: user?.user_id || user?.id || null,
+                customer_id: selectedCustomer?.customer_id || null,
+                cart_items: cartItems,
+                subtotal: subtotal,
+                tax_amount: vat,
+                discount_amount: voucherDiscount,
+                voucher_code: selectedVoucher?.voucher_code || null,
+                total_amount: total,
+                customer_name: selectedCustomer?.name || 'Customer',
+                customer_phone: selectedCustomer?.phone || ''
+            };
+
+            if (selectedPaymentMethod === 'cash') {
+                // Cash payment
+                const res = await createCashPayment(paymentData);
+
                 if (res && res.err === 0) {
-                    toast.success(`Thanh toán thành công! ${res.msg}`);
-
-                    // Reload vouchers to show newly unlocked vouchers
-                    await loadCustomerVouchers(selectedCustomer.customer_id);
-
-                    // Update customer info to show new points
-                    setSelectedCustomer({
-                        ...selectedCustomer,
-                        loyalty_point: res.data.new_points
-                    });
-                } else {
                     toast.success('Thanh toán thành công!');
-                }
-            } else {
-                toast.success('Thanh toán thành công!');
-            }
 
-            // Clear cart and voucher
-            setCart([]);
-            setSelectedVoucher(null);
+                    // Update loyalty points if customer is selected
+                    if (selectedCustomer) {
+                        const loyaltyRes = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
+                        if (loyaltyRes && loyaltyRes.err === 0) {
+                            toast.info(loyaltyRes.msg);
+                            await loadCustomerVouchers(selectedCustomer.customer_id);
+                            setSelectedCustomer({
+                                ...selectedCustomer,
+                                loyalty_point: loyaltyRes.data.new_points
+                            });
+                        }
+                    }
+
+                    // Clear cart and reset
+                    setCart([]);
+                    setSelectedVoucher(null);
+                    setSelectedPaymentMethod(null);
+                } else {
+                    toast.error(res.msg || 'Thanh toán thất bại');
+                }
+            } else if (selectedPaymentMethod === 'qr') {
+                // QR payment
+                const res = await createQRPayment(paymentData);
+
+                if (res && res.err === 0) {
+                    // Show QR modal
+                    setQrPaymentData({
+                        ...res.data,
+                        customer_name: selectedCustomer?.name || 'Customer',
+                        customer_phone: selectedCustomer?.phone || '',
+                        total_amount: total
+                    });
+                    setShowPaymentModal(true);
+                } else {
+                    toast.error(res.msg || 'Không thể tạo mã QR thanh toán');
+                }
+            }
 
         } catch (error) {
             console.error('Error during checkout:', error);
             toast.error('Lỗi khi thanh toán');
+        } finally {
+            setIsProcessingPayment(false);
         }
+    };
+
+    // Xử lý khi thanh toán QR thành công
+    const handleQRPaymentSuccess = async (transactionId) => {
+        toast.success('Thanh toán QR thành công!');
+
+        // Update loyalty points if customer is selected
+        if (selectedCustomer) {
+            const loyaltyRes = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
+            if (loyaltyRes && loyaltyRes.err === 0) {
+                toast.info(loyaltyRes.msg);
+                await loadCustomerVouchers(selectedCustomer.customer_id);
+                setSelectedCustomer({
+                    ...selectedCustomer,
+                    loyalty_point: loyaltyRes.data.new_points
+                });
+            }
+        }
+
+        // Clear cart and reset
+        setCart([]);
+        setSelectedVoucher(null);
+        setSelectedPaymentMethod(null);
+    };
+
+    // Xử lý in hóa đơn
+    const handlePrintInvoice = (transactionId) => {
+        // TODO: Implement print invoice functionality
+        toast.info('Chức năng in hóa đơn đang được phát triển');
+        setShowPaymentModal(false);
     };
 
     // Xử lý tạo khách hàng mới
@@ -709,17 +800,59 @@ const POS = () => {
                             <strong>{formatCurrency(total)}</strong>
                         </div>
                     </div>
+
+                    {/* Payment Method Selection */}
+                    {cart.length > 0 && (
+                        <div className="payment-method-section mt-3">
+                            <label className="form-label fw-bold">Phương thức thanh toán</label>
+                            <div className="d-flex gap-2">
+                                <Button
+                                    variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline-primary'}
+                                    className="flex-fill"
+                                    onClick={() => handleSelectPaymentMethod('cash')}
+                                >
+                                    <FaMoneyBillWave className="me-2" />
+                                    Tiền mặt
+                                </Button>
+                                <Button
+                                    variant={selectedPaymentMethod === 'qr' ? 'primary' : 'outline-primary'}
+                                    className="flex-fill"
+                                    onClick={() => handleSelectPaymentMethod('qr')}
+                                >
+                                    <FaCreditCard className="me-2" />
+                                    QR Banking
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     <Button
-                        variant="primary"
+                        variant="success"
                         size="lg"
                         className="w-100 mt-3"
-                        disabled={cart.length === 0}
+                        disabled={cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
                     >
-                        Thanh toán
+                        {isProcessingPayment ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-2" />
+                                Đang xử lý...
+                            </>
+                        ) : (
+                            'Thanh toán'
+                        )}
                     </Button>
                 </div>
             </div>
+
+            {/* Payment Modal for QR */}
+            <PaymentModal
+                show={showPaymentModal}
+                onHide={() => setShowPaymentModal(false)}
+                paymentData={qrPaymentData}
+                onPaymentSuccess={handleQRPaymentSuccess}
+                onPrintInvoice={handlePrintInvoice}
+            />
         </div>
     );
 };

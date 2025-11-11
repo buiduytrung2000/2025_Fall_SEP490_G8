@@ -338,3 +338,41 @@
     background-color: #0b5ed7;
     box-shadow: 0 6px 20px rgba(13,110,253,0.3);
 }
+
+/* Payment Method Section */
+.payment-method-section {
+    padding: 1rem 0;
+    border-top: 1px solid #e0e0e0;
+}
+
+.payment-method-section .form-label {
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 0.75rem;
+}
+
+.payment-method-section .btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.payment-method-section .btn-outline-primary {
+    border: 2px solid #007bff;
+    color: #007bff;
+}
+
+.payment-method-section .btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.payment-method-section .btn-primary {
+    background-color: #007bff;
+    border: 2px solid #007bff;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}

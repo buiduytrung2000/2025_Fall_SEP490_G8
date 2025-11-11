@@ -1,0 +1,72 @@
+.payment-modal .modal-content {
+    border-radius: 15px;
+}
+
+.payment-modal .modal-header {
+    border-bottom: 2px solid #f0f0f0;
+    padding: 1.5rem;
+}
+
+.payment-modal .modal-body {
+    padding: 2rem;
+}
+
+.customer-info {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.qr-code-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    margin: 1rem 0;
+}
+
+.qr-code-image {
+    max-width: 300px;
+    width: 100%;
+    height: auto;
+}
+
+.payment-info {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.checking-status {
+    color: #0d6efd;
+    font-size: 0.9rem;
+}
+
+.payment-success {
+    padding: 2rem 0;
+}
+
+.payment-success h4 {
+    color: #198754;
+    margin-bottom: 1rem;
+}
+
+.modal-footer {
+    border-top: 2px solid #f0f0f0;
+    padding: 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .qr-code-image {
+        max-width: 250px;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+}
+
