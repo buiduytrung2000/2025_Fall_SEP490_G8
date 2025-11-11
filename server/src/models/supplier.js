@@ -15,6 +15,13 @@ module.exports = (sequelize, DataTypes) => {
                 foreignKey: 'supplier_id',
                 as: 'products'
             });
+
+            // Supplier has many Orders
+            Supplier.hasMany(models.Order, {
+                foreignKey: 'supplier_id',
+                as: 'orders',
+                onDelete: 'CASCADE'
+            });
         }
     }
     Supplier.init({
@@ -32,11 +39,11 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true
         },
         address: {
-            type: DataTypes.STRING(255),
+            type: DataTypes.TEXT,
             allowNull: true
         },
         email: {
-            type: DataTypes.STRING(100),
+            type: DataTypes.STRING(255),
             allowNull: true
         }
     }, {

@@ -24,6 +24,21 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'store_id',
         as: 'pricingRules'
       });
+      Store.hasMany(models.Order, {
+        foreignKey: 'store_id',
+        as: 'orders',
+        onDelete: 'CASCADE'
+      });
+      Store.hasMany(models.Transaction, {
+        foreignKey: 'store_id',
+        as: 'transactions',
+        onDelete: 'CASCADE'
+      });
+      Store.hasMany(models.Inventory, {
+        foreignKey: 'store_id',
+        as: 'inventories',
+        onDelete: 'CASCADE'
+      });
     }
   }
   Store.init({
