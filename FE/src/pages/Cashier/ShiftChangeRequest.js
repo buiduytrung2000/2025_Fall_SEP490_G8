@@ -114,7 +114,8 @@ const ShiftChangeRequest = () => {
     const [openDialog, setOpenDialog] = useState(false);
     const [storeId, setStoreId] = useState(null);
     const [availableSchedules, setAvailableSchedules] = useState([]);
-    const [allPossibleShifts, setAllPossibleShifts] = useState([]); // Tất cả các ca có thể có (kể cả trống)
+    const [allPossibleShifts, setAllPossibleShifts] = useState([]); 
+    const [selectedWeek, setSelectedWeek] = useState('');
 
     // Form state
     const [formData, setFormData] = useState({
@@ -123,14 +124,14 @@ const ShiftChangeRequest = () => {
         to_schedule_id: '',
         to_user_id: '',
         reason: '',
-        swap_option: 'auto', // 'auto' hoặc 'manual'
+        swap_option: 'auto',
     });
 
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
             
-            // Get employee info to get store_id
+           
             const empRes = await fetchEmployeeById(user.id);
             const myStoreId = empRes?.data?.store_id || empRes?.data?.store?.store_id;
             if (!myStoreId) {
@@ -142,9 +143,11 @@ const ShiftChangeRequest = () => {
 
             // Get current date range (next 30 days)
             const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 30); // lấy lùi 30 ngày
             const endDate = new Date(today);
-            endDate.setDate(endDate.getDate() + 30);
-            const startStr = today.toISOString().split('T')[0];
+            endDate.setDate(endDate.getDate() + 60); // và tới 60 ngày tiếp theo
+            const startStr = startDate.toISOString().split('T')[0];
             const endStr = endDate.toISOString().split('T')[0];
 
             // Load schedules, shift templates, and requests
@@ -154,8 +157,15 @@ const ShiftChangeRequest = () => {
                 getMyShiftChangeRequests(),
             ]);
 
-            if (schedulesRes?.err === 0) {
-                setMySchedules(schedulesRes.data || []);
+            if (schedulesRes) {
+                const arr = Array.isArray(schedulesRes)
+                    ? schedulesRes
+                    : schedulesRes.data?.rows || schedulesRes.data?.list || schedulesRes.data || schedulesRes.schedules || schedulesRes.items || [];
+                console.log('[ShiftChangeRequest] getMySchedules raw:', schedulesRes);
+                console.log('[ShiftChangeRequest] parsed mySchedules length:', Array.isArray(arr) ? arr.length : 0);
+                setMySchedules(Array.isArray(arr) ? arr : []);
+            } else {
+                console.warn('[ShiftChangeRequest] getMySchedules returned empty/falsey');
             }
 
             let templates = [];
@@ -245,6 +255,55 @@ const ShiftChangeRequest = () => {
         loadData();
     }, [loadData]);
 
+    // Helpers for grouping by week
+    const getWeekStart = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const day = d.getDay(); // 0 Sun ... 6 Sat
+        const diff = (day === 0 ? -6 : 1) - day; // move to Monday
+        const monday = new Date(d);
+        monday.setDate(d.getDate() + diff);
+        return monday.toISOString().split('T')[0];
+    };
+
+    const getWeekNumber = (date) => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    };
+
+    const weekOptions = useMemo(() => {
+        // Determine dynamic range from available data, with sensible fallbacks
+        const dates = [];
+        mySchedules.forEach((s) => {
+            const d = s.work_date || s.workDate;
+            if (d) dates.push(new Date(d));
+        });
+        allPossibleShifts.forEach((s) => {
+            const d = s.work_date || s.workDate;
+            if (d) dates.push(new Date(d));
+        });
+
+        const today = new Date();
+        let minDate = dates.length ? new Date(Math.min(...dates)) : new Date(today);
+        let maxDate = dates.length ? new Date(Math.max(...dates)) : new Date(today);
+
+        // Extend range so user can browse more weeks even if không có ca sẵn
+        minDate.setDate(minDate.getDate() - 26 * 7); // -26 tuần
+        maxDate.setDate(maxDate.getDate() + 52 * 7); // +52 tuần
+
+        // Align to week starts (Monday)
+        const start = new Date(getWeekStart(minDate.toISOString().split('T')[0]));
+        const end = new Date(getWeekStart(maxDate.toISOString().split('T')[0]));
+
+        const weeks = [];
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+            weeks.push(d.toISOString().split('T')[0]);
+        }
+        return weeks;
+    }, [allPossibleShifts, mySchedules]);
+
     const handleOpenDialog = async (schedule = null) => {
         if (schedule) {
             setFormData({
@@ -265,6 +324,7 @@ const ShiftChangeRequest = () => {
                 swap_option: 'auto',
             });
         }
+        setSelectedWeek('');
         setOpenDialog(true);
         
         // Reload all possible shifts when dialog opens
@@ -419,18 +479,77 @@ const ShiftChangeRequest = () => {
         return mySchedules.find((s) => s.schedule_id === parseInt(formData.from_schedule_id));
     }, [formData.from_schedule_id, mySchedules]);
 
+    // Default pick first shift of the selected week (for current employee)
+    useEffect(() => {
+        if (!openDialog) return;
+        if (formData.from_schedule_id) return; // user already picked
+        // prefer selectedWeek; fallback to current week
+        const todayKey = new Date().toISOString().split('T')[0];
+        const weekStart = selectedWeek || getWeekStart(todayKey);
+        const candidates = mySchedules
+            .filter((s) => getWeekStart(s.work_date || s.workDate) === weekStart)
+            .sort((a, b) => {
+                const da = (a.work_date || a.workDate) || '';
+                const db = (b.work_date || b.workDate) || '';
+                if (da < db) return -1;
+                if (da > db) return 1;
+                const ta = a.shift_template_id || a.shiftTemplateId || 0;
+                const tb = b.shift_template_id || b.shiftTemplateId || 0;
+                return ta - tb;
+            });
+        if (candidates.length > 0) {
+            setFormData((prev) => ({ ...prev, from_schedule_id: candidates[0].schedule_id }));
+        }
+    }, [openDialog, selectedWeek, mySchedules]);
+
+    // Auto-sync selectedWeek with the week of the selected 'from' schedule
+    useEffect(() => {
+        if (!formData.from_schedule_id) return;
+        const s = mySchedules.find((it) => it.schedule_id === parseInt(formData.from_schedule_id));
+        if (!s) return;
+        const wd = (s.work_date || s.workDate);
+        const wStart = getWeekStart(wd);
+        if (wStart && selectedWeek !== wStart) {
+            setSelectedWeek(wStart);
+        }
+    }, [formData.from_schedule_id, mySchedules]);
+
+    // Ensure a default selectedWeek exists when opening dialog or weeks load
+    useEffect(() => {
+        if (!openDialog) return;
+        if (selectedWeek) return;
+        const todayKey = new Date().toISOString().split('T')[0];
+        const currentWeek = getWeekStart(todayKey);
+        // Prefer week of currently selected 'from' schedule
+        if (formData.from_schedule_id) {
+            const s = mySchedules.find((it) => it.schedule_id === parseInt(formData.from_schedule_id));
+            const wd = s && (s.work_date || s.workDate);
+            const wStart = wd && getWeekStart(wd);
+            if (wStart && weekOptions.includes(wStart)) {
+                setSelectedWeek(wStart);
+                return;
+            }
+        }
+        // Else prefer current week if in list, fallback to first option
+        if (weekOptions.includes(currentWeek)) setSelectedWeek(currentWeek);
+        else if (weekOptions.length) setSelectedWeek(weekOptions[0]);
+    }, [openDialog, weekOptions, formData.from_schedule_id, mySchedules]);
+
     const getScheduleLabel = (schedule) => {
         // Handle both Sequelize instances and plain objects
         const scheduleData = schedule.get ? schedule.get({ plain: true }) : schedule;
+        const shiftTemplateId = scheduleData.shift_template_id || scheduleData.shiftTemplateId || scheduleData.shiftTemplate?.shift_template_id || scheduleData.shiftTemplate?.id;
         const template = scheduleData.shiftTemplate || shiftTemplates.find(
-            (t) => t.shift_template_id === scheduleData.shift_template_id || t.id === scheduleData.shift_template_id
+            (t) => t.shift_template_id === shiftTemplateId || t.id === shiftTemplateId
         );
-        const date = formatDate(scheduleData.work_date);
+        const workDate = scheduleData.work_date || scheduleData.workDate;
+        const date = workDate ? formatDate(workDate) : '';
         const time = template
             ? `${formatTime(template.start_time)} - ${formatTime(template.end_time)}`
             : '';
         const employee = scheduleData.employee || {};
-        const employeeName = employee.username || employee.email || (scheduleData.user_id ? `NV#${scheduleData.user_id}` : '');
+        const employeeId = scheduleData.user_id || scheduleData.userId || employee?.user_id || employee?.userId;
+        const employeeName = employee.username || employee.email || (employeeId ? `NV#${employeeId}` : '');
         
         if (scheduleData.is_empty) {
             return `${date} - ${template?.name || 'Ca'} (${time}) - [Ca trống]`;
@@ -702,20 +821,33 @@ const ShiftChangeRequest = () => {
                         </FormControl>
 
                         <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel>Chọn ca muốn đổi *</InputLabel>
+                            <InputLabel id="from-shift-label">Chọn ca muốn đổi *</InputLabel>
                             <Select
-                                value={formData.from_schedule_id}
+                                labelId="from-shift-label"
+                                id="from-shift-select"
+                                value={formData.from_schedule_id || ''}
+                                displayEmpty
                                 label="Chọn ca muốn đổi *"
                                 onChange={(e) => setFormData({ ...formData, from_schedule_id: e.target.value })}
                             >
-                                {mySchedules
-                                    .filter((s) => s.status === 'confirmed')
-                                    .map((schedule) => (
-                                        <MenuItem key={schedule.schedule_id} value={schedule.schedule_id}>
+                                <MenuItem disabled value="">
+                                    Chọn một ca của bạn...
+                                </MenuItem>
+                                {mySchedules.length === 0 ? (
+                                    <MenuItem disabled value="__empty">
+                                        Không có ca nào trong 30 ngày tới
+                                    </MenuItem>
+                                ) : (
+                                    mySchedules.map((schedule, idx) => (
+                                        <MenuItem key={schedule.schedule_id || idx} value={schedule.schedule_id}>
                                             {getScheduleLabel(schedule)}
                                         </MenuItem>
-                                    ))}
+                                    ))
+                                )}
                             </Select>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                Tìm thấy {mySchedules?.length || 0} ca trong 30 ngày tới
+                            </Typography>
                         </FormControl>
 
                         {formData.request_type === 'swap' && (
@@ -735,33 +867,64 @@ const ShiftChangeRequest = () => {
                                 </FormControl>
 
                                 {formData.swap_option === 'manual' && (
-                                    <FormControl fullWidth sx={{ mb: 2 }}>
-                                        <InputLabel>Chọn ca muốn đổi với *</InputLabel>
-                                        <Select
-                                            value={formData.to_schedule_id || ''}
-                                            label="Chọn ca muốn đổi với *"
-                                            onChange={(e) => setFormData({ ...formData, to_schedule_id: e.target.value || null })}
-                                        >
-                                            {allPossibleShifts.length === 0 ? (
-                                                <MenuItem disabled value="">
-                                                    Đang tải danh sách ca...
-                                                </MenuItem>
-                                            ) : (
-                                                allPossibleShifts.map((shift, index) => {
-                                                    const key = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}-${index}`;
-                                                    const value = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}`;
-                                                    return (
-                                                        <MenuItem key={key} value={value}>
-                                                            {getScheduleLabel(shift)}
-                                                        </MenuItem>
-                                                    );
-                                                })
-                                            )}
-                                        </Select>
-                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                            Danh sách bao gồm cả ca trống và ca đã có nhân viên
-                                        </Typography>
-                                    </FormControl>
+                                    <>
+                                        <FormControl fullWidth sx={{ mb: 2 }}>
+                                            <InputLabel id="week-label">Chọn tuần</InputLabel>
+                                            <Select
+                                                labelId="week-label"
+                                                value={selectedWeek}
+                                                label="Chọn tuần"
+                                                onChange={(e) => { setSelectedWeek(e.target.value); setFormData({ ...formData, to_schedule_id: '' }); }}
+                                            >
+                                                {weekOptions.length === 0 ? (
+                                                    <MenuItem disabled value="">
+                                                        Chưa có tuần nào trong phạm vi
+                                                    </MenuItem>
+                                                ) : (
+                                                    weekOptions.map((w) => {
+                                                        const monday = new Date(w);
+                                                        const end = new Date(monday);
+                                                        end.setDate(end.getDate() + 6);
+                                                        const weekNo = getWeekNumber(monday);
+                                                        const label = `Tuần ${weekNo} (${formatDate(monday)} - ${formatDate(end)})`;
+                                                        return (
+                                                            <MenuItem key={w} value={w}>{label}</MenuItem>
+                                                        );
+                                                    })
+                                                )}
+                                            </Select>
+                                        </FormControl>
+
+                                        <FormControl fullWidth sx={{ mb: 2 }} disabled={!selectedWeek}>
+                                            <InputLabel>Chọn ca muốn đổi với *</InputLabel>
+                                            <Select
+                                                value={formData.to_schedule_id || ''}
+                                                label="Chọn ca muốn đổi với *"
+                                                onChange={(e) => setFormData({ ...formData, to_schedule_id: e.target.value || null })}
+                                            >
+                                                {!selectedWeek ? (
+                                                    <MenuItem disabled value="">
+                                                        Vui lòng chọn tuần trước
+                                                    </MenuItem>
+                                                ) : (
+                                                    allPossibleShifts
+                                                        .filter((shift) => getWeekStart(shift.work_date || shift.workDate) === selectedWeek)
+                                                        .map((shift, index) => {
+                                                            const key = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}-${index}`;
+                                                            const value = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}`;
+                                                            return (
+                                                                <MenuItem key={key} value={value}>
+                                                                    {getScheduleLabel(shift)}
+                                                                </MenuItem>
+                                                            );
+                                                        })
+                                                )}
+                                            </Select>
+                                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                                Danh sách bao gồm cả ca trống và ca đã có nhân viên. Hãy chọn tuần trước.
+                                            </Typography>
+                                        </FormControl>
+                                    </>
                                 )}
                             </>
                         )}

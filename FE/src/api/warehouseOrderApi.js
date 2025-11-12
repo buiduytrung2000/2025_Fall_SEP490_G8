@@ -166,3 +166,20 @@ export async function updateOrderItemQuantity(orderItemId, actual_quantity) {
         return { err: -1, msg: 'Network error: ' + error.message };
     }
 }
+
+/**
+ * Create warehouse order (Store Manager -> Warehouse)
+ * payload: { items: [{ inventory_id, quantity }], note?, store_id? }
+ */
+export async function createWarehouseOrder(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-order`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}

@@ -20,8 +20,8 @@ const navLinks = {
     Admin: [{ to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" }],
     Manager: [
         { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },
-        { to: "/manager/orders", icon: <FaTruck />, text: "Đơn nhập hàng" },
         { to: "/manager/inventory", icon: <FaWarehouse />, text: "Quản lý Tồn kho" },
+        { to: "/manager/orders", icon: <FaClipboardList />, text: "Đơn nhập hàng" },
         { to: "/manager/reports/shifts", icon: <FaChartPie />, text: "Báo cáo ca làm" },
         { to: "/manager/staff", icon: <FaUserFriends />, text: "Quản lý Nhân viên" },
         { to: "/manager/schedule", icon: <FaCalendarAlt />, text: "Lịch làm việc" },

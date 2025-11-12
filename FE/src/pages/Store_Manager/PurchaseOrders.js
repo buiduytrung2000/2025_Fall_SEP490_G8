@@ -48,10 +48,37 @@ const PurchaseOrders = () => {
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
 
-  const addLine = () => setLines(prev => [...prev, emptyLine()]);
+  const addLine = () => {
+    setLines(prev => {
+      // Xóa các dòng trống trước khi thêm dòng mới
+      const filtered = prev.filter(l => !(l.sku === '' && l.name === '' && l.qty === 1 && l.price === 0));
+      return [...filtered, emptyLine()];
+    });
+  };
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
   const updateLine = (idx, key, val) => {
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [key]: val } : l));
+    setLines(prev => {
+      const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
+      // Khi nhập SKU hoặc tên hàng, tự động xóa các dòng trống khác
+      if (key === 'sku' || key === 'name') {
+        const currentLine = updated[idx];
+        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') || 
+                       (currentLine.name && currentLine.name.trim() !== '');
+        
+        if (hasData) {
+          // Giữ dòng hiện tại và các dòng có dữ liệu, xóa các dòng trống khác
+          const filtered = updated.filter((l, i) => {
+            if (i === idx) return true; // Luôn giữ dòng đang được cập nhật
+            // Giữ dòng nếu có dữ liệu (có SKU hoặc tên hàng)
+            return (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '');
+          });
+          // Luôn giữ ít nhất một dòng trống ở cuối để thêm sản phẩm mới
+          const hasEmptyLine = filtered.some(l => l.sku === '' && l.name === '');
+          return hasEmptyLine ? filtered : [...filtered, emptyLine()];
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async () => {
@@ -164,19 +191,9 @@ const PurchaseOrders = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpenCreateOrderModal(true)}
-          sx={{ minWidth: { xs: 'auto', sm: 160 } }}
-        >
-          Tạo đơn hàng
-        </Button>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+        <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
       </Box>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
@@ -223,10 +240,11 @@ const PurchaseOrders = () => {
                 key={o.store_order_id} 
                 hover 
                 onClick={() => {
+                  // Có thể xem chi tiết đơn nhập hàng khi click vào bất kỳ dòng nào
                   setSelectedOrder(o);
                   setOpenModal(true);
                 }}
-                sx={{ cursor: 'pointer' }}
+                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
               >
                 <TableCell>{o.store_order_id || o.order_code || 'N/A'}</TableCell>
                 <TableCell>{o.order_type || 'N/A'}</TableCell>
