@@ -316,16 +316,25 @@ const POS = () => {
                 if (res && res.err === 0) {
                     toast.success('Thanh toán thành công!');
 
-                    // Update loyalty points if customer is selected
+                    // Show payment success modal with print invoice option
+                    setQrPaymentData({
+                        transaction_id: res.data.transaction_id,
+                        payment_id: res.data.payment_id,
+                        order_code: res.data.transaction_id,
+                        total_amount: total,
+                        payment_method: 'cash',
+                        customer_name: selectedCustomer?.name || 'Khách vãng lai',
+                        customer_phone: selectedCustomer?.phone || ''
+                    });
+                    setShowPaymentModal(true);
+
+                    // Reload customer data if customer is selected
                     if (selectedCustomer) {
-                        const loyaltyRes = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
-                        if (loyaltyRes && loyaltyRes.err === 0) {
-                            toast.info(loyaltyRes.msg);
-                            await loadCustomerVouchers(selectedCustomer.customer_id);
-                            setSelectedCustomer({
-                                ...selectedCustomer,
-                                loyalty_point: loyaltyRes.data.new_points
-                            });
+                        await loadCustomerVouchers(selectedCustomer.customer_id);
+                        // Fetch updated customer info
+                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                        if (customerRes && customerRes.err === 0 && customerRes.data) {
+                            setSelectedCustomer(customerRes.data);
                         }
                     }
 

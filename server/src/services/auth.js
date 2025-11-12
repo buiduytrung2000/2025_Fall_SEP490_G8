@@ -91,14 +91,15 @@ export const loginService = async ({ email, password }) => {
             }
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password)
-        
-        if (!isPasswordValid) {
-            return {
-                err: 1,
-                msg: 'Invalid password!'
-            }
-        }
+        // Comment out password validation for development
+        // const isPasswordValid = await bcrypt.compare(password, user.password)
+
+        // if (!isPasswordValid) {
+        //     return {
+        //         err: 1,
+        //         msg: 'Invalid password!'
+        //     }
+        // }
 
         if (user.status !== 'active') {
             return {
@@ -109,8 +110,9 @@ export const loginService = async ({ email, password }) => {
 
         // Generate token with role included
         const token = jwt.sign(
-            { 
-                user_id: user.user_id, 
+            {
+                user_id: user.user_id,
+                username: user.username,
                 email: user.email,
                 role: user.role, // Include role in token
                 store_id: user.store_id

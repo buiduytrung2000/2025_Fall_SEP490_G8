@@ -276,3 +276,128 @@ export const generateVouchersForExistingCustomer = (customerId) => new Promise(a
         reject(error);
     }
 })
+
+// ADD VOUCHER MANUALLY FROM TEMPLATE
+export const addVoucherFromTemplate = (customerId, templateId) => new Promise(async (resolve, reject) => {
+    try {
+        // Get customer
+        const customer = await db.Customer.findByPk(customerId, {
+            attributes: ['customer_id', 'name', 'loyalty_point']
+        });
+
+        if (!customer) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy khách hàng'
+            });
+        }
+
+        // Get template
+        const template = await db.VoucherTemplate.findOne({
+            where: {
+                voucher_template_id: templateId,
+                is_active: true
+            }
+        });
+
+        if (!template) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy voucher template hoặc template đã bị vô hiệu hóa'
+            });
+        }
+
+        // Check if customer has enough loyalty points
+        const customerPoints = customer.loyalty_point || 0;
+        if (customerPoints < template.required_loyalty_points) {
+            return resolve({
+                err: 1,
+                msg: `Khách hàng cần tối thiểu ${template.required_loyalty_points} điểm để nhận voucher này (hiện có ${customerPoints} điểm)`
+            });
+        }
+
+        // Check if customer already has this voucher
+        const existingVoucher = await db.CustomerVoucher.findOne({
+            where: {
+                customer_id: customerId,
+                voucher_name: template.voucher_name,
+                status: {
+                    [Op.in]: ['available', 'used']
+                }
+            }
+        });
+
+        if (existingVoucher) {
+            return resolve({
+                err: 1,
+                msg: 'Khách hàng đã có voucher này'
+            });
+        }
+
+        // Create voucher for customer
+        const now = new Date();
+        const voucherCode = `${template.voucher_code_prefix}-${customerId}-${Date.now()}`;
+        const endDate = new Date(now);
+        endDate.setDate(endDate.getDate() + template.validity_days);
+
+        const newVoucher = await db.CustomerVoucher.create({
+            customer_id: customerId,
+            voucher_code: voucherCode,
+            voucher_name: template.voucher_name,
+            discount_type: template.discount_type,
+            discount_value: template.discount_value,
+            min_purchase_amount: template.min_purchase_amount,
+            max_discount_amount: template.max_discount_amount,
+            required_loyalty_points: template.required_loyalty_points,
+            start_date: now,
+            end_date: endDate,
+            status: 'available'
+        });
+
+        resolve({
+            err: 0,
+            msg: `Đã thêm voucher "${template.voucher_name}" cho khách hàng ${customer.name}`,
+            data: newVoucher
+        });
+    } catch (error) {
+        reject(error);
+    }
+})
+
+// GET AVAILABLE TEMPLATES FOR CUSTOMER (based on loyalty points)
+export const getAvailableTemplatesForCustomer = (customerId) => new Promise(async (resolve, reject) => {
+    try {
+        // Get customer
+        const customer = await db.Customer.findByPk(customerId, {
+            attributes: ['customer_id', 'name', 'loyalty_point']
+        });
+
+        if (!customer) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy khách hàng'
+            });
+        }
+
+        const customerPoints = customer.loyalty_point || 0;
+
+        // Get all active templates that customer qualifies for
+        const templates = await db.VoucherTemplate.findAll({
+            where: {
+                is_active: true,
+                required_loyalty_points: {
+                    [Op.lte]: customerPoints
+                }
+            },
+            order: [['required_loyalty_points', 'DESC']]
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: templates
+        });
+    } catch (error) {
+        reject(error);
+    }
+})

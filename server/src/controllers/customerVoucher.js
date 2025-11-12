@@ -66,7 +66,7 @@ export const generateVouchersForCustomer = async (req, res) => {
                 msg: 'Missing customer_id'
             })
         }
-        const response = await customerVoucherService.generateVouchersForExistingCustomer(customer_id)
+        const response = await voucherService.generateVouchersForExistingCustomer(customer_id)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
@@ -86,6 +86,46 @@ export const createVoucher = async (req, res) => {
             err: -1,
             msg: 'Fail at voucher controller: ' + error
         })
+    }
+}
+
+// ADD VOUCHER FROM TEMPLATE
+export const addVoucherFromTemplate = async (req, res) => {
+    try {
+        const { customer_id, template_id } = req.body;
+        if (!customer_id || !template_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing customer_id or template_id'
+            });
+        }
+        const response = await voucherService.addVoucherFromTemplate(customer_id, template_id);
+        return res.status(response.err === 0 ? 201 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at voucher controller: ' + error.message
+        });
+    }
+}
+
+// GET AVAILABLE TEMPLATES FOR CUSTOMER
+export const getAvailableTemplatesForCustomer = async (req, res) => {
+    try {
+        const { customer_id } = req.params;
+        if (!customer_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing customer_id'
+            });
+        }
+        const response = await voucherService.getAvailableTemplatesForCustomer(customer_id);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at voucher controller: ' + error.message
+        });
     }
 }
 

@@ -12,6 +12,7 @@ import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
 import customerRouter from './customer'
 import customerVoucherRouter from './customerVoucher'
+import voucherTemplateRouter from './voucherTemplate'
 import paymentRouter from './payment'
 
 const initRoutes = (app) => {
@@ -29,6 +30,7 @@ const initRoutes = (app) => {
     app.use('/api/v1/store-order', storeOrderRouter)
     app.use('/api/v1/customer', customerRouter)
     app.use('/api/v1/voucher', customerVoucherRouter)
+    app.use('/api/v1/voucher-template', voucherTemplateRouter)
     app.use('/api/v1/payment', paymentRouter)
 
     app.get('/', (req, res) => {

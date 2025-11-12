@@ -72,10 +72,10 @@ INSERT INTO VoucherTemplate (voucher_code_prefix, voucher_name, discount_type, d
 ('ULTRA35', 'Giảm 35% cho đơn từ 1.500.000đ', 'percentage', 35.00, 1500000, 500000, 1000, 90, TRUE);
 
 -- Insert sample vouchers for testing (customer_id = 1)
-INSERT INTO CustomerVoucher (customer_id, voucher_code, voucher_name, discount_type, discount_value, min_purchase_amount, max_discount_amount, required_loyalty_points, start_date, end_date, status) VALUES
-(1, 'WELCOME10-001', 'Giảm 10% cho đơn hàng đầu tiên', 'percentage', 10.00, 100000, 50000, 0, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
-(1, 'FREESHIP-001', 'Miễn phí vận chuyển', 'fixed_amount', 30000.00, 0, NULL, 0, NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY), 'available'),
-(1, 'SAVE20K-001', 'Giảm 20.000đ cho đơn từ 200.000đ', 'fixed_amount', 20000.00, 200000, NULL, 100, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
-(1, 'SAVE50K-001', 'Giảm 50.000đ cho đơn từ 500.000đ', 'fixed_amount', 50000.00, 500000, NULL, 200, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
-(1, 'DISCOUNT10-001', 'Giảm 10% cho đơn từ 300.000đ', 'percentage', 10.00, 300000, 80000, 200, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available');
+-- INSERT INTO CustomerVoucher (customer_id, voucher_code, voucher_name, discount_type, discount_value, min_purchase_amount, max_discount_amount, required_loyalty_points, start_date, end_date, status) VALUES
+-- (1, 'WELCOME10-001', 'Giảm 10% cho đơn hàng đầu tiên', 'percentage', 10.00, 100000, 50000, 0, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
+-- (1, 'FREESHIP-001', 'Miễn phí vận chuyển', 'fixed_amount', 30000.00, 0, NULL, 0, NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY), 'available'),
+-- (1, 'SAVE20K-001', 'Giảm 20.000đ cho đơn từ 200.000đ', 'fixed_amount', 20000.00, 200000, NULL, 100, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
+-- (1, 'SAVE50K-001', 'Giảm 50.000đ cho đơn từ 500.000đ', 'fixed_amount', 50000.00, 500000, NULL, 200, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available'),
+-- (1, 'DISCOUNT10-001', 'Giảm 10% cho đơn từ 300.000đ', 'percentage', 10.00, 300000, 80000, 200, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'available');
 

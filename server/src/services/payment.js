@@ -111,10 +111,10 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
         // Mark voucher as used if applicable
         if (voucher_code) {
             await db.sequelize.query(
-                `UPDATE CustomerVoucher 
-                 SET status = 'used', 
-                     used_at = NOW(), 
-                     transaction_id = ? 
+                `UPDATE CustomerVoucher
+                 SET status = 'used',
+                     used_at = NOW(),
+                     transaction_id = ?
                  WHERE voucher_code = ? AND status = 'available'`,
                 {
                     replacements: [transactionRecord.transaction_id, voucher_code],
@@ -122,6 +122,24 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
                     transaction
                 }
             );
+        }
+
+        // Update loyalty points if customer is registered
+        if (customer_id) {
+            const customer = await db.Customer.findByPk(customer_id, { transaction });
+            if (customer) {
+                // Calculate points: 100đ = 1 point
+                const pointsToAdd = Math.floor(subtotal / 100);
+                const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+
+                await customer.update({
+                    loyalty_point: newPoints
+                }, { transaction });
+
+                // Auto-generate vouchers based on new loyalty points
+                const customerVoucherService = require('./customerVoucher');
+                await customerVoucherService.autoGenerateVouchersForCustomer(customer_id, newPoints);
+            }
         }
 
         await transaction.commit();
@@ -223,8 +241,8 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
             amount: Math.round(total_amount),
             description: `Thanh toan don hang #${orderCode}`,
             items: payosItems,
-            cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pos/payment-cancel`,
-            returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pos/payment-success`,
+            cancelUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/pos/payment-cancel`,
+            returnUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/pos/payment-success`,
             buyerName: customer_name || 'Customer',
             buyerPhone: customer_phone || ''
         };
@@ -401,6 +419,24 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
                     transaction
                 }
             );
+        }
+
+        // Update loyalty points if customer is registered
+        if (transactionRecord.customer_id) {
+            const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
+            if (customer) {
+                // Calculate points: 100đ = 1 point
+                const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
+                const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+
+                await customer.update({
+                    loyalty_point: newPoints
+                }, { transaction });
+
+                // Auto-generate vouchers based on new loyalty points
+                const customerVoucherService = require('./customerVoucher');
+                await customerVoucherService.autoGenerateVouchersForCustomer(transactionRecord.customer_id, newPoints);
+            }
         }
 
         await transaction.commit();

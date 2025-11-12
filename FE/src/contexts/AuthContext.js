@@ -25,9 +25,10 @@ export const AuthProvider = ({ children }) => {
                 const loggedInUser = {
                     user_id: payload.user_id,
                     id: payload.user_id, // Keep for backward compatibility
-                    email: data.user?.email || null,
-                    username: payload.username,
+                    email: data.user?.email || payload.email || null,
+                    username: data.user?.username || null,
                     role: mappedRole,
+                    store_id: payload.store_id || null,
                     token: data.token
                 };
                 localStorage.setItem('user', JSON.stringify(loggedInUser));
@@ -52,8 +53,9 @@ export const AuthProvider = ({ children }) => {
                     user_id: payload.user_id,
                     id: payload.user_id,
                     email: data.user?.email || null,
-                    username: payload.username,
+                    username: data.user?.username || payload.username || null,
                     role: mappedRole,
+                    store_id: payload.store_id || null,
                     token: data.token
                 };
                 localStorage.setItem('user', JSON.stringify(registeredUser));

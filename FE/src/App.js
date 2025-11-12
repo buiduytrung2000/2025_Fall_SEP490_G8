@@ -27,6 +27,7 @@ import StaffManagement from "./pages/Store_Manager/StaffManagement";
 import ScheduleManagement from "./pages/Store_Manager/ScheduleManagement";
 import StoreInventory from "./pages/Store_Manager/InventoryManagement";
 import PurchaseOrders from "./pages/Store_Manager/PurchaseOrders";
+import VoucherManagement from "./pages/Store_Manager/VoucherManagement";
 import WarehouseIncomingOrders from "./pages/Warehouse/IncomingOrders";
 import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
 import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
@@ -132,6 +133,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Manager"]}>
                   <ShiftChangeRequestManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/vouchers"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <VoucherManagement />
                 </ProtectedRoute>
               }
             />

@@ -15,35 +15,40 @@ const PaymentModal = ({
     const [checkingInterval, setCheckingInterval] = useState(null);
 
     useEffect(() => {
-        if (show && paymentData && paymentData.order_code) {
-            // Start checking payment status every 3 seconds
-            const interval = setInterval(async () => {
-                setPaymentStatus('checking');
-                const result = await checkPaymentStatus(paymentData.order_code);
-                
-                if (result && result.err === 0) {
-                    const status = result.data.status;
-                    
-                    if (status === 'PAID') {
-                        setPaymentStatus('completed');
-                        clearInterval(interval);
-                        if (onPaymentSuccess) {
-                            onPaymentSuccess(paymentData.transaction_id);
+        if (show && paymentData) {
+            // If payment method is cash, set status to completed immediately
+            if (paymentData.payment_method === 'cash') {
+                setPaymentStatus('completed');
+            } else if (paymentData.order_code) {
+                // For QR payment, start checking payment status every 3 seconds
+                const interval = setInterval(async () => {
+                    setPaymentStatus('checking');
+                    const result = await checkPaymentStatus(paymentData.order_code);
+
+                    if (result && result.err === 0) {
+                        const status = result.data.status;
+
+                        if (status === 'PAID') {
+                            setPaymentStatus('completed');
+                            clearInterval(interval);
+                            if (onPaymentSuccess) {
+                                onPaymentSuccess(paymentData.transaction_id);
+                            }
+                        } else if (status === 'CANCELLED') {
+                            setPaymentStatus('failed');
+                            clearInterval(interval);
                         }
-                    } else if (status === 'CANCELLED') {
-                        setPaymentStatus('failed');
+                    }
+                }, 3000);
+
+                setCheckingInterval(interval);
+
+                return () => {
+                    if (interval) {
                         clearInterval(interval);
                     }
-                }
-            }, 3000);
-
-            setCheckingInterval(interval);
-
-            return () => {
-                if (interval) {
-                    clearInterval(interval);
-                }
-            };
+                };
+            }
         }
     }, [show, paymentData]);
 
@@ -72,6 +77,10 @@ const PaymentModal = ({
             <Modal.Header closeButton={paymentStatus === 'completed'}>
                 <Modal.Title>
                     {paymentStatus === 'completed' ? (
+                        <span className="text-success">
+                            <FaCheckCircle /> Thanh toán thành công
+                        </span>
+                    ) : paymentData?.payment_method === 'cash' ? (
                         <span className="text-success">
                             <FaCheckCircle /> Thanh toán thành công
                         </span>
