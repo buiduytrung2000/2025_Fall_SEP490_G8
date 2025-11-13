@@ -2,16 +2,47 @@ const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'
 
 // Helper function to get auth headers
 function getAuthHeaders() {
-    const token = localStorage.getItem('token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    try {
+        const stored = localStorage.getItem('user');
+        if (!stored) return {};
+        const { token } = JSON.parse(stored);
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    } catch {
+        return {};
+    }
 }
 
 // Get available vouchers for a customer
 export async function getAvailableVouchers(customerId) {
-    const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available`, {
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
-    });
-    return res.json();
+    try {
+        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available`, {
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+        });
+
+        console.log('Voucher API response status:', res.status);
+
+        if (!res.ok) {
+            console.error('Voucher API error:', res.status, res.statusText);
+            const text = await res.text();
+            console.error('Response body:', text);
+            return {
+                err: 1,
+                msg: `API error: ${res.status} ${res.statusText}`,
+                data: []
+            };
+        }
+
+        const data = await res.json();
+        console.log('Voucher API data:', data);
+        return data;
+    } catch (error) {
+        console.error('Error fetching vouchers:', error);
+        return {
+            err: 1,
+            msg: error.message,
+            data: []
+        };
+    }
 }
 
 // Get all vouchers for a customer
@@ -57,10 +88,35 @@ export async function updateCustomerLoyaltyPoints(customerId, purchaseAmount) {
 }
 
 export async function generateVouchersForCustomer(customerId) {
-    const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
-    });
-    return res.json();
+    try {
+        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+        });
+
+        console.log('Generate voucher API response status:', res.status);
+
+        if (!res.ok) {
+            console.error('Generate voucher API error:', res.status, res.statusText);
+            const text = await res.text();
+            console.error('Response body:', text);
+            return {
+                err: 1,
+                msg: `API error: ${res.status} ${res.statusText}`,
+                data: []
+            };
+        }
+
+        const data = await res.json();
+        console.log('Generate voucher API data:', data);
+        return data;
+    } catch (error) {
+        console.error('Error generating vouchers:', error);
+        return {
+            err: 1,
+            msg: error.message,
+            data: []
+        };
+    }
 }
 

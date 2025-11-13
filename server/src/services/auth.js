@@ -118,7 +118,7 @@ export const loginService = async ({ email, password }) => {
                 store_id: user.store_id
             },
             process.env.SECRET_KEY,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' } // Tăng lên 30 ngày
         )
 
         return {

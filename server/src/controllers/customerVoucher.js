@@ -8,12 +8,17 @@ export const getAvailableVouchers = async (req, res) => {
             err: 1,
             msg: 'Missing customer_id'
         })
+
+        console.log('Controller: Getting vouchers for customer:', customer_id);
         const response = await voucherService.getAvailableVouchersByCustomer(customer_id)
+        console.log('Controller: Voucher response:', response);
+
         return res.status(200).json(response)
     } catch (error) {
+        console.error('Controller: Error getting vouchers:', error);
         return res.status(500).json({
             err: -1,
-            msg: 'Fail at voucher controller: ' + error
+            msg: 'Fail at voucher controller: ' + error.message
         })
     }
 }
@@ -66,12 +71,17 @@ export const generateVouchersForCustomer = async (req, res) => {
                 msg: 'Missing customer_id'
             })
         }
+
+        console.log('Controller: Generating vouchers for customer:', customer_id);
         const response = await voucherService.generateVouchersForExistingCustomer(customer_id)
+        console.log('Controller: Generate response:', response);
+
         return res.status(200).json(response)
     } catch (error) {
+        console.error('Controller: Error generating vouchers:', error);
         return res.status(500).json({
             err: -1,
-            msg: 'Fail at customerVoucher controller: ' + error
+            msg: 'Fail at customerVoucher controller: ' + error.message
         })
     }
 }

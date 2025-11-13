@@ -4,6 +4,25 @@ import verifyToken from '../middlewares/verifyToken';
 
 const router = express.Router();
 
+// Test endpoint - no auth required
+router.get('/test', async (req, res) => {
+    try {
+        const db = require('../models').default;
+        const templates = await db.VoucherTemplate.findAll();
+        res.json({
+            err: 0,
+            msg: 'OK',
+            count: templates.length,
+            data: templates
+        });
+    } catch (error) {
+        res.status(500).json({
+            err: -1,
+            msg: error.message
+        });
+    }
+});
+
 // All voucher template routes require authentication
 router.use(verifyToken);
 

@@ -115,6 +115,12 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             tier: 'bronze'
         })
 
+        // Auto-generate welcome vouchers for new customer
+        if (response) {
+            const voucherService = require('./customerVoucher');
+            await voucherService.autoGenerateVouchersForCustomer(response.customer_id, 0);
+        }
+
         resolve({
             err: response ? 0 : 1,
             msg: response ? 'Tạo khách hàng thành công' : 'Tạo khách hàng thất bại',

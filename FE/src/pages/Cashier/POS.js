@@ -206,24 +206,35 @@ const POS = () => {
     const loadCustomerVouchers = async (customerId) => {
         setLoadingVouchers(true);
         try {
+            console.log('Loading vouchers for customer:', customerId);
             const res = await getAvailableVouchers(customerId);
+            console.log('Vouchers response:', res);
+
             if (res && res.err === 0) {
                 setVouchers(res.data || []);
+                console.log('Vouchers loaded:', res.data?.length || 0);
 
                 // Nếu không có voucher nào, tự động tạo voucher cho khách hàng
                 if (res.data.length === 0) {
+                    console.log('No vouchers found, generating...');
                     toast.info('Đang tạo voucher cho khách hàng...');
                     const generateRes = await generateVouchersForCustomer(customerId);
+                    console.log('Generate vouchers response:', generateRes);
+
                     if (generateRes && generateRes.err === 0) {
                         toast.success(generateRes.msg);
                         // Reload vouchers
                         const reloadRes = await getAvailableVouchers(customerId);
+                        console.log('Reloaded vouchers:', reloadRes);
                         if (reloadRes && reloadRes.err === 0) {
                             setVouchers(reloadRes.data || []);
                         }
+                    } else {
+                        console.error('Failed to generate vouchers:', generateRes);
                     }
                 }
             } else {
+                console.error('Failed to load vouchers:', res);
                 setVouchers([]);
             }
         } catch (error) {
@@ -380,17 +391,17 @@ const POS = () => {
     const handleQRPaymentSuccess = async (transactionId) => {
         toast.success('Thanh toán QR thành công!');
 
-        // Update loyalty points if customer is selected
+        // Reload customer data and vouchers (loyalty points already updated by webhook)
         if (selectedCustomer) {
-            const loyaltyRes = await updateCustomerLoyaltyPoints(selectedCustomer.customer_id, subtotal);
-            if (loyaltyRes && loyaltyRes.err === 0) {
-                toast.info(loyaltyRes.msg);
-                await loadCustomerVouchers(selectedCustomer.customer_id);
-                setSelectedCustomer({
-                    ...selectedCustomer,
-                    loyalty_point: loyaltyRes.data.new_points
-                });
+            // Fetch updated customer info
+            const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+            if (customerRes && customerRes.err === 0 && customerRes.data) {
+                setSelectedCustomer(customerRes.data);
+                toast.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
             }
+
+            // Reload vouchers
+            await loadCustomerVouchers(selectedCustomer.customer_id);
         }
 
         // Clear cart and reset

@@ -4,12 +4,15 @@ import { Op } from 'sequelize'
 // GET AVAILABLE VOUCHERS BY CUSTOMER ID (filtered by loyalty points)
 export const getAvailableVouchersByCustomer = (customerId) => new Promise(async (resolve, reject) => {
     try {
+        console.log('Getting vouchers for customer:', customerId);
+
         // Get customer's loyalty points
         const customer = await db.Customer.findByPk(customerId, {
             attributes: ['loyalty_point']
         });
 
         if (!customer) {
+            console.log('Customer not found:', customerId);
             return resolve({
                 err: 1,
                 msg: 'Customer not found',
@@ -18,6 +21,8 @@ export const getAvailableVouchersByCustomer = (customerId) => new Promise(async 
         }
 
         const customerLoyaltyPoints = customer.loyalty_point || 0;
+        console.log('Customer loyalty points:', customerLoyaltyPoints);
+
         const now = new Date();
 
         // Get vouchers that customer can use based on loyalty points
@@ -41,12 +46,15 @@ export const getAvailableVouchersByCustomer = (customerId) => new Promise(async 
             order: [['required_loyalty_points', 'DESC'], ['end_date', 'ASC']]
         })
 
+        console.log('Found vouchers:', response.length);
+
         resolve({
             err: 0,
             msg: 'OK',
             data: response
         })
     } catch (error) {
+        console.error('Error getting vouchers:', error);
         reject(error)
     }
 })
@@ -179,6 +187,8 @@ export const createVoucher = (data) => new Promise(async (resolve, reject) => {
 // AUTO-GENERATE VOUCHERS FOR CUSTOMER BASED ON LOYALTY POINTS
 export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => new Promise(async (resolve, reject) => {
     try {
+        console.log('Auto-generating vouchers for customer:', customerId, 'with loyalty points:', loyaltyPoints);
+
         // Get all active voucher templates that customer qualifies for
         const templates = await db.VoucherTemplate.findAll({
             where: {
@@ -190,7 +200,10 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
             order: [['required_loyalty_points', 'DESC']]
         });
 
+        console.log('Found templates:', templates.length);
+
         if (templates.length === 0) {
+            console.log('No voucher templates available for loyalty points:', loyaltyPoints);
             return resolve({
                 err: 0,
                 msg: 'No voucher templates available',
@@ -202,6 +215,8 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
         const now = new Date();
 
         for (const template of templates) {
+            console.log('Checking template:', template.voucher_code_prefix, 'required points:', template.required_loyalty_points);
+
             // Check if customer already has this type of voucher
             const existingVoucher = await db.CustomerVoucher.findOne({
                 where: {
@@ -213,11 +228,17 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
                 }
             });
 
+            if (existingVoucher) {
+                console.log('Customer already has voucher:', template.voucher_code_prefix);
+            }
+
             // Only create if customer doesn't have this voucher yet
             if (!existingVoucher) {
                 const voucherCode = `${template.voucher_code_prefix}-${customerId}-${Date.now()}`;
                 const endDate = new Date(now);
                 endDate.setDate(endDate.getDate() + template.validity_days);
+
+                console.log('Creating voucher:', voucherCode);
 
                 const newVoucher = await db.CustomerVoucher.create({
                     customer_id: customerId,
@@ -233,9 +254,12 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
                     status: 'available'
                 });
 
+                console.log('Created voucher:', newVoucher.voucher_code);
                 newVouchers.push(newVoucher);
             }
         }
+
+        console.log('Total new vouchers created:', newVouchers.length);
 
         resolve({
             err: 0,
@@ -243,6 +267,7 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
             data: newVouchers
         });
     } catch (error) {
+        console.error('Error auto-generating vouchers:', error);
         reject(error);
     }
 })
