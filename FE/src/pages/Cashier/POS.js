@@ -349,14 +349,19 @@ const POS = () => {
                 // QR payment
                 const res = await createQRPayment(paymentData);
 
+                console.log('QR Payment Response:', res);
+                console.log('QR Code from response:', res?.data?.qr_code);
+
                 if (res && res.err === 0) {
                     // Show QR modal
-                    setQrPaymentData({
+                    const qrData = {
                         ...res.data,
                         customer_name: selectedCustomer?.name || 'Customer',
                         customer_phone: selectedCustomer?.phone || '',
                         total_amount: total
-                    });
+                    };
+                    console.log('Setting QR Payment Data:', qrData);
+                    setQrPaymentData(qrData);
                     setShowPaymentModal(true);
                 } else {
                     toast.error(res.msg || 'Không thể tạo mã QR thanh toán');
@@ -857,7 +862,12 @@ const POS = () => {
             {/* Payment Modal for QR */}
             <PaymentModal
                 show={showPaymentModal}
-                onHide={() => setShowPaymentModal(false)}
+                onHide={() => {
+                    setShowPaymentModal(false);
+                    setQrPaymentData(null);
+                    setSelectedPaymentMethod(null);
+                    setIsProcessingPayment(false);
+                }}
                 paymentData={qrPaymentData}
                 onPaymentSuccess={handleQRPaymentSuccess}
                 onPrintInvoice={handlePrintInvoice}

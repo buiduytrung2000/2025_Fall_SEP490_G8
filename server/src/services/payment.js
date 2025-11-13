@@ -4,13 +4,13 @@ import db from '../models';
 let payOSInstance = null;
 const getPayOS = () => {
     if (!payOSInstance) {
-        // PayOS exports as { PayOS: class }
+        // PayOS v2 exports as { PayOS: class }
         const { PayOS } = require('@payos/node');
-        payOSInstance = new PayOS(
-            process.env.PAYOS_CLIENT_ID || 'your-client-id',
-            process.env.PAYOS_API_KEY || 'your-api-key',
-            process.env.PAYOS_CHECKSUM_KEY || 'your-checksum-key'
-        );
+        payOSInstance = new PayOS({
+            clientId: process.env.PAYOS_CLIENT_ID || 'your-client-id',
+            apiKey: process.env.PAYOS_API_KEY || 'your-api-key',
+            checksumKey: process.env.PAYOS_CHECKSUM_KEY || 'your-checksum-key'
+        });
     }
     return payOSInstance;
 };
@@ -239,15 +239,21 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
         const payosBody = {
             orderCode: orderCode,
             amount: Math.round(total_amount),
-            description: `Thanh toan don hang #${orderCode}`,
-            items: payosItems,
+            description: `DH${orderCode}`,
             cancelUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/pos/payment-cancel`,
-            returnUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/pos/payment-success`,
-            buyerName: customer_name || 'Customer',
-            buyerPhone: customer_phone || ''
+            returnUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/pos/payment-success`
         };
 
-        const paymentLinkRes = await getPayOS().createPaymentLink(payosBody);
+        // PayOS v2 uses paymentRequests.create() instead of createPaymentLink()
+        const paymentLinkRes = await getPayOS().paymentRequests.create(payosBody);
+
+        console.log('PayOS payment link created - Full response:', JSON.stringify(paymentLinkRes, null, 2));
+
+        // Generate VietQR URL from bank info
+        // VietQR API: https://img.vietqr.io/image/{bin}-{accountNumber}-{template}.jpg?amount={amount}&addInfo={description}
+        const vietQRUrl = `https://img.vietqr.io/image/${paymentLinkRes.bin}-${paymentLinkRes.accountNumber}-compact2.jpg?amount=${paymentLinkRes.amount}&addInfo=${encodeURIComponent(paymentLinkRes.description)}&accountName=${encodeURIComponent(paymentLinkRes.accountName)}`;
+
+        console.log('Generated VietQR URL:', vietQRUrl);
 
         // Create pending payment record
         const payment = await db.Payment.create({
@@ -255,7 +261,7 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
             amount: total_amount,
             status: 'pending',
             payos_order_code: orderCode,
-            payos_payment_link_id: paymentLinkRes.paymentLinkId
+            payos_payment_link_id: paymentLinkRes.paymentLinkId || paymentLinkRes.id
         });
 
         // Create pending transaction record
@@ -283,6 +289,7 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
             });
         }
 
+        // Generate VietQR image URL from bank info
         resolve({
             err: 0,
             msg: 'Payment link created successfully',
@@ -291,8 +298,14 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
                 payment_id: payment.payment_id,
                 order_code: orderCode,
                 checkout_url: paymentLinkRes.checkoutUrl,
-                qr_code: paymentLinkRes.qrCode,
-                payment_link_id: paymentLinkRes.paymentLinkId
+                qr_code: vietQRUrl, // VietQR image URL generated from bank info
+                payment_link_id: paymentLinkRes.paymentLinkId,
+                // Additional bank info for manual transfer
+                bin: paymentLinkRes.bin,
+                account_number: paymentLinkRes.accountNumber,
+                account_name: paymentLinkRes.accountName,
+                amount: paymentLinkRes.amount,
+                description: paymentLinkRes.description
             }
         });
 
@@ -308,7 +321,8 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
 // Check payment status
 export const checkPaymentStatus = (orderCode) => new Promise(async (resolve, reject) => {
     try {
-        const paymentInfo = await getPayOS().getPaymentLinkInformation(orderCode);
+        // PayOS v2 uses paymentRequests.get() instead of getPaymentLinkInformation()
+        const paymentInfo = await getPayOS().paymentRequests.get(orderCode);
 
         resolve({
             err: 0,
@@ -329,8 +343,8 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
     const transaction = await db.sequelize.transaction();
 
     try {
-        // Verify webhook data
-        const verifiedData = getPayOS().verifyPaymentWebhookData(webhookData);
+        // PayOS v2 uses webhooks.verify() instead of verifyPaymentWebhookData()
+        const verifiedData = await getPayOS().webhooks.verify(webhookData);
 
         if (!verifiedData || verifiedData.code !== '00') {
             await transaction.rollback();

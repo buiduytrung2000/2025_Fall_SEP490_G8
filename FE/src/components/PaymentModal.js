@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
 import { FaQrcode, FaPrint, FaTimes, FaCheckCircle } from 'react-icons/fa';
+import { QRCodeSVG } from 'qrcode.react';
 import { checkPaymentStatus } from '../api/paymentApi';
 import '../assets/PaymentModal.css';
 
@@ -16,6 +17,8 @@ const PaymentModal = ({
 
     useEffect(() => {
         if (show && paymentData) {
+            console.log('PaymentModal received paymentData:', paymentData);
+
             // If payment method is cash, set status to completed immediately
             if (paymentData.payment_method === 'cash') {
                 setPaymentStatus('completed');
@@ -115,11 +118,43 @@ const PaymentModal = ({
                         
                         {paymentData?.qr_code ? (
                             <div className="qr-code-container">
-                                <img 
-                                    src={paymentData.qr_code} 
-                                    alt="QR Code" 
-                                    className="qr-code-image"
+                                {/* Display VietQR image from PayOS */}
+                                <img
+                                    src={paymentData.qr_code}
+                                    alt="VietQR Code"
+                                    style={{
+                                        maxWidth: '350px',
+                                        maxHeight: '350px',
+                                        width: 'auto',
+                                        height: 'auto'
+                                    }}
+                                    onError={(e) => {
+                                        console.error('Failed to load QR image from PayOS');
+                                        console.error('QR URL:', paymentData.qr_code);
+                                    }}
                                 />
+                                <p className="text-muted mt-3 mb-0">
+                                    Quét mã QR bằng app ngân hàng để thanh toán
+                                </p>
+                                {paymentData.checkout_url && (
+                                    <Button
+                                        variant="link"
+                                        onClick={() => window.open(paymentData.checkout_url, '_blank')}
+                                        className="mt-2"
+                                    >
+                                        Hoặc mở trang thanh toán
+                                    </Button>
+                                )}
+                            </div>
+                        ) : paymentData?.checkout_url ? (
+                            <div className="qr-code-container">
+                                <p className="text-muted mb-3">Đang tải mã QR...</p>
+                                <Button
+                                    variant="primary"
+                                    onClick={() => window.open(paymentData.checkout_url, '_blank')}
+                                >
+                                    Mở trang thanh toán
+                                </Button>
                             </div>
                         ) : (
                             <Spinner animation="border" variant="primary" />
@@ -171,19 +206,11 @@ const PaymentModal = ({
                     </>
                 ) : (
                     <>
-                        <Button 
-                            variant="link" 
-                            onClick={() => window.open(paymentData?.checkout_url, '_blank')}
-                            disabled={!paymentData?.checkout_url}
-                        >
-                            Mở trang thanh toán
-                        </Button>
-                        <Button 
-                            variant="secondary" 
+                        <Button
+                            variant="secondary"
                             onClick={handleClose}
-                            disabled={paymentStatus === 'checking'}
                         >
-                            Hủy
+                            <FaTimes /> Hủy
                         </Button>
                     </>
                 )}
