@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Form, Button, InputGroup, ListGroup, Spinner } from 'react-bootstrap';
 import {
      FaSearch, FaQrcode, FaCartPlus,
-    FaShoppingCart, FaUserCircle, FaTimes, FaMoneyBillWave, FaCreditCard
+    FaShoppingCart, FaUserCircle, FaTimes, FaMoneyBillWave, FaCreditCard, FaTicketAlt
 } from 'react-icons/fa';
 import '../../assets/POS.css';
 import { getProductsByStore } from '../../api/productApi';
@@ -511,45 +511,53 @@ const POS = () => {
 
             {/* ------------------- BÊN PHẢI: GIỎ HÀNG ------------------- */}
             <div className="pos-cart">
-                {/* Cart Header */}
-                <div className="cart-header">
-                    <Button variant="link" className="btn-saved-carts p-0">Giỏ hàng hiện lại</Button>
-                    <h4>
-                        <FaShoppingCart className="cart-icon" />
-                        Giỏ hàng
-                    </h4>
+                {/* Cart Header - Compact */}
+                <div className="cart-header py-2 px-3 border-bottom">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <h5 className="mb-0">
+                            <FaShoppingCart className="me-2" />
+                            Giỏ hàng
+                        </h5>
+                        <Button variant="link" className="p-0 small text-decoration-none">
+                            Giỏ hàng hiện lại
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Customer Info */}
-                <div className="cart-customer">
-                    <h6><FaUserCircle className="me-2" /> Thông tin khách hàng</h6>
+                {/* Customer Info - Compact */}
+                <div className="cart-customer px-3 py-2 bg-light border-bottom">
+                    <div className="small fw-semibold text-muted mb-2">
+                        <FaUserCircle className="me-1" /> Thông tin khách hàng
+                    </div>
 
                     {selectedCustomer ? (
-                        <div className="selected-customer-info p-2 border rounded bg-light mb-2">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong>{selectedCustomer.name}</strong>
-                                    <br />
-                                    <small className="text-muted">{selectedCustomer.phone}</small>
-                                    <br />
-                                    <span className="badge bg-primary">{selectedCustomer.tier}</span>
-                                    <span className="ms-2 text-muted">{selectedCustomer.loyalty_point || 0} điểm</span>
+                        <div className="d-flex justify-content-between align-items-center">
+                            <div className="flex-grow-1">
+                                <div className="fw-bold">{selectedCustomer.name}</div>
+                                <div className="small text-muted">{selectedCustomer.phone}</div>
+                                <div className="mt-1">
+                                    <span className="badge bg-primary" style={{ fontSize: '10px' }}>
+                                        {selectedCustomer.tier}
+                                    </span>
+                                    <span className="ms-2 small text-muted">
+                                        {selectedCustomer.loyalty_point || 0} điểm
+                                    </span>
                                 </div>
-                                <Button
-                                    variant="outline-danger"
-                                    size="sm"
-                                    onClick={() => {
-                                        setSelectedCustomer(null);
-                                        setCustomerPhone('');
-                                        setSearchResults([]);
-                                        setShowCreateForm(false);
-                                        setVouchers([]);
-                                        setSelectedVoucher(null);
-                                    }}
-                                >
-                                    <FaTimes />
-                                </Button>
                             </div>
+                            <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => {
+                                    setSelectedCustomer(null);
+                                    setCustomerPhone('');
+                                    setSearchResults([]);
+                                    setShowCreateForm(false);
+                                    setVouchers([]);
+                                    setSelectedVoucher(null);
+                                }}
+                            >
+                                <FaTimes />
+                            </Button>
                         </div>
                     ) : (
                         <>
@@ -683,10 +691,10 @@ const POS = () => {
 
                 {/* Voucher Section - Only show when customer is selected */}
                 {selectedCustomer && (
-                    <div className="cart-voucher mb-3">
-                        <h6 className="mb-2">
-                            <FaCartPlus className="me-2" /> Áp mã giảm giá
-                        </h6>
+                    <div className="cart-voucher px-3 py-2 border-bottom">
+                        <div className="small fw-semibold text-muted mb-2">
+                            <FaTicketAlt className="me-1" /> Áp mã giảm giá
+                        </div>
 
                         {loadingVouchers ? (
                             <div className="text-center py-2">
@@ -696,64 +704,85 @@ const POS = () => {
                         ) : vouchers.length > 0 ? (
                             <>
                                 {selectedVoucher ? (
-                                    <div className="selected-voucher p-2 border rounded bg-success bg-opacity-10 mb-2">
-                                        <div className="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <strong className="text-success">{selectedVoucher.voucher_name}</strong>
-                                                <br />
-                                                <small className="text-muted">
+                                    <div className="selected-voucher p-2 border rounded bg-success bg-opacity-10">
+                                        <div className="d-flex justify-content-between align-items-start">
+                                            <div className="flex-grow-1">
+                                                <div className="d-flex align-items-center gap-1 mb-1">
+                                                    <FaTicketAlt className="text-success" size={12} />
+                                                    <strong className="text-success small">{selectedVoucher.voucher_name}</strong>
+                                                </div>
+                                                <div className="small text-muted">
                                                     Giảm {selectedVoucher.discount_type === 'percentage'
                                                         ? `${selectedVoucher.discount_value}%`
                                                         : formatCurrency(selectedVoucher.discount_value)}
-                                                </small>
+                                                    {selectedVoucher.max_discount_amount > 0 && selectedVoucher.discount_type === 'percentage' && (
+                                                        <span> (Tối đa {formatCurrency(selectedVoucher.max_discount_amount)})</span>
+                                                    )}
+                                                </div>
+                                                <div className="small text-muted">
+                                                    HSD: {new Date(selectedVoucher.end_date).toLocaleDateString('vi-VN')}
+                                                </div>
                                             </div>
                                             <Button
                                                 variant="outline-danger"
                                                 size="sm"
                                                 onClick={handleRemoveVoucher}
+                                                style={{ padding: '2px 6px' }}
                                             >
-                                                <FaTimes />
+                                                <FaTimes size={12} />
                                             </Button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                                        <ListGroup>
-                                            {vouchers.map((voucher) => (
-                                                <ListGroup.Item
-                                                    key={voucher.customer_voucher_id}
-                                                    action
-                                                    onClick={() => handleSelectVoucher(voucher)}
-                                                    disabled={cart.length === 0 || subtotal < voucher.min_purchase_amount}
-                                                    style={{
-                                                        cursor: cart.length === 0 || subtotal < voucher.min_purchase_amount ? 'not-allowed' : 'pointer',
-                                                        padding: '8px 12px',
-                                                        opacity: cart.length === 0 || subtotal < voucher.min_purchase_amount ? 0.6 : 1
-                                                    }}
-                                                >
-                                                    <div>
-                                                        <div className="d-flex justify-content-between align-items-start">
-                                                            <strong style={{ fontSize: '13px' }}>{voucher.voucher_name}</strong>
+                                    <div style={{ maxHeight: '150px', overflowY: 'auto' }} className="border rounded">
+                                        <ListGroup variant="flush">
+                                            {vouchers.map((voucher) => {
+                                                const isDisabled = cart.length === 0 || subtotal < voucher.min_purchase_amount;
+                                                return (
+                                                    <ListGroup.Item
+                                                        key={voucher.customer_voucher_id}
+                                                        action
+                                                        onClick={() => !isDisabled && handleSelectVoucher(voucher)}
+                                                        disabled={isDisabled}
+                                                        className={`${isDisabled ? 'opacity-50' : ''}`}
+                                                        style={{
+                                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                            padding: '8px 10px'
+                                                        }}
+                                                    >
+                                                        <div className="d-flex justify-content-between align-items-start mb-1">
+                                                            <div className="d-flex align-items-center gap-1">
+                                                                <FaTicketAlt className="text-primary" size={12} />
+                                                                <strong style={{ fontSize: '13px' }}>{voucher.voucher_name}</strong>
+                                                            </div>
                                                             {voucher.required_loyalty_points > 0 && (
                                                                 <span className="badge bg-warning text-dark" style={{ fontSize: '10px' }}>
                                                                     {voucher.required_loyalty_points} điểm
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <small className="text-muted">
+                                                        <div className="small text-muted">
                                                             Giảm {voucher.discount_type === 'percentage'
                                                                 ? `${voucher.discount_value}%`
                                                                 : formatCurrency(voucher.discount_value)}
-                                                            {voucher.min_purchase_amount > 0 &&
-                                                                ` - Đơn tối thiểu ${formatCurrency(voucher.min_purchase_amount)}`}
-                                                        </small>
-                                                        <br />
-                                                        <small className="text-muted">
+                                                            {voucher.max_discount_amount > 0 && voucher.discount_type === 'percentage' && (
+                                                                <span> (Tối đa {formatCurrency(voucher.max_discount_amount)})</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="small text-muted">
                                                             HSD: {new Date(voucher.end_date).toLocaleDateString('vi-VN')}
-                                                        </small>
-                                                    </div>
-                                                </ListGroup.Item>
-                                            ))}
+                                                            {voucher.min_purchase_amount > 0 && (
+                                                                <span> • Tối thiểu {formatCurrency(voucher.min_purchase_amount)}</span>
+                                                            )}
+                                                        </div>
+                                                        {isDisabled && subtotal < voucher.min_purchase_amount && (
+                                                            <div className="small text-danger">
+                                                                Cần mua thêm {formatCurrency(voucher.min_purchase_amount - subtotal)}
+                                                            </div>
+                                                        )}
+                                                    </ListGroup.Item>
+                                                );
+                                            })}
                                         </ListGroup>
                                     </div>
                                 )}
@@ -766,85 +795,114 @@ const POS = () => {
                     </div>
                 )}
 
-                {/* Cart Items */}
-                <div className="cart-items-list">
+                {/* Cart Items - Scrollable */}
+                <div className="cart-items-list px-3 py-2" style={{
+                    flex: '1 1 auto',
+                    overflowY: 'auto',
+                    maxHeight: 'calc(100vh - 550px)',
+                    minHeight: '150px'
+                }}>
                     {cart.map(item => (
-                        <div className="cart-item" key={item.id}>
-                            <div className="cart-item-details">
-                                <div className="cart-item-info">
-                                    <span className="item-name">{item.name}</span>
-                                    <span className="item-price">
-                                        {formatCurrency(item.price)} x {item.qty}
-                                    </span>
+                        <div className="cart-item border-bottom pb-2 mb-2" key={item.id}>
+                            <div className="d-flex justify-content-between align-items-start mb-1">
+                                <div className="flex-grow-1">
+                                    <div className="fw-bold small">{item.name}</div>
+                                    <div className="text-muted" style={{ fontSize: '12px' }}>
+                                        {formatCurrency(item.price)} × {item.qty}
+                                        {item.stock !== undefined && (
+                                            <span className="ms-2 text-info">
+                                                (Còn: {item.stock})
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="cart-item-total">
-                                    <span className="item-total-price">{formatCurrency(item.price * item.qty)}</span>
-                                    <FaTimes 
-                                        className="btn-remove-item" 
+                                <div className="text-end">
+                                    <div className="fw-bold text-primary small">
+                                        {formatCurrency(item.price * item.qty)}
+                                    </div>
+                                    <FaTimes
+                                        className="btn-remove-item text-danger"
                                         onClick={() => handleRemoveFromCart(item.id)}
+                                        style={{ cursor: 'pointer', fontSize: '12px' }}
                                     />
                                 </div>
                             </div>
-                            <div className="qty-adjuster">
-                                <Button 
-                                    variant="outline-secondary" 
+                            <div className="d-flex align-items-center gap-2">
+                                <Button
+                                    variant="outline-secondary"
                                     size="sm"
                                     onClick={() => handleUpdateQty(item.id, item.qty - 1)}
+                                    disabled={item.qty <= 1}
+                                    style={{ padding: '2px 8px', fontSize: '12px' }}
                                 >-</Button>
-                                <span className="qty-display">{item.qty}</span>
-                                <Button 
-                                    variant="outline-secondary" 
+                                <span className="px-2 fw-bold small">{item.qty}</span>
+                                <Button
+                                    variant="outline-secondary"
                                     size="sm"
                                     onClick={() => handleUpdateQty(item.id, item.qty + 1)}
+                                    disabled={item.stock !== undefined && item.qty >= item.stock}
+                                    style={{ padding: '2px 8px', fontSize: '12px' }}
                                 >+</Button>
                             </div>
                         </div>
                     ))}
-                    {cart.length === 0 && <p className="text-muted text-center mt-3">Giỏ hàng trống</p>}
+                    {cart.length === 0 && (
+                        <div className="text-center py-4 text-muted">
+                            <FaShoppingCart size={36} className="mb-2 opacity-25" />
+                            <p className="small mb-0">Giỏ hàng trống</p>
+                        </div>
+                    )}
                 </div>
 
-                {/* Cart Summary */}
-                <div className="cart-summary-wrapper">
+                {/* Cart Summary - Fixed at bottom */}
+                <div className="cart-summary-wrapper border-top px-3 py-2 bg-white" style={{
+                    flex: '0 0 auto'
+                }}>
                     <div className="cart-summary">
-                        <div>
-                            <span>Tạm tính</span>
-                            <span>{formatCurrency(subtotal)}</span>
+                        <div className="d-flex justify-content-between mb-1 small">
+                            <span className="text-muted">Tạm tính</span>
+                            <span className="fw-semibold">{formatCurrency(subtotal)}</span>
                         </div>
-                        <div>
-                            <span>VAT (10%)</span>
-                            <span>{formatCurrency(vat)}</span>
+                        <div className="d-flex justify-content-between mb-1 small">
+                            <span className="text-muted">VAT (10%)</span>
+                            <span className="fw-semibold">{formatCurrency(vat)}</span>
                         </div>
                         {voucherDiscount > 0 && (
-                            <div className="text-success">
-                                <span>Giảm giá (Voucher)</span>
-                                <span>-{formatCurrency(voucherDiscount)}</span>
+                            <div className="d-flex justify-content-between mb-1 text-success small">
+                                <span>
+                                    <FaTicketAlt className="me-1" size={12} />
+                                    Giảm giá
+                                </span>
+                                <span className="fw-bold">-{formatCurrency(voucherDiscount)}</span>
                             </div>
                         )}
-                        <div className="summary-total">
-                            <strong>Tổng cộng</strong>
-                            <strong>{formatCurrency(total)}</strong>
+                        <div className="d-flex justify-content-between pt-2 border-top">
+                            <strong className="fs-6">Tổng cộng</strong>
+                            <strong className="fs-5 text-primary">{formatCurrency(total)}</strong>
                         </div>
                     </div>
 
                     {/* Payment Method Selection */}
                     {cart.length > 0 && (
-                        <div className="payment-method-section mt-3">
-                            <label className="form-label fw-bold">Phương thức thanh toán</label>
+                        <div className="payment-method-section mt-2">
+                            <label className="form-label fw-semibold small mb-2">Phương thức thanh toán</label>
                             <div className="d-flex gap-2">
                                 <Button
                                     variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline-primary'}
                                     className="flex-fill"
+                                    size="sm"
                                     onClick={() => handleSelectPaymentMethod('cash')}
                                 >
-                                    <FaMoneyBillWave className="me-2" />
+                                    <FaMoneyBillWave className="me-1" size={14} />
                                     Tiền mặt
                                 </Button>
                                 <Button
                                     variant={selectedPaymentMethod === 'qr' ? 'primary' : 'outline-primary'}
                                     className="flex-fill"
+                                    size="sm"
                                     onClick={() => handleSelectPaymentMethod('qr')}
                                 >
-                                    <FaCreditCard className="me-2" />
+                                    <FaCreditCard className="me-1" size={14} />
                                     QR Banking
                                 </Button>
                             </div>
@@ -853,8 +911,7 @@ const POS = () => {
 
                     <Button
                         variant="success"
-                        size="lg"
-                        className="w-100 mt-3"
+                        className="w-100 mt-2"
                         disabled={cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
                     >
