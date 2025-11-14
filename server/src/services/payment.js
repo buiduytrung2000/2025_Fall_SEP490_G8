@@ -29,7 +29,9 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             tax_amount,
             discount_amount,
             voucher_code,
-            total_amount
+            total_amount,
+            cash_received,
+            change_amount
         } = paymentData;
 
         // Validation
@@ -64,7 +66,9 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             method: 'cash',
             amount: total_amount,
             status: 'completed',
-            paid_at: new Date()
+            paid_at: new Date(),
+            cash_received: cash_received || null,
+            change_amount: change_amount || null
         }, { transaction });
 
         // Create transaction record
@@ -649,6 +653,61 @@ export const getUserInfo = (user_id) => new Promise(async (resolve, reject) => {
     } catch (error) {
         console.error('Error getting user info:', error);
         resolve(null);
+    }
+});
+
+// Generate invoice PDF
+export const generateInvoicePDF = (transactionId) => new Promise(async (resolve, reject) => {
+    try {
+        const transaction = await db.Transaction.findOne({
+            where: { transaction_id: transactionId },
+            include: [
+                {
+                    model: db.TransactionItem,
+                    as: 'items',
+                    include: [{
+                        model: db.Product,
+                        as: 'product'
+                    }]
+                },
+                {
+                    model: db.Payment,
+                    as: 'payment'
+                },
+                {
+                    model: db.Customer,
+                    as: 'customer'
+                },
+                {
+                    model: db.Store,
+                    as: 'store'
+                },
+                {
+                    model: db.User,
+                    as: 'cashier'
+                }
+            ]
+        });
+
+        if (!transaction) {
+            return resolve({
+                err: 1,
+                msg: 'Transaction not found'
+            });
+        }
+
+        resolve({
+            err: 0,
+            msg: 'Invoice data retrieved successfully',
+            data: transaction
+        });
+
+    } catch (error) {
+        console.error('Error generating invoice PDF:', error);
+        resolve({
+            err: -1,
+            msg: 'Failed to generate invoice PDF: ' + error.message
+        });
     }
 });
 

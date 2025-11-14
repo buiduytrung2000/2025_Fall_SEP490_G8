@@ -12,7 +12,9 @@ export const createCashPayment = async (req, res) => {
             tax_amount,
             discount_amount,
             voucher_code,
-            total_amount
+            total_amount,
+            cash_received,
+            change_amount
         } = req.body;
 
         // Validation
@@ -43,7 +45,9 @@ export const createCashPayment = async (req, res) => {
             tax_amount: tax_amount || 0,
             discount_amount: discount_amount || 0,
             voucher_code: voucher_code || null,
-            total_amount
+            total_amount,
+            cash_received: cash_received || null,
+            change_amount: change_amount || null
         };
 
         const response = await paymentService.createCashPayment(paymentData);
@@ -255,6 +259,30 @@ export const getTransactionHistory = async (req, res) => {
 
     } catch (error) {
         console.error('Error in getTransactionHistory controller:', error);
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at payment controller: ' + error.message
+        });
+    }
+};
+
+// Generate invoice PDF
+export const generateInvoicePDF = async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+
+        if (!transactionId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing transactionId parameter'
+            });
+        }
+
+        const response = await paymentService.generateInvoicePDF(transactionId);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+
+    } catch (error) {
+        console.error('Error in generateInvoicePDF controller:', error);
         return res.status(500).json({
             err: -1,
             msg: 'Failed at payment controller: ' + error.message

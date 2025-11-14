@@ -144,3 +144,24 @@ export async function getTransactionHistory(filters = {}) {
     }
 }
 
+// Get invoice data for PDF generation
+export async function getInvoiceData(transactionId) {
+    try {
+        const res = await fetch(`${API_BASE}/payment/invoice/pdf/${transactionId}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error getting invoice data:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+

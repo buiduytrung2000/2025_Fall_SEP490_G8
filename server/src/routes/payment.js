@@ -19,6 +19,9 @@ router.get('/transaction/:transactionId', paymentController.getTransactionDetail
 // Get transaction history (requires authentication)
 router.get('/history', verifyToken, paymentController.getTransactionHistory);
 
+// Generate invoice PDF (no authentication required)
+router.get('/invoice/pdf/:transactionId', paymentController.generateInvoicePDF);
+
 // PayOS webhook (no authentication required - PayOS will call this)
 router.post('/webhook/payos', paymentController.handlePayOSWebhook);
 

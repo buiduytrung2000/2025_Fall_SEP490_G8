@@ -12,6 +12,7 @@ import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
 import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
 import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
+import CashPaymentModal from '../../components/CashPaymentModal';
 import { toast } from 'react-toastify';
 
 // Hàm helper để format tiền tệ
@@ -44,6 +45,8 @@ const POS = () => {
     // Payment states
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
+    const [cashPaymentData, setCashPaymentData] = useState(null);
     const [qrPaymentData, setQrPaymentData] = useState(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
@@ -321,41 +324,17 @@ const POS = () => {
             };
 
             if (selectedPaymentMethod === 'cash') {
-                // Cash payment
-                const res = await createCashPayment(paymentData);
-
-                if (res && res.err === 0) {
-                    toast.success('Thanh toán thành công!');
-
-                    // Show payment success modal with print invoice option
-                    setQrPaymentData({
-                        transaction_id: res.data.transaction_id,
-                        payment_id: res.data.payment_id,
-                        order_code: res.data.transaction_id,
-                        total_amount: total,
-                        payment_method: 'cash',
-                        customer_name: selectedCustomer?.name || 'Khách vãng lai',
-                        customer_phone: selectedCustomer?.phone || ''
-                    });
-                    setShowPaymentModal(true);
-
-                    // Reload customer data if customer is selected
-                    if (selectedCustomer) {
-                        await loadCustomerVouchers(selectedCustomer.customer_id);
-                        // Fetch updated customer info
-                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                        if (customerRes && customerRes.err === 0 && customerRes.data) {
-                            setSelectedCustomer(customerRes.data);
-                        }
-                    }
-
-                    // Clear cart and reset
-                    setCart([]);
-                    setSelectedVoucher(null);
-                    setSelectedPaymentMethod(null);
-                } else {
-                    toast.error(res.msg || 'Thanh toán thất bại');
-                }
+                // Cash payment - show cash payment modal first
+                setCashPaymentData({
+                    transaction_id: null,
+                    payment_id: null,
+                    total_amount: total,
+                    payment_method: 'cash',
+                    customer_name: selectedCustomer?.name || 'Khách vãng lai',
+                    customer_phone: selectedCustomer?.phone || '',
+                    paymentData: paymentData
+                });
+                setShowCashPaymentModal(true);
             } else if (selectedPaymentMethod === 'qr') {
                 // QR payment
                 const res = await createQRPayment(paymentData);
@@ -435,6 +414,52 @@ const POS = () => {
         } catch (error) {
             console.error('Error creating customer:', error);
             toast.error('Lỗi khi tạo khách hàng');
+        }
+    };
+
+    // Xử lý hoàn thành thanh toán tiền mặt
+    const handleCashPaymentComplete = async (cashPaymentInfo) => {
+        try {
+            const paymentDataWithCash = {
+                ...cashPaymentData.paymentData,
+                cash_received: cashPaymentInfo.cash_received,
+                change_amount: cashPaymentInfo.change_amount
+            };
+
+            const res = await createCashPayment(paymentDataWithCash);
+
+            if (res && res.err === 0) {
+                toast.success('Thanh toán thành công!');
+
+                // Update cash payment data with transaction info
+                setCashPaymentData(prev => ({
+                    ...prev,
+                    transaction_id: res.data.transaction_id,
+                    payment_id: res.data.payment_id
+                }));
+
+                // Reload customer data if customer is selected
+                if (selectedCustomer) {
+                    await loadCustomerVouchers(selectedCustomer.customer_id);
+                    // Fetch updated customer info
+                    const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                    if (customerRes && customerRes.err === 0 && customerRes.data) {
+                        setSelectedCustomer(customerRes.data);
+                    }
+                }
+
+                // Clear cart and reset
+                setCart([]);
+                setSelectedVoucher(null);
+                setSelectedPaymentMethod(null);
+            } else {
+                toast.error(res.msg || 'Thanh toán thất bại');
+                throw new Error(res.msg || 'Payment failed');
+            }
+        } catch (error) {
+            console.error('Error completing cash payment:', error);
+            toast.error('Lỗi khi hoàn thành thanh toán');
+            throw error;
         }
     };
 
@@ -926,6 +951,19 @@ const POS = () => {
                     </Button>
                 </div>
             </div>
+
+            {/* Payment Modal for Cash */}
+            <CashPaymentModal
+                show={showCashPaymentModal}
+                onHide={() => {
+                    setShowCashPaymentModal(false);
+                    setCashPaymentData(null);
+                    setIsProcessingPayment(false);
+                }}
+                paymentData={cashPaymentData}
+                onComplete={handleCashPaymentComplete}
+                onPrintInvoice={handlePrintInvoice}
+            />
 
             {/* Payment Modal for QR */}
             <PaymentModal

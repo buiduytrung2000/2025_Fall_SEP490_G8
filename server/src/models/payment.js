@@ -53,6 +53,16 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true,
             comment: 'PayOS transaction reference'
         },
+        cash_received: {
+            type: DataTypes.DECIMAL(10, 2),
+            allowNull: true,
+            comment: 'Amount of cash received from customer (for cash payment)'
+        },
+        change_amount: {
+            type: DataTypes.DECIMAL(10, 2),
+            allowNull: true,
+            comment: 'Change amount to return to customer (for cash payment)'
+        },
         created_at: {
             type: DataTypes.DATE,
             defaultValue: DataTypes.NOW
