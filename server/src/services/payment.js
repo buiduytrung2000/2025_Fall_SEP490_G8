@@ -35,12 +35,17 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
         } = paymentData;
 
         // Validation
-        if (!cart_items || cart_items.length === 0 || !total_amount) {
+        if (!cart_items || cart_items.length === 0 || total_amount === undefined || total_amount === null) {
             await transaction.rollback();
             return resolve({
                 err: 1,
                 msg: 'Missing required fields: cart_items, total_amount'
             });
+        }
+
+        // Ensure total_amount is never negative
+        if (total_amount < 0) {
+            total_amount = 0;
         }
 
         // Get default store_id if not provided
@@ -205,11 +210,16 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
         } = paymentData;
 
         // Validation
-        if (!cart_items || cart_items.length === 0 || !total_amount) {
+        if (!cart_items || cart_items.length === 0 || total_amount === undefined || total_amount === null) {
             return resolve({
                 err: 1,
                 msg: 'Missing required fields: cart_items, total_amount'
             });
+        }
+
+        // Ensure total_amount is never negative
+        if (total_amount < 0) {
+            total_amount = 0;
         }
 
         // Get default store_id if not provided

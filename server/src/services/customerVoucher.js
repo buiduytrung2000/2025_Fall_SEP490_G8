@@ -126,6 +126,11 @@ export const validateVoucher = (voucherCode, customerId, purchaseAmount) => new 
             discountAmount = voucher.discount_value;
         }
 
+        // Ensure discount doesn't exceed purchase amount
+        if (discountAmount > purchaseAmount) {
+            discountAmount = purchaseAmount;
+        }
+
         resolve({
             err: 0,
             msg: 'Voucher hợp lệ',

@@ -153,7 +153,11 @@ const POS = () => {
     }, [selectedVoucher, subtotal, cart.length]);
 
     const vat = useMemo(() => subtotal * 0.1, [subtotal]);
-    const total = useMemo(() => subtotal + vat - voucherDiscount, [subtotal, vat, voucherDiscount]);
+    const total = useMemo(() => {
+        const calculatedTotal = subtotal + vat - voucherDiscount;
+        // Ensure total is never negative
+        return Math.max(0, calculatedTotal);
+    }, [subtotal, vat, voucherDiscount]);
 
     // Tìm kiếm khách hàng khi nhập số điện thoại
     useEffect(() => {
