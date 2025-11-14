@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS User (
     store_id INT NULL,
     email VARCHAR(255),
     phone VARCHAR(20),
+    address TEXT,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

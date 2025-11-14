@@ -34,14 +34,14 @@
 
     -- Note: includes phone column
     -- Passwords are hashed using bcrypt (password: '123')
-    INSERT INTO User (username, password, role, store_id, email, phone, status) VALUES
-    ('ceo_admin', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'CEO', NULL, 'ceo@ccms.com', '0900000001', 'active'),
-    ('manager_store1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', 'active'),
-    ('cashier_store1_1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', 'active'),
-    ('cashier_store1_2', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', 'active'),
-    ('cashier_store1_3', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', 'active'),
-    ('warehouse_staff1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', 'active'),
-    ('supplier_rep1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', 'active');
+    INSERT INTO User (username, password, role, store_id, email, phone, address, status) VALUES
+    ('ceo_admin', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', 'active'),
+    ('manager_store1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
+    ('cashier_store1_1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', '15 Cashier Lane, City A', 'active'),
+    ('cashier_store1_2', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
+    ('cashier_store1_3', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
+    ('warehouse_staff1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
+    ('supplier_rep1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
     -- 5. Insert Products
     INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES

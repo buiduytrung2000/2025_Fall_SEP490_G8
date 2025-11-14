@@ -1,13 +1,11 @@
-// src/pages/Manager/StaffManagement.js
 import React, { useState, useEffect, useMemo } from 'react';
-// Import Button của MUI thay vì react-bootstrap
 import { Spinner, Modal, Form } from 'react-bootstrap';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../api/employeeApi';
 import { toast } from 'react-toastify';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
-import { Box, IconButton, Button } from '@mui/material'; // <-- Thay đổi ở đây
-import { Edit, Delete, PersonAdd } from '@mui/icons-material'; // <-- Thêm icon PersonAdd
+import { Box, IconButton, Button } from '@mui/material'; 
+import { Edit, Delete, PersonAdd } from '@mui/icons-material'; 
 
 const StaffManagement = () => {
     const [staffList, setStaffList] = useState([]);
@@ -26,6 +24,7 @@ const StaffManagement = () => {
                 id: u.user_id,
                 name: u.name || u.username,
                 phone: u.phone || '',
+                address: u.address || '',
                 role: u.role,
                 status: u.status,
                 email: u.email || ''
@@ -42,7 +41,7 @@ const StaffManagement = () => {
     const handleCloseFormModal = () => setShowFormModal(false);
     const handleShowAddModal = () => {
         setIsEditMode(false);
-        setCurrentStaff({ name: '', phone: '', role: 'Cashier' });
+        setCurrentStaff({ name: '', phone: '', address: '', role: 'Cashier' });
         setShowFormModal(true);
     }
     const handleShowEditModal = (staff) => {
@@ -61,6 +60,7 @@ const StaffManagement = () => {
                 const res = await updateEmployee(currentStaff.id, {
                     name: currentStaff.name,
                     phone: currentStaff.phone,
+                    address: currentStaff.address,
                     role: currentStaff.role
                 });
                 if (res.err === 0) toast.success('Cập nhật nhân viên thành công');
@@ -72,6 +72,7 @@ const StaffManagement = () => {
                     password: '123',
                     name: currentStaff.name,
                     phone: currentStaff.phone,
+                    address: currentStaff.address,
                     role: currentStaff.role
                 });
                 if (res.err === 0) toast.success('Thêm nhân viên thành công (mật khẩu mặc định: 123)');
@@ -92,12 +93,17 @@ const StaffManagement = () => {
         loadEmployees();
     };
 
-    // Cột (giữ nguyên)
+    const handleInputChange = (field) => (e) => {
+        const value = e.target.value;
+        setCurrentStaff(prev => ({ ...prev, [field]: value }));
+    };
+
     const columns = useMemo(
         () => [
             { id: 'stt', header: 'STT', size: 50, enableSorting: false, Cell: ({ row }) => row.index + 1 },
             { accessorKey: 'name', header: 'Họ và Tên' },
             { accessorKey: 'phone', header: 'Số điện thoại' },
+            { accessorKey: 'address', header: 'Địa chỉ' },
             { accessorKey: 'role', header: 'Vai trò' },
         ],
         [],
@@ -112,17 +118,14 @@ const StaffManagement = () => {
                 data={staffList}
                 enableRowActions
                 
-                // --- PHẦN SỬA LỖI ---
-                positionActionsColumn="last" // Đưa cột Actions xuống cuối cùng
+                positionActionsColumn="last"
                 displayColumnDefOptions={{
                     'mrt-row-actions': {
-                        header: 'Actions', // Đặt tên header
-                        size: 100,         // Đặt độ rộng cố định cho cột Sửa/Xóa
+                        header: 'Actions',
+                        size: 100,        
                     },
                 }}
-                // --- HẾT PHẦN SỬA LỖI ---
 
-                // Nút "Thêm nhân viên" (Dùng Button của MUI cho đồng bộ)
                 renderTopToolbarCustomActions={() => (
                     <Button
                         variant="contained"
@@ -133,7 +136,6 @@ const StaffManagement = () => {
                     </Button>
                 )}
                 
-                // Nút Sửa/Xóa (giữ nguyên)
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '0.5rem' }}>
                         <IconButton
@@ -154,9 +156,7 @@ const StaffManagement = () => {
                 )}
             />
 
-            {/* Các Modal (giữ nguyên, vẫn dùng React Bootstrap) */}
             <Modal show={showFormModal} onHide={handleCloseFormModal} centered>
-                {/* ... (Nội dung Modal không đổi) ... */}
                 <Modal.Header closeButton>
                     <Modal.Title>{isEditMode ? 'Cập nhật thông tin' : 'Thêm nhân viên mới'}</Modal.Title>
                 </Modal.Header>
@@ -164,15 +164,36 @@ const StaffManagement = () => {
                     <Form onSubmit={handleSaveStaff}>
                         <Form.Group className="mb-3">
                             <Form.Label>Họ và Tên</Form.Label>
-                            <Form.Control type="text" defaultValue={currentStaff?.name} required />
+                            <Form.Control
+                                type="text"
+                                value={currentStaff?.name || ''}
+                                onChange={handleInputChange('name')}
+                                required
+                            />
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Số điện thoại</Form.Label>
-                            <Form.Control type="tel" defaultValue={currentStaff?.phone} required />
+                            <Form.Control
+                                type="tel"
+                                value={currentStaff?.phone || ''}
+                                onChange={handleInputChange('phone')}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Địa chỉ</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={currentStaff?.address || ''}
+                                onChange={handleInputChange('address')}
+                            />
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Vai trò</Form.Label>
-                            <Form.Select defaultValue={currentStaff?.role}>
+                            <Form.Select
+                                value={currentStaff?.role || 'Cashier'}
+                                onChange={handleInputChange('role')}
+                            >
                                 <option value="Cashier">Thu ngân (Cashier)</option>
                             </Form.Select>
                         </Form.Group>
