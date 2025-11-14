@@ -50,11 +50,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       comment: 'For cash: change to return'
     },
-    // reference: {
-    //   type: DataTypes.STRING(255),
-    //   allowNull: true,
-    //   comment: 'For bank transfer: transaction reference'
-    // }
+    reference: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'For bank transfer: transaction reference'
+    }
   }, {
     sequelize,
     modelName: 'Payment',

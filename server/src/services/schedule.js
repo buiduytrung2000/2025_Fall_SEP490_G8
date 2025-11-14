@@ -74,9 +74,39 @@ export const updateShiftTemplate = (id, data) => new Promise(async (resolve, rej
 // SCHEDULE SERVICES
 // =====================================================
 
+// Tự động đánh dấu vắng mặt cho các schedule quá ngày mà chưa điểm danh
+export const markAbsentSchedules = () => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const [updated] = await db.Schedule.update(
+            { attendance_status: 'absent' },
+            {
+                where: {
+                    work_date: { [Op.lt]: today },
+                    attendance_status: 'not_checked_in',
+                    status: 'confirmed'
+                }
+            }
+        );
+        
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: { updated_count: updated }
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
 // Get schedules by store and date range
 export const getSchedules = (storeId, startDate, endDate) => new Promise(async (resolve, reject) => {
     try {
+        // Tự động đánh dấu vắng mặt trước khi query
+        await markAbsentSchedules();
+        
         const response = await db.Schedule.findAll({
             where: {
                 store_id: storeId,
@@ -99,6 +129,12 @@ export const getSchedules = (storeId, startDate, endDate) => new Promise(async (
                     model: db.User,
                     as: 'creator',
                     attributes: ['user_id', 'username']
+                },
+                {
+                    model: db.Shift,
+                    as: 'shifts',
+                    attributes: ['shift_id', 'opened_at', 'closed_at', 'status'],
+                    required: false
                 }
             ],
             order: [['work_date', 'ASC'], [{ model: db.ShiftTemplate, as: 'shiftTemplate' }, 'start_time', 'ASC']],
@@ -151,6 +187,9 @@ export const getScheduleById = (id) => new Promise(async (resolve, reject) => {
 // Get schedules for a specific employee
 export const getEmployeeSchedules = (userId, startDate, endDate) => new Promise(async (resolve, reject) => {
     try {
+        // Tự động đánh dấu vắng mặt trước khi query
+        await markAbsentSchedules();
+        
         const response = await db.Schedule.findAll({
             where: {
                 user_id: userId,
@@ -820,4 +859,3 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
         reject(error);
     }
 });
-

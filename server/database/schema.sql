@@ -214,16 +214,21 @@ CREATE TABLE IF NOT EXISTS Payment (
     payment_id INT PRIMARY KEY AUTO_INCREMENT,
     method ENUM('cash', 'card', 'mobile_payment', 'bank_transfer', 'loyalty_points') NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
+    given_amount DECIMAL(10, 2) NULL COMMENT 'For cash: amount customer gave',
+    change_amount DECIMAL(10, 2) NULL COMMENT 'For cash: change to return',
+    reference VARCHAR(255) NULL COMMENT 'For bank transfer: transaction reference',
     status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
     paid_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_payment_status (status),
-    INDEX idx_payment_method (method)
+    INDEX idx_payment_method (method),
+    INDEX idx_payment_reference (reference)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
 -- 13. TRANSACTION TABLE (Sales Transactions)
+-- Note: shift_id column and foreign key will be added after Shift table is created (see section 20)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS Transaction (
     transaction_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -248,7 +253,7 @@ CREATE TABLE IF NOT EXISTS Transaction (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 14. TRANSACTION ITEM TABLE (Items sold in a transaction)
+-- 15. TRANSACTION ITEM TABLE (Items sold in a transaction)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS TransactionItem (
     transaction_item_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -265,7 +270,7 @@ CREATE TABLE IF NOT EXISTS TransactionItem (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 15. PRODUCT PROMOTION JUNCTION TABLE (Many-to-Many)
+-- 16. PRODUCT PROMOTION JUNCTION TABLE (Many-to-Many)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ProductPromotion (
     product_promotion_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -280,7 +285,7 @@ CREATE TABLE IF NOT EXISTS ProductPromotion (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 16. PRICING RULE PROMOTION JUNCTION TABLE (Many-to-Many)
+-- 17. PRICING RULE PROMOTION JUNCTION TABLE (Many-to-Many)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS PricingRulePromotion (
     pricing_rule_promotion_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -295,7 +300,7 @@ CREATE TABLE IF NOT EXISTS PricingRulePromotion (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 17. SHIFT TEMPLATE TABLE (Ca làm việc định nghĩa sẵn)
+-- 18. SHIFT TEMPLATE TABLE (Ca làm việc định nghĩa sẵn)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftTemplate (
     shift_template_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -310,7 +315,7 @@ CREATE TABLE IF NOT EXISTS ShiftTemplate (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 18. SCHEDULE TABLE (Phân công lịch làm việc)
+-- 19. SCHEDULE TABLE (Phân công lịch làm việc)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS Schedule (
     schedule_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -319,6 +324,7 @@ CREATE TABLE IF NOT EXISTS Schedule (
     shift_template_id INT NOT NULL,
     work_date DATE NOT NULL,
     status ENUM('draft', 'confirmed', 'cancelled') DEFAULT 'draft',
+    attendance_status ENUM('not_checked_in', 'checked_in', 'checked_out', 'absent') DEFAULT 'not_checked_in' COMMENT 'Trạng thái điểm danh: chưa điểm danh, đã check-in, đã check-out, vắng mặt',
     notes TEXT,
     created_by INT NOT NULL COMMENT 'User who created this schedule',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -332,11 +338,65 @@ CREATE TABLE IF NOT EXISTS Schedule (
     INDEX idx_schedule_user (user_id),
     INDEX idx_schedule_date (work_date),
     INDEX idx_schedule_status (status),
+    INDEX idx_schedule_attendance_status (attendance_status),
     INDEX idx_schedule_store_date (store_id, work_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 19. SHIFT CHANGE REQUEST TABLE (Yêu cầu đổi ca)
+-- 20. SHIFT TABLE (Ca làm việc của nhân viên)
+-- Note: Created after Schedule because Shift references Schedule
+-- =====================================================
+CREATE TABLE IF NOT EXISTS Shift (
+    shift_id INT PRIMARY KEY AUTO_INCREMENT,
+    store_id INT NOT NULL,
+    cashier_id INT NOT NULL,
+    schedule_id INT NULL COMMENT 'Liên kết với Schedule nếu shift được tạo từ schedule',
+    opened_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_at DATETIME NULL,
+    opening_cash DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    closing_cash DECIMAL(14, 2) NULL,
+    cash_sales_total DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    status ENUM('opened', 'closed', 'cancelled') NOT NULL DEFAULT 'opened',
+    note TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
+    FOREIGN KEY (cashier_id) REFERENCES User(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (schedule_id) REFERENCES Schedule(schedule_id) ON DELETE SET NULL,
+    INDEX idx_shift_store (store_id),
+    INDEX idx_shift_cashier (cashier_id),
+    INDEX idx_shift_schedule (schedule_id),
+    INDEX idx_shift_status (status),
+    INDEX idx_shift_opened_at (opened_at),
+    INDEX idx_shift_store_cashier_status (store_id, cashier_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Now add shift_id column and foreign key to Transaction table
+ALTER TABLE Transaction 
+    ADD COLUMN shift_id INT NULL COMMENT 'Shift this transaction belongs to' AFTER store_id;
+
+ALTER TABLE Transaction 
+    ADD CONSTRAINT fk_transaction_shift FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE SET NULL;
+
+CREATE INDEX idx_transaction_shift ON Transaction(shift_id);
+
+-- =====================================================
+-- 21. SHIFT CASH MOVEMENT TABLE (Giao dịch tiền mặt trong ca)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS ShiftCashMovement (
+    movement_id INT PRIMARY KEY AUTO_INCREMENT,
+    shift_id INT NOT NULL,
+    type ENUM('cash_in', 'cash_out') NOT NULL,
+    amount DECIMAL(14, 2) NOT NULL,
+    reason TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE CASCADE,
+    INDEX idx_scm_shift (shift_id),
+    INDEX idx_scm_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- 22. SHIFT CHANGE REQUEST TABLE (Yêu cầu đổi ca)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftChangeRequest (
     request_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -413,7 +473,6 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
     INDEX idx_store_order_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
 -- =====================================================
 -- NOTES AND RECOMMENDATIONS
 -- =====================================================
@@ -427,6 +486,19 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
 -- 8. CASCADE deletes used where appropriate, SET NULL where relationships are optional
 -- 9. Schedule management tables added:
 --    - ShiftTemplate: Template định nghĩa các ca làm việc
---    - Schedule: Phân công nhân viên vào ca làm việc
+--    - Schedule: Phân công nhân viên vào ca làm việc (user_id có thể NULL cho ca trống)
 --    - ShiftChangeRequest: Yêu cầu đổi ca giữa nhân viên
+--    - Shift: Ca làm việc thực tế của nhân viên (check-in/check-out)
+--    - ShiftCashMovement: Giao dịch tiền mặt trong ca
+-- 10. Payment table extended with:
+--    - given_amount: Số tiền khách đưa (cho thanh toán tiền mặt)
+--    - change_amount: Tiền thừa trả lại khách
+--    - reference: Mã tham chiếu (cho chuyển khoản)
+-- 11. Transaction table extended with:
+--    - shift_id: Liên kết giao dịch với ca làm việc
+-- 12. Schedule table extended with:
+--    - attendance_status: Trạng thái điểm danh (not_checked_in, checked_in, checked_out, absent)
+-- 13. Shift table includes:
+--    - schedule_id: Liên kết với Schedule nếu được tạo từ schedule
+--    - Unique constraint enforced in application: only one open shift per cashier per store
 

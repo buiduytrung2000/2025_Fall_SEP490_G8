@@ -178,6 +178,21 @@ export const createSchedule = async (req, res) => {
             created_by: req.user?.user_id || req.user?.id
         };
 
+        // Kiểm tra nếu ngày đã qua thì không cho phép tạo lịch
+        if (data.work_date) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const scheduleDate = new Date(data.work_date);
+            scheduleDate.setHours(0, 0, 0, 0);
+            
+            if (scheduleDate < today) {
+                return res.status(400).json({
+                    err: 1,
+                    msg: 'Không thể tạo lịch cho ngày đã qua'
+                });
+            }
+        }
+
         // Check for conflicts before creating
         const conflictCheck = await scheduleService.checkScheduleConflicts(
             data.user_id,
@@ -209,17 +224,34 @@ export const updateSchedule = async (req, res) => {
         const { id } = req.params;
         const data = req.body;
 
+        // Get current schedule to check work_date
+        const schedule = await scheduleService.getScheduleById(id);
+        if (schedule.err !== 0 || !schedule.data) {
+            return res.status(404).json(schedule);
+        }
+
+        // Safely access schedule data (handle both Sequelize instance and plain object)
+        const scheduleData = schedule.data.get ? schedule.data.get({ plain: true }) : schedule.data;
+        const workDate = data.work_date || scheduleData.work_date;
+
+        // Kiểm tra nếu ngày đã qua thì không cho phép sửa
+        if (workDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const scheduleDate = new Date(workDate);
+            scheduleDate.setHours(0, 0, 0, 0);
+            
+            if (scheduleDate < today) {
+                return res.status(400).json({
+                    err: 1,
+                    msg: 'Không thể sửa lịch của ngày đã qua'
+                });
+            }
+        }
+
         // If updating user_id, work_date, or shift_template_id, check for conflicts
         if (data.user_id || data.work_date || data.shift_template_id) {
-            const schedule = await scheduleService.getScheduleById(id);
-            if (schedule.err !== 0 || !schedule.data) {
-                return res.status(404).json(schedule);
-            }
-
-            // Safely access schedule data (handle both Sequelize instance and plain object)
-            const scheduleData = schedule.data.get ? schedule.data.get({ plain: true }) : schedule.data;
             const userId = data.user_id || scheduleData.user_id;
-            const workDate = data.work_date || scheduleData.work_date;
             const shiftTemplateId = data.shift_template_id || scheduleData.shift_template_id;
 
             if (!userId || !workDate || !shiftTemplateId) {
@@ -268,6 +300,32 @@ export const updateSchedule = async (req, res) => {
 export const deleteSchedule = async (req, res) => {
     try {
         const { id } = req.params;
+        
+        // Get schedule to check work_date before deleting
+        const schedule = await scheduleService.getScheduleById(id);
+        if (schedule.err !== 0 || !schedule.data) {
+            return res.status(404).json(schedule);
+        }
+
+        // Safely access schedule data (handle both Sequelize instance and plain object)
+        const scheduleData = schedule.data.get ? schedule.data.get({ plain: true }) : schedule.data;
+        const workDate = scheduleData.work_date;
+
+        // Kiểm tra nếu ngày đã qua thì không cho phép xóa
+        if (workDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const scheduleDate = new Date(workDate);
+            scheduleDate.setHours(0, 0, 0, 0);
+            
+            if (scheduleDate < today) {
+                return res.status(400).json({
+                    err: 1,
+                    msg: 'Không thể xóa lịch của ngày đã qua'
+                });
+            }
+        }
+
         const response = await scheduleService.deleteSchedule(id);
         return res.status(response.err === 0 ? 200 : 404).json(response);
     } catch (error) {

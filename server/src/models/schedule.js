@@ -32,6 +32,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'to_schedule_id',
         as: 'changeRequestsTo'
       });
+      Schedule.hasMany(models.Shift, {
+        foreignKey: 'schedule_id',
+        as: 'shifts'
+      });
     }
   }
   Schedule.init({
@@ -71,6 +75,11 @@ module.exports = (sequelize, DataTypes) => {
     status: {
       type: DataTypes.ENUM('draft', 'confirmed', 'cancelled'),
       defaultValue: 'draft'
+    },
+    attendance_status: {
+      type: DataTypes.ENUM('not_checked_in', 'checked_in', 'checked_out', 'absent'),
+      defaultValue: 'not_checked_in',
+      comment: 'Trạng thái điểm danh: chưa điểm danh, đã check-in, đã check-out, vắng mặt'
     },
     notes: {
       type: DataTypes.TEXT,
