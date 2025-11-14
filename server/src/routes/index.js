@@ -12,6 +12,7 @@ import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
 import warehouseOrderRouter from './warehouseOrder'
 import transactionRouter from './transaction'
+import dashboardRouter from './dashboard'
 
 const initRoutes = (app) => {
     app.use('/api/v1/auth', authRouter)
@@ -28,6 +29,7 @@ const initRoutes = (app) => {
     app.use('/api/v1/store-order', storeOrderRouter)
     app.use('/api/v1/warehouse-order', warehouseOrderRouter)
     app.use('/api/v1/transaction', transactionRouter)
+    app.use('/api/v1/dashboard', dashboardRouter)
 
     app.get('/', (req, res) => {
         res.status(200).json({
