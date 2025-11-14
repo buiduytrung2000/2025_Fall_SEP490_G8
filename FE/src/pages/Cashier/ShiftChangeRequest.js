@@ -487,7 +487,11 @@ const ShiftChangeRequest = () => {
         const todayKey = new Date().toISOString().split('T')[0];
         const weekStart = selectedWeek || getWeekStart(todayKey);
         const candidates = mySchedules
-            .filter((s) => getWeekStart(s.work_date || s.workDate) === weekStart)
+            .filter((s) => {
+                // Chỉ lấy các ca có thể đổi (không phải absent hoặc checked_out)
+                const canSwap = s.attendance_status !== 'absent' && s.attendance_status !== 'checked_out';
+                return canSwap && getWeekStart(s.work_date || s.workDate) === weekStart;
+            })
             .sort((a, b) => {
                 const da = (a.work_date || a.workDate) || '';
                 const db = (b.work_date || b.workDate) || '';
@@ -581,13 +585,6 @@ const ShiftChangeRequest = () => {
                         <Box>
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                                 <Typography variant="h6">Lịch làm việc của tôi (30 ngày tới)</Typography>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<SwapHoriz />}
-                                    onClick={() => handleOpenDialog()}
-                                >
-                                    Tạo yêu cầu đổi ca
-                                </Button>
                             </Box>
 
                             {mySchedules.length === 0 ? (
@@ -611,6 +608,7 @@ const ShiftChangeRequest = () => {
                                                         t.shift_template_id === schedule.shift_template_id ||
                                                         t.id === schedule.shift_template_id
                                                 );
+                                                const canSwap = schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out';
                                                 return (
                                                     <TableRow key={schedule.schedule_id}>
                                                         <TableCell>{formatDate(schedule.work_date)}</TableCell>
@@ -621,21 +619,47 @@ const ShiftChangeRequest = () => {
                                                                 : 'N/A'}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Chip
-                                                                label={schedule.status || 'confirmed'}
-                                                                size="small"
-                                                                color={schedule.status === 'confirmed' ? 'success' : 'default'}
-                                                            />
+                                                            {schedule.attendance_status ? (
+                                                                <Chip
+                                                                    label={
+                                                                        schedule.attendance_status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
+                                                                        schedule.attendance_status === 'checked_out' ? 'Đã kết ca' :
+                                                                        schedule.attendance_status === 'absent' ? 'Vắng mặt' :
+                                                                        'Chưa điểm danh'
+                                                                    }
+                                                                    size="small"
+                                                                    color={
+                                                                        schedule.attendance_status === 'checked_in' ? 'info' :
+                                                                        schedule.attendance_status === 'checked_out' ? 'success' :
+                                                                        schedule.attendance_status === 'absent' ? 'error' :
+                                                                        'default'
+                                                                    }
+                                                                    variant={schedule.attendance_status !== 'not_checked_in' && schedule.attendance_status !== 'absent' ? 'filled' : 'outlined'}
+                                                                />
+                                                            ) : (
+                                                                <Chip
+                                                                    label="Chưa điểm danh"
+                                                                    size="small"
+                                                                    color="default"
+                                                                    variant="outlined"
+                                                                />
+                                                            )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Button
-                                                                size="small"
-                                                                variant="outlined"
-                                                                startIcon={<SwapHoriz />}
-                                                                onClick={() => handleOpenDialog(schedule)}
-                                                            >
-                                                                Đổi ca
-                                                            </Button>
+                                                            {canSwap ? (
+                                                                <Button
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    startIcon={<SwapHoriz />}
+                                                                    onClick={() => handleOpenDialog(schedule)}
+                                                                >
+                                                                    Đổi ca
+                                                                </Button>
+                                                            ) : (
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                                                    Không thể đổi
+                                                                </Typography>
+                                                            )}
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -695,6 +719,26 @@ const ShiftChangeRequest = () => {
                                                                     )
                                                                 </Typography>
                                                             </Box>
+                                                            {fromSchedule.attendance_status && (
+                                                                <Box mt={1}>
+                                                                    <Chip
+                                                                        label={
+                                                                            fromSchedule.attendance_status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
+                                                                            fromSchedule.attendance_status === 'checked_out' ? 'Đã kết ca' :
+                                                                            fromSchedule.attendance_status === 'absent' ? 'Vắng mặt' :
+                                                                            'Chưa điểm danh'
+                                                                        }
+                                                                        size="small"
+                                                                        color={
+                                                                            fromSchedule.attendance_status === 'checked_in' ? 'info' :
+                                                                            fromSchedule.attendance_status === 'checked_out' ? 'success' :
+                                                                            fromSchedule.attendance_status === 'absent' ? 'error' :
+                                                                            'default'
+                                                                        }
+                                                                        variant={fromSchedule.attendance_status !== 'not_checked_in' && fromSchedule.attendance_status !== 'absent' ? 'filled' : 'outlined'}
+                                                                    />
+                                                                </Box>
+                                                            )}
                                                         </Box>
 
                                                         {request.request_type === 'swap' && toSchedule.work_date && (
@@ -702,7 +746,7 @@ const ShiftChangeRequest = () => {
                                                                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                                                     Đổi với ca:
                                                                 </Typography>
-                                                                <Box display="flex" alignItems="center" gap={1}>
+                                                                <Box display="flex" alignItems="center" gap={1} mb={1}>
                                                                     <CalendarToday fontSize="small" />
                                                                     <Typography variant="body2">
                                                                         {formatDate(toSchedule.work_date)} -{' '}
@@ -713,6 +757,26 @@ const ShiftChangeRequest = () => {
                                                                         )
                                                                     </Typography>
                                                                 </Box>
+                                                                {toSchedule.attendance_status && (
+                                                                    <Box mt={1}>
+                                                                        <Chip
+                                                                            label={
+                                                                                toSchedule.attendance_status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
+                                                                                toSchedule.attendance_status === 'checked_out' ? 'Đã kết ca' :
+                                                                                toSchedule.attendance_status === 'absent' ? 'Vắng mặt' :
+                                                                                'Chưa điểm danh'
+                                                                            }
+                                                                            size="small"
+                                                                            color={
+                                                                                toSchedule.attendance_status === 'checked_in' ? 'info' :
+                                                                                toSchedule.attendance_status === 'checked_out' ? 'success' :
+                                                                                toSchedule.attendance_status === 'absent' ? 'error' :
+                                                                                'default'
+                                                                            }
+                                                                            variant={toSchedule.attendance_status !== 'not_checked_in' && toSchedule.attendance_status !== 'absent' ? 'filled' : 'outlined'}
+                                                                        />
+                                                                    </Box>
+                                                                )}
                                                             </Box>
                                                         )}
 
@@ -833,20 +897,34 @@ const ShiftChangeRequest = () => {
                                 <MenuItem disabled value="">
                                     Chọn một ca của bạn...
                                 </MenuItem>
-                                {mySchedules.length === 0 ? (
-                                    <MenuItem disabled value="__empty">
-                                        Không có ca nào trong 30 ngày tới
-                                    </MenuItem>
-                                ) : (
-                                    mySchedules.map((schedule, idx) => (
+                                {(() => {
+                                    // Lọc bỏ các ca đã vắng mặt hoặc đã kết ca
+                                    const availableSchedules = mySchedules.filter(
+                                        (schedule) => schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out'
+                                    );
+                                    
+                                    if (availableSchedules.length === 0) {
+                                        return (
+                                            <MenuItem disabled value="__empty">
+                                                Không có ca nào có thể đổi trong 30 ngày tới
+                                            </MenuItem>
+                                        );
+                                    }
+                                    
+                                    return availableSchedules.map((schedule, idx) => (
                                         <MenuItem key={schedule.schedule_id || idx} value={schedule.schedule_id}>
                                             {getScheduleLabel(schedule)}
                                         </MenuItem>
-                                    ))
-                                )}
+                                    ));
+                                })()}
                             </Select>
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                                Tìm thấy {mySchedules?.length || 0} ca trong 30 ngày tới
+                                {(() => {
+                                    const availableSchedules = mySchedules.filter(
+                                        (schedule) => schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out'
+                                    );
+                                    return `Tìm thấy ${availableSchedules.length} ca có thể đổi trong 30 ngày tới`;
+                                })()}
                             </Typography>
                         </FormControl>
 

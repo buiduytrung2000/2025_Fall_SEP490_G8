@@ -44,6 +44,13 @@ module.exports = (sequelize, DataTypes) => {
         as: 'transactionItems',
         onDelete: 'CASCADE'
       });
+
+      // Transaction belongs to Shift (optional)
+      Transaction.belongsTo(models.Shift, {
+        foreignKey: 'shift_id',
+        as: 'shift',
+        onDelete: 'SET NULL'
+      });
     }
   }
   Transaction.init({
@@ -82,6 +89,14 @@ module.exports = (sequelize, DataTypes) => {
       references: {
         model: 'Store',
         key: 'store_id'
+      }
+    },
+    shift_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Shift',
+        key: 'shift_id'
       }
     },
     total_amount: {
