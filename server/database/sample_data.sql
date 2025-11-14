@@ -45,12 +45,12 @@
 
     -- 5. Insert Products
     INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
-    ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 999.99, 'Latest iPhone model with Pro features'),
-    ('Samsung Galaxy S24', 'SAMSUNGS24001', 4, 1, 899.99, 'Flagship Samsung smartphone'),
-    ('MacBook Pro 16"', 'MACBOOKPRO16001', 5, 1, 2499.99, 'Professional laptop for creative work'),
-    ('T-Shirt Men XL', 'TSHIRTXL001', 6, 2, 19.99, 'Comfortable cotton t-shirt'),
-    ('Jeans Women 30', 'JEANSW301', 7, 2, 49.99, 'Classic fit jeans'),
-    ('Coffee Beans 1kg', 'COFFEE1KG001', 3, 3, 12.99, 'Premium arabica coffee beans');
+    ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 12000000, 'Latest iPhone model with Pro features'),
+    ('Samsung Galaxy S24', 'SAMSUNGS24001', 4, 1, 15000000, 'Flagship Samsung smartphone'),
+    ('MacBook Pro 16"', 'MACBOOKPRO16001', 5, 1, 24000000, 'Professional laptop for creative work'),
+    ('T-Shirt Men XL', 'TSHIRTXL001', 6, 2, 234567, 'Comfortable cotton t-shirt'),
+    ('Jeans Women 30', 'JEANSW301', 7, 2, 12000000, 'Classic fit jeans'),
+    ('Coffee Beans 1kg', 'COFFEE1KG001', 3, 3, 100000, 'Premium arabica coffee beans');
 
     -- 6. Insert Inventory
     INSERT INTO Inventory (store_id, product_id, stock, min_stock_level, reorder_point) VALUES

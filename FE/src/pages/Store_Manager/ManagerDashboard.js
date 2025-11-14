@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import {
   Box,
-  Grid,
   Card,
   CardContent,
   Typography,
@@ -15,10 +14,21 @@ import {
   TableRow,
   Chip,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Skeleton,
+  Paper
 } from "@mui/material";
 import { Bar } from "react-chartjs-2";
-import { TrendingUp, People, CalendarToday, AttachMoney, ShoppingCart, Assessment, Inventory2 } from "@mui/icons-material";
+import { 
+  TrendingUp, 
+  CalendarToday, 
+  AttachMoney, 
+  ShoppingCart, 
+  Assessment, 
+  Inventory2,
+  AccessTime,
+  Person
+} from "@mui/icons-material";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,26 +38,72 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { getManagerKpis, getRevenueLast7Days, getTopSellingProducts } from '../../api/mockApi';
+import { getTodayKPIs, getRevenueLast7Days, getTopSellingProducts, getTodaySchedules, getEmployeeStats } from '../../api/dashboardApi';
+import { toast } from 'react-toastify';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-const StatCard = ({ label, value, icon, gradient }) => (
-  <Card elevation={4} sx={{
-    background: gradient,
-    color: 'white',
-    position: 'relative',
-    overflow: 'hidden',
-    '&:hover': { transform: 'translateY(-4px)', transition: 'all 0.3s ease' },
-    transition: 'all 0.3s ease',
-  }}>
-    <CardContent sx={{ position: 'relative', zIndex: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        <Box>
-          <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>{label}</Typography>
-          <Typography variant="h4" fontWeight={700}>{value}</Typography>
+const StatCard = ({ label, value, icon, gradient, loading = false }) => (
+  <Card 
+    elevation={0}
+    sx={{
+      background: gradient,
+      color: 'white',
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: 3,
+      height: '100%',
+      '&:hover': { 
+        transform: 'translateY(-8px)', 
+        boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+      },
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    }}
+  >
+    <CardContent sx={{ position: 'relative', zIndex: 1, p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              opacity: 0.95, 
+              mb: 1.5,
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              letterSpacing: '0.5px'
+            }}
+          >
+            {label}
+          </Typography>
+          {loading ? (
+            <Skeleton variant="text" width={120} height={40} sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
+          ) : (
+            <Typography 
+              variant="h4" 
+              fontWeight={700}
+              sx={{ 
+                fontSize: { xs: '1.75rem', sm: '2rem' },
+                lineHeight: 1.2,
+                textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              {value}
+            </Typography>
+          )}
         </Box>
-        <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>{icon}</Avatar>
+        <Avatar 
+          sx={{ 
+            bgcolor: 'rgba(255,255,255,0.25)', 
+            width: { xs: 48, sm: 64 }, 
+            height: { xs: 48, sm: 64 },
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}
+        >
+          {icon}
+        </Avatar>
       </Box>
     </CardContent>
   </Card>
@@ -59,46 +115,100 @@ const ManagerDashboard = () => {
   const [kpis, setKpis] = useState(null);
   const [revenueData, setRevenueData] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
+  const [todaySchedules, setTodaySchedules] = useState([]);
+  const [employeeStats, setEmployeeStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getManagerKpis().then(setKpis);
-    getRevenueLast7Days().then(setRevenueData);
-    getTopSellingProducts().then(setTopProducts);
+    const loadDashboardData = async () => {
+      setLoading(true);
+      try {
+        // Load all dashboard data in parallel
+        const [kpisRes, revenueRes, productsRes, schedulesRes, empStatsRes] = await Promise.all([
+          getTodayKPIs(),
+          getRevenueLast7Days(),
+          getTopSellingProducts(),
+          getTodaySchedules(),
+          getEmployeeStats()
+        ]);
+
+        if (kpisRes.err === 0) {
+          setKpis(kpisRes.data);
+        } else {
+          console.error('KPIs error:', kpisRes);
+          toast.error(kpisRes.msg || 'Không thể tải KPIs');
+          // Set default values to show something
+          setKpis({ todayRevenue: 0, todayOrders: 0, newCustomers: 0 });
+        }
+
+        if (revenueRes.err === 0) {
+          setRevenueData(revenueRes.data || []);
+        } else {
+          console.error('Revenue error:', revenueRes);
+          toast.error(revenueRes.msg || 'Không thể tải doanh thu');
+          setRevenueData([]);
+        }
+
+        if (productsRes.err === 0) {
+          setTopProducts(productsRes.data || []);
+        } else {
+          console.error('Products error:', productsRes);
+          toast.error(productsRes.msg || 'Không thể tải sản phẩm');
+          setTopProducts([]);
+        }
+
+        if (schedulesRes.err === 0) {
+          setTodaySchedules(schedulesRes.data || []);
+        } else {
+          console.error('Schedules error:', schedulesRes);
+          toast.error(schedulesRes.msg || 'Không thể tải lịch làm việc');
+          setTodaySchedules([]);
+        }
+
+        if (empStatsRes.err === 0) {
+          setEmployeeStats(empStatsRes.data);
+        } else {
+          console.error('Employee stats error:', empStatsRes);
+        }
+      } catch (error) {
+        toast.error('Lỗi khi tải dữ liệu dashboard: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
   }, []);
 
   const stats = [
     {
       label: "Doanh thu hôm nay",
-      value: kpis ? `${(kpis.todayRevenue / 1000000).toFixed(1)}M ₫` : '...',
+      value: loading ? '...' : (kpis ? `${((kpis.todayRevenue || 0) / 1000000).toFixed(1)}M ₫` : '0.0M ₫'),
       icon: <AttachMoney />,
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
     },
     {
       label: "Số đơn hôm nay",
-      value: kpis?.todayOrders || '...',
+      value: loading ? '...' : (kpis?.todayOrders ?? 0),
       icon: <ShoppingCart />,
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
     },
     {
-      label: "Khách hàng mới",
-      value: kpis?.newCustomers || '...',
-      icon: <People />,
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-    },
-    {
       label: "Ca làm việc",
-      value: "6",
+      value: loading ? '...' : (todaySchedules.length || 0),
       icon: <CalendarToday />,
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
     },
   ];
 
   const revenueChartData = {
-    labels: revenueData.map(r => r.name),
+    labels: revenueData.length > 0 ? revenueData.map(r => r.name) : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
     datasets: [
       {
         label: "Doanh thu (triệu VND)",
-        data: revenueData.map(r => r.DoanhThu / 1000000),
+        data: revenueData.length > 0 
+          ? revenueData.map(r => (r.DoanhThu || 0) / 1000000)
+          : [0, 0, 0, 0, 0, 0, 0],
         backgroundColor: 'rgba(102, 126, 234, 0.8)',
         borderColor: '#667eea',
         borderWidth: 2,
@@ -127,120 +237,266 @@ const ManagerDashboard = () => {
   };
 
   return (
-    <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
+    <Box sx={{ 
+      px: { xs: 2, sm: 3, md: 4 }, 
+      py: { xs: 2, sm: 3 },
+      minHeight: '100vh',
+      bgcolor: '#f5f7fa'
+    }}>
+      {/* Header */}
       <Box sx={{ 
         display: 'flex', 
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: { xs: 'flex-start', sm: 'center' }, 
         justifyContent: 'space-between', 
-        mb: 3,
+        mb: 4,
         gap: 2
       }}>
-        <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-          Tổng quan cửa hàng
-        </Typography>
-        <Chip icon={<Assessment />} label="Hôm nay" color="primary" size={isMobile ? 'small' : 'medium'} />
+        <Box>
+          <Typography 
+            variant="h4" 
+            fontWeight={700} 
+            sx={{ 
+              fontSize: { xs: '1.5rem', sm: '2rem', md: '2.25rem' },
+              color: '#1a202c',
+              mb: 0.5
+            }}
+          >
+            Tổng quan cửa hàng
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+            Thống kê và phân tích hoạt động kinh doanh
+          </Typography>
+        </Box>
+        <Chip 
+          icon={<Assessment />} 
+          label="Hôm nay" 
+          color="primary" 
+          size={isMobile ? 'small' : 'medium'}
+          sx={{ 
+            height: { xs: 32, sm: 36 },
+            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+            fontWeight: 600
+          }}
+        />
       </Box>
 
       {/* STAT CARDS */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+        gap: 3,
+        mb: 4
+      }}>
         {stats.map((stat, i) => (
-          <Grid item xs={12} sm={6} md={3} key={i}>
-            <StatCard {...stat} />
-          </Grid>
+          <StatCard key={i} {...stat} loading={loading} />
         ))}
-      </Grid>
+      </Box>
 
-      {/* CHARTS SECTION */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={8}>
-          <Card elevation={3} sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TrendingUp color="primary" /> Doanh thu 7 ngày qua
+      {/* CHARTS & TOP PRODUCTS SECTION - Equal width 50/50 */}
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+        gap: 3,
+        mb: 4
+      }}>
+        <Card 
+          elevation={0}
+          sx={{ 
+            height: '100%',
+            borderRadius: 3,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: '1px solid rgba(0,0,0,0.05)'
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+              <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+                <TrendingUp />
+              </Avatar>
+              <Typography variant="h6" fontWeight={600} sx={{ color: '#1a202c' }}>
+                Doanh thu 7 ngày qua
               </Typography>
-              <Box sx={{ height: { xs: 250, sm: 300 }, width: '100%' }}>
+            </Box>
+            <Box sx={{ height: { xs: 280, sm: 320 }, width: '100%' }}>
+              {loading ? (
+                <Skeleton variant="rectangular" height="100%" sx={{ borderRadius: 2 }} />
+              ) : (
                 <Bar data={revenueChartData} options={revenueChartOptions} />
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+          <Card 
+            elevation={0}
+            sx={{ 
+              borderRadius: 3,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              border: '1px solid rgba(0,0,0,0.05)',
+              height: '100%'
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+                  <Inventory2 />
+                </Avatar>
+                <Typography variant="h6" fontWeight={600} sx={{ color: '#1a202c' }}>
+                  Top sản phẩm bán chạy
+                </Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={3} sx={{ height: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Tổng quan</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>Trung bình/ngày</Typography>
-                  <Typography variant="h5" fontWeight={700}>
-                    {kpis ? `${(kpis.todayRevenue / 1000000).toFixed(1)}M ₫` : '...'}
-                  </Typography>
-                </Box>
-                <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.2)', pt: 2 }}>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>Tổng đơn</Typography>
-                  <Typography variant="h5" fontWeight={700}>{kpis?.todayOrders || '...'} đơn</Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* PRODUCTS & SHIFTS */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Card elevation={3}>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Inventory2 color="primary" /> Top sản phẩm bán chạy
-              </Typography>
-              <TableContainer sx={{ overflowX: 'auto' }}>
-                <Table>
+              <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, overflow: 'hidden', maxHeight: 320 }}>
+                <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Sản phẩm</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Đã bán</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Doanh thu</TableCell>
+                    <TableRow sx={{ bgcolor: '#f8f9fa' }}>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#495057', py: 1 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#495057', py: 1 }}>Sản phẩm</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#495057', py: 1 }}>Đã bán</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {topProducts.map((row, i) => (
-                      <TableRow key={row.id} hover sx={{ '&:hover': { bgcolor: '#f9f9f9' } }}>
-                        <TableCell>{i + 1}</TableCell>
-                        <TableCell sx={{ fontWeight: 500 }}>{row.name}</TableCell>
-                        <TableCell align="right">{row.sold}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600, color: 'success.main' }}>
-                          {row.revenue.toLocaleString('vi-VN')} ₫
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton width={20} height={20} /></TableCell>
+                          <TableCell><Skeleton width="70%" height={20} /></TableCell>
+                          <TableCell align="right"><Skeleton width={30} height={20} /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : topProducts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                            <Inventory2 sx={{ fontSize: 36, color: 'text.disabled', opacity: 0.5 }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                              Chưa có dữ liệu
+                            </Typography>
+                          </Box>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      topProducts.map((row, i) => (
+                        <TableRow 
+                          key={row.id || i} 
+                          hover 
+                          sx={{ 
+                            '&:hover': { bgcolor: '#f8f9fa' },
+                            transition: 'background-color 0.2s'
+                          }}
+                        >
+                          <TableCell sx={{ py: 1 }}>
+                            <Box
+                              sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 24,
+                                height: 24,
+                                borderRadius: '50%',
+                                bgcolor: i < 3 ? 'primary.main' : 'grey.200',
+                                color: i < 3 ? 'white' : 'text.primary',
+                                fontWeight: 600,
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              {i + 1}
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 500, fontSize: '0.8125rem', py: 1 }}>{row.name}</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '0.8125rem', py: 1 }}>{row.sold || 0}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={3}>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CalendarToday color="primary" /> Ca làm việc hôm nay
-              </Typography>
+      </Box>
+
+      {/* SCHEDULES SECTION */}
+      <Box>
+        <Card 
+          elevation={0}
+          sx={{ 
+            borderRadius: 3,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: '1px solid rgba(0,0,0,0.05)',
+            height: '100%'
+          }}
+        >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                <Avatar sx={{ bgcolor: 'primary.main', width: 40, height: 40 }}>
+                  <CalendarToday />
+                </Avatar>
+                <Typography variant="h6" fontWeight={600} sx={{ color: '#1a202c' }}>
+                  Ca làm việc hôm nay
+                </Typography>
+              </Box>
               <Box>
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography fontWeight={600} color="primary">06:00 - 14:00</Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>• Nguyễn Văn An</Typography>
-                </Box>
-                <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography fontWeight={600} color="primary">14:00 - 22:00</Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>• Trần Thị Bình</Typography>
-                </Box>
+                {loading ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} variant="rectangular" height={80} sx={{ borderRadius: 2 }} />
+                    ))}
+                  </Box>
+                ) : todaySchedules.length === 0 ? (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 1.5
+                  }}>
+                    <CalendarToday sx={{ fontSize: 48, color: 'text.disabled', opacity: 0.5 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Không có ca làm việc hôm nay
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {todaySchedules.map((schedule, i) => {
+                      const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : '';
+                      const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : '';
+                      return (
+                        <Paper
+                          key={schedule.schedule_id || i}
+                          elevation={0}
+                          sx={{
+                            p: 2,
+                            bgcolor: '#f8f9fa',
+                            borderRadius: 2,
+                            border: '1px solid rgba(0,0,0,0.05)',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: '#e9ecef',
+                              transform: 'translateX(4px)'
+                            }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                            <AccessTime sx={{ fontSize: 18, color: 'primary.main' }} />
+                            <Typography fontWeight={600} color="primary" sx={{ fontSize: '0.9375rem' }}>
+                              {startTime} - {endTime}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 4 }}>
+                            <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                              {schedule.employee_name}
+                            </Typography>
+                          </Box>
+                        </Paper>
+                      );
+                    })}
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+      </Box>
     </Box>
   );
 };
