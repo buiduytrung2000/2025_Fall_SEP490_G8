@@ -78,16 +78,37 @@ export async function checkPaymentStatus(orderCode) {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {
         console.error('Error checking payment status:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Update QR payment status from PayOS (manual sync)
+export async function updateQRPaymentStatus(orderCode) {
+    try {
+        const res = await fetch(`${API_BASE}/payment/status/${orderCode}`, {
+            method: 'PUT',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error updating payment status:', error);
         return { err: -1, msg: 'Network error: ' + error.message };
     }
 }

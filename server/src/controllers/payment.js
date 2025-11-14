@@ -155,6 +155,30 @@ export const checkPaymentStatus = async (req, res) => {
     }
 };
 
+// Update QR payment status from PayOS (manual sync)
+export const updateQRPaymentStatus = async (req, res) => {
+    try {
+        const { orderCode } = req.params;
+
+        if (!orderCode) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing orderCode parameter'
+            });
+        }
+
+        const response = await paymentService.updateQRPaymentStatus(orderCode);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+
+    } catch (error) {
+        console.error('Error in updateQRPaymentStatus controller:', error);
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at payment controller: ' + error.message
+        });
+    }
+};
+
 // Handle PayOS webhook
 export const handlePayOSWebhook = async (req, res) => {
     try {

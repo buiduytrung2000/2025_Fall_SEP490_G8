@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
 import { FaQrcode, FaPrint, FaTimes, FaCheckCircle } from 'react-icons/fa';
 import { QRCodeSVG } from 'qrcode.react';
-import { checkPaymentStatus } from '../api/paymentApi';
+import { checkPaymentStatus, updateQRPaymentStatus } from '../api/paymentApi';
 import '../assets/PaymentModal.css';
 
 const PaymentModal = ({ 
@@ -32,10 +32,22 @@ const PaymentModal = ({
                         const status = result.data.status;
 
                         if (status === 'PAID') {
-                            setPaymentStatus('completed');
-                            clearInterval(interval);
-                            if (onPaymentSuccess) {
-                                onPaymentSuccess(paymentData.transaction_id);
+                            // Payment is paid on PayOS, now sync to database
+                            const syncResult = await updateQRPaymentStatus(paymentData.order_code);
+
+                            if (syncResult && syncResult.err === 0) {
+                                setPaymentStatus('completed');
+                                clearInterval(interval);
+                                if (onPaymentSuccess) {
+                                    onPaymentSuccess(paymentData.transaction_id);
+                                }
+                            } else {
+                                console.error('Failed to sync payment status:', syncResult);
+                                setPaymentStatus('completed');
+                                clearInterval(interval);
+                                if (onPaymentSuccess) {
+                                    onPaymentSuccess(paymentData.transaction_id);
+                                }
                             }
                         } else if (status === 'CANCELLED') {
                             setPaymentStatus('failed');

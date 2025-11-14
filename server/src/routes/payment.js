@@ -13,6 +13,9 @@ router.post('/qr', paymentController.createQRPayment);
 // Check payment status (no authentication required)
 router.get('/status/:orderCode', paymentController.checkPaymentStatus);
 
+// Update QR payment status from PayOS (manual sync - no authentication required)
+router.put('/status/:orderCode', paymentController.updateQRPaymentStatus);
+
 // Get transaction details (no authentication required)
 router.get('/transaction/:transactionId', paymentController.getTransactionDetails);
 

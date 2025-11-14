@@ -342,6 +342,171 @@ export const checkPaymentStatus = (orderCode) => new Promise(async (resolve, rej
     }
 });
 
+// Update QR payment status from PayOS (manual sync)
+export const updateQRPaymentStatus = (orderCode) => new Promise(async (resolve, reject) => {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+        // Get payment info from PayOS
+        const paymentInfo = await getPayOS().paymentRequests.get(orderCode);
+
+        if (!paymentInfo) {
+            await transaction.rollback();
+            return resolve({
+                err: 1,
+                msg: 'Payment not found on PayOS'
+            });
+        }
+
+        // Find payment by order code
+        const payment = await db.Payment.findOne({
+            where: {
+                payos_order_code: orderCode
+            }
+        });
+
+        if (!payment) {
+            await transaction.rollback();
+            return resolve({
+                err: 1,
+                msg: 'Payment not found in database'
+            });
+        }
+
+        // If payment is already completed, no need to update
+        if (payment.status === 'completed') {
+            await transaction.rollback();
+            return resolve({
+                err: 0,
+                msg: 'Payment already completed',
+                data: { status: 'completed' }
+            });
+        }
+
+        // Check if payment is paid on PayOS
+        if (paymentInfo.status === 'PAID') {
+            // Update payment status
+            await payment.update({
+                status: 'completed',
+                paid_at: new Date(),
+                payos_transaction_reference: paymentInfo.reference
+            }, { transaction });
+
+            // Find and update transaction
+            const transactionRecord = await db.Transaction.findOne({
+                where: {
+                    payment_id: payment.payment_id
+                }
+            });
+
+            if (transactionRecord && transactionRecord.status === 'pending') {
+                await transactionRecord.update({
+                    status: 'completed'
+                }, { transaction });
+
+                // Update inventory for all items
+                if (transactionRecord.store_id) {
+                    const items = await db.TransactionItem.findAll({
+                        where: { transaction_id: transactionRecord.transaction_id }
+                    });
+
+                    for (const item of items) {
+                        const inventory = await db.Inventory.findOne({
+                            where: {
+                                store_id: transactionRecord.store_id,
+                                product_id: item.product_id
+                            }
+                        });
+
+                        if (inventory) {
+                            await inventory.update({
+                                stock: inventory.stock - item.quantity
+                            }, { transaction });
+                        }
+                    }
+                }
+
+                // Mark voucher as used if applicable
+                if (transactionRecord.voucher_code) {
+                    await db.sequelize.query(
+                        `UPDATE CustomerVoucher
+                         SET status = 'used',
+                             used_at = NOW(),
+                             transaction_id = ?
+                         WHERE voucher_code = ? AND status = 'available'`,
+                        {
+                            replacements: [transactionRecord.transaction_id, transactionRecord.voucher_code],
+                            type: db.sequelize.QueryTypes.UPDATE,
+                            transaction
+                        }
+                    );
+                }
+
+                // Update loyalty points if customer is registered
+                if (transactionRecord.customer_id) {
+                    const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
+                    if (customer) {
+                        const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
+                        const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+
+                        await customer.update({
+                            loyalty_point: newPoints
+                        }, { transaction });
+                    }
+                }
+            }
+
+            await transaction.commit();
+
+            resolve({
+                err: 0,
+                msg: 'Payment status updated successfully',
+                data: {
+                    status: 'completed',
+                    transaction_id: transactionRecord?.transaction_id
+                }
+            });
+        } else if (paymentInfo.status === 'CANCELLED') {
+            await payment.update({
+                status: 'cancelled'
+            }, { transaction });
+
+            const transactionRecord = await db.Transaction.findOne({
+                where: { payment_id: payment.payment_id }
+            });
+
+            if (transactionRecord) {
+                await transactionRecord.update({
+                    status: 'cancelled'
+                }, { transaction });
+            }
+
+            await transaction.commit();
+
+            resolve({
+                err: 0,
+                msg: 'Payment cancelled',
+                data: { status: 'cancelled' }
+            });
+        } else {
+            await transaction.rollback();
+            resolve({
+                err: 0,
+                msg: 'Payment still pending',
+                data: { status: paymentInfo.status }
+            });
+        }
+
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Error updating QR payment status:', error);
+        resolve({
+            err: -1,
+            msg: 'Failed to update payment status: ' + error.message
+        });
+    }
+});
+
 // Handle PayOS webhook
 export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, reject) => {
     const transaction = await db.sequelize.transaction();
@@ -573,8 +738,8 @@ export const getTransactionHistory = (filters = {}) => new Promise(async (resolv
             }
         }
 
-        // Only show completed transactions
-        whereClause.status = 'completed';
+        // Show both completed and pending transactions (pending QR payments waiting for webhook)
+        // whereClause.status = 'completed';
 
         const transactions = await db.Transaction.findAll({
             where: whereClause,
