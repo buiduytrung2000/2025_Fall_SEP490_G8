@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Form, Button, Badge, Spinner } from 'react-bootstrap';
-import { FaCalendarAlt, FaMoneyBillWave, FaQrcode, FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaMoneyBillWave, FaQrcode, FaSearch, FaPrint, FaFileExcel } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { getTransactionHistory } from '../../api/paymentApi';
+import { generateAndPrintInvoice } from '../../utils/invoicePDF';
+import { exportPaymentHistoryToExcel } from '../../utils/exportExcel';
 import '../../assets/PaymentHistory.css';
 
 const PaymentHistory = () => {
@@ -82,6 +84,25 @@ const PaymentHistory = () => {
         return transactions.length;
     };
 
+    const handlePrintInvoice = async (transactionId) => {
+        try {
+            await generateAndPrintInvoice(transactionId);
+        } catch (error) {
+            console.error('Error printing invoice:', error);
+            toast.error('Lỗi khi in hóa đơn');
+        }
+    };
+
+    const handleExportExcel = () => {
+        try {
+            exportPaymentHistoryToExcel(transactions, { date: selectedDate, paymentMethod });
+            toast.success('Xuất file Excel thành công');
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            toast.error('Lỗi khi xuất file Excel');
+        }
+    };
+
     return (
         <Container fluid className="payment-history-container">
             <Row className="mb-4">
@@ -122,7 +143,7 @@ const PaymentHistory = () => {
 
             {/* Summary Cards */}
             <Row className="mb-4">
-                <Col md={6}>
+                <Col md={4}>
                     <Card className="summary-card">
                         <Card.Body>
                             <h5>Tổng số giao dịch</h5>
@@ -130,11 +151,26 @@ const PaymentHistory = () => {
                         </Card.Body>
                     </Card>
                 </Col>
-                <Col md={6}>
+                <Col md={4}>
                     <Card className="summary-card">
                         <Card.Body>
                             <h5>Tổng doanh thu</h5>
                             <h2 className="text-success">{formatCurrency(getTotalAmount())}</h2>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={4}>
+                    <Card className="summary-card">
+                        <Card.Body>
+                            <Button
+                                variant="success"
+                                className="w-100 mt-3"
+                                onClick={handleExportExcel}
+                                disabled={transactions.length === 0}
+                            >
+                                <FaFileExcel className="me-2" />
+                                Xuất Excel
+                            </Button>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -163,6 +199,7 @@ const PaymentHistory = () => {
                                     <th>Tổng tiền</th>
                                     <th>Phương thức</th>
                                     <th>Trạng thái</th>
+                                    <th>Hành động</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -178,7 +215,7 @@ const PaymentHistory = () => {
                                                     <small className="text-muted">{transaction.customer.phone}</small>
                                                 </>
                                             ) : (
-                                                <span className="text-muted">Customer</span>
+                                                <span className="text-muted">Khách vãng lai</span>
                                             )}
                                         </td>
                                         <td>{transaction.items?.length || 0}</td>
@@ -186,6 +223,16 @@ const PaymentHistory = () => {
                                         <td>{getPaymentMethodBadge(transaction.payment?.method)}</td>
                                         <td>
                                             <Badge bg="success">Hoàn thành</Badge>
+                                        </td>
+                                        <td>
+                                            <Button
+                                                variant="outline-primary"
+                                                size="sm"
+                                                onClick={() => handlePrintInvoice(transaction.transaction_id)}
+                                                title="In hóa đơn"
+                                            >
+                                                <FaPrint /> In
+                                            </Button>
                                         </td>
                                     </tr>
                                 ))}
