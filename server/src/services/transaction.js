@@ -54,12 +54,24 @@ export const checkout = (payload, options = {}) => new Promise(async (resolve, r
         }
         const paymentRecord = await db.Payment.create(paymentData, { transaction: t })
 
+        // Optional: validate and attach shift if provided
+        let shiftId = payload.shift_id || null
+        let shift = null
+        if (shiftId) {
+            shift = await db.Shift.findOne({ where: { shift_id: shiftId, store_id, status: 'opened' }, transaction: t, lock: t.LOCK.UPDATE })
+            if (!shift) {
+                await t.rollback()
+                return resolve({ err: 1, msg: 'Shift không hợp lệ hoặc đã đóng' })
+            }
+        }
+
         // Create transaction
         const transactionRecord = await db.Transaction.create({
             order_id: null,
             customer_id,
             payment_id: paymentRecord.payment_id,
             store_id,
+            shift_id: shiftId,
             total_amount: totalAmount,
             status: 'completed'
         }, { transaction: t })
@@ -81,6 +93,14 @@ export const checkout = (payload, options = {}) => new Promise(async (resolve, r
             // decrement inventory (update explicitly)
             const inv = await db.Inventory.findOne({ where: { store_id, product_id: it.product_id }, transaction: t, lock: t.LOCK.UPDATE })
             await inv.update({ stock: inv.stock - qty }, { transaction: t })
+        }
+
+        // Nếu có shift và thanh toán bằng tiền mặt thành công, cập nhật cash_sales_total
+        if (shift && paymentData.method === 'cash' && paymentData.status === 'completed') {
+            const cashAmount = parseFloat(paymentData.amount || 0)
+            await shift.update({ 
+                cash_sales_total: parseFloat(shift.cash_sales_total || 0) + cashAmount 
+            }, { transaction: t })
         }
 
         await t.commit()

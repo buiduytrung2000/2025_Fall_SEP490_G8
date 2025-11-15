@@ -62,7 +62,7 @@ export const getEmployeeById = async (req, res) => {
 // Create new employee
 export const createEmployee = async (req, res) => {
     try {
-        const { username, password, name, email, phone, role, store_id, status } = req.body;
+        const { username, password, name, email, phone, address, role, store_id, status } = req.body;
 
         // Validation
         if (!username || !password || !name || !role) {
@@ -90,6 +90,7 @@ export const createEmployee = async (req, res) => {
             name,
             email,
             phone,
+            address,
             role,
             store_id: store_id || null,
             status: status || 'active'

@@ -33,23 +33,24 @@
     ('Food Supplier Inc.', 'Bob Wilson', 'bob@foodsupplier.com', '300 Food Boulevard');
 
     -- Note: includes phone column
-    INSERT INTO User (username, password, role, store_id, email, phone, status) VALUES
-    ('ceo_admin', '123', 'CEO', NULL, 'ceo@ccms.com', '0900000001', 'active'),
-    ('manager_store1', '123', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', 'active'),
-    ('cashier_store1_1', '123', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', 'active'),
-    ('cashier_store1_2', '123', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', 'active'),
-    ('cashier_store1_3', '123', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', 'active'),
-    ('warehouse_staff1', '123', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', 'active'),
-    ('supplier_rep1', '123', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', 'active');
+    -- Passwords are hashed using bcrypt (password: '123')
+    INSERT INTO User (username, password, role, store_id, email, phone, address, status) VALUES
+    ('ceo_admin', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', 'active'),
+    ('manager_store1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
+    ('cashier_store1_1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', '15 Cashier Lane, City A', 'active'),
+    ('cashier_store1_2', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
+    ('cashier_store1_3', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
+    ('warehouse_staff1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
+    ('supplier_rep1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
     -- 5. Insert Products
     INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
-    ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 999.99, 'Latest iPhone model with Pro features'),
-    ('Samsung Galaxy S24', 'SAMSUNGS24001', 4, 1, 899.99, 'Flagship Samsung smartphone'),
-    ('MacBook Pro 16"', 'MACBOOKPRO16001', 5, 1, 2499.99, 'Professional laptop for creative work'),
-    ('T-Shirt Men XL', 'TSHIRTXL001', 6, 2, 19.99, 'Comfortable cotton t-shirt'),
-    ('Jeans Women 30', 'JEANSW301', 7, 2, 49.99, 'Classic fit jeans'),
-    ('Coffee Beans 1kg', 'COFFEE1KG001', 3, 3, 12.99, 'Premium arabica coffee beans');
+    ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 12000000, 'Latest iPhone model with Pro features'),
+    ('Samsung Galaxy S24', 'SAMSUNGS24001', 4, 1, 15000000, 'Flagship Samsung smartphone'),
+    ('MacBook Pro 16"', 'MACBOOKPRO16001', 5, 1, 24000000, 'Professional laptop for creative work'),
+    ('T-Shirt Men XL', 'TSHIRTXL001', 6, 2, 234567, 'Comfortable cotton t-shirt'),
+    ('Jeans Women 30', 'JEANSW301', 7, 2, 12000000, 'Classic fit jeans'),
+    ('Coffee Beans 1kg', 'COFFEE1KG001', 3, 3, 100000, 'Premium arabica coffee beans');
 
     -- 6. Insert Inventory
     INSERT INTO Inventory (store_id, product_id, stock, min_stock_level, reorder_point) VALUES
@@ -141,8 +142,7 @@
     INSERT INTO ShiftTemplate (name, start_time, end_time, description, is_active) VALUES
     ('Ca Sáng', '06:00:00', '14:00:00', 'Ca làm việc buổi sáng từ 6h đến 14h', TRUE),
     ('Ca Tối', '14:00:00', '22:00:00', 'Ca làm việc buổi tối từ 14h đến 22h', TRUE),
-    ('Ca Đêm', '22:00:00', '06:00:00', 'Ca làm việc đêm từ 22h đến 6h sáng hôm sau', TRUE),
-    ('Ca Part-time Sáng', '08:00:00', '12:00:00', 'Ca part-time buổi sáng', TRUE);
+    ('Ca Đêm', '22:00:00', '06:00:00', 'Ca làm việc đêm từ 22h đến 6h sáng hôm sau', TRUE);
 
     -- 18. Insert Schedules (Phân công lịch làm việc)
     -- Lịch làm việc tuần từ 2024-12-16 đến 2024-12-22 (Tuần 51)

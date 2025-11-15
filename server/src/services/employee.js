@@ -37,8 +37,8 @@ export const getEmployees = (filters = {}, pagination = { page: 1, limit: 10 }) 
                     required: false
                 }
             ],
-            // Select only existing columns (now includes phone)
-            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
+            // Select only existing columns (now includes phone & address)
+            attributes: ['user_id', 'username', 'email', 'phone', 'address', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             order: [['created_at', 'DESC']],
             limit: parseInt(limit),
             offset: parseInt(offset),
@@ -102,7 +102,7 @@ export const getEmployeeById = (id) => new Promise(async (resolve, reject) => {
                     ]
                 }
             ],
-            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
+            attributes: ['user_id', 'username', 'email', 'phone', 'address', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             raw: false
         });
 
@@ -162,7 +162,7 @@ export const createEmployee = (data) => new Promise(async (resolve, reject) => {
                     required: false
                 }
             ],
-            attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
+            attributes: ['user_id', 'username', 'email', 'phone', 'address', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
             raw: false
         });
 
@@ -227,7 +227,7 @@ export const updateEmployee = (id, data) => new Promise(async (resolve, reject) 
                         required: false
                     }
                 ],
-                attributes: ['user_id', 'username', 'email', 'phone', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
+                attributes: ['user_id', 'username', 'email', 'phone', 'address', 'role', 'store_id', 'status', 'created_at', 'updated_at'],
                 raw: false
             });
 

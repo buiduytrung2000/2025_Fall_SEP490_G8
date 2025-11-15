@@ -5,9 +5,9 @@ import { getMySchedules, getShiftTemplates } from '../../api/scheduleApi';
 // Import các component từ Material-UI (MUI)
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, Typography, Box, CircularProgress, IconButton
+    Paper, Typography, Box, CircularProgress, IconButton, Chip, Tooltip
 } from '@mui/material';
-import { ChevronLeft, ChevronRight } from '@mui/icons-material';
+import { ChevronLeft, ChevronRight, CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
 
 // --- HÀM HELPER VỀ NGÀY THÁNG (Copy từ ScheduleManagement) ---
 const getStartOfWeek = (date) => {
@@ -112,7 +112,11 @@ const MySchedule = () => {
                         const templateId = String(r.shift_template_id || r.shiftTemplate?.shift_template_id || '');
                         if (!grid[dateKey]) grid[dateKey] = {};
                         if (templateId) {
-                            grid[dateKey][templateId] = { mine: true };
+                            grid[dateKey][templateId] = { 
+                                mine: true,
+                                attendance_status: r.attendance_status || 'not_checked_in',
+                                schedule_id: r.schedule_id
+                            };
                             if (r.shiftTemplate) {
                                 scheduleTemplates.set(templateId, formatShiftLabel(r.shiftTemplate));
                             }
@@ -221,6 +225,24 @@ const MySchedule = () => {
                                             const dayKey = toLocalDateKey(day);
                                             const shiftData = schedule[dayKey] ? schedule[dayKey][shift.id] : null;
                                             const isMyShift = !!shiftData;
+                                            const attendanceStatus = shiftData?.attendance_status || 'not_checked_in';
+
+                                            // Hàm lấy label và màu cho trạng thái điểm danh
+                                            const getAttendanceInfo = (status) => {
+                                                switch (status) {
+                                                    case 'checked_in':
+                                                        return { label: 'Đã check-in (Đang làm việc)', color: 'info' };
+                                                    case 'checked_out':
+                                                        return { label: 'Đã kết ca', color: 'success' };
+                                                    case 'absent':
+                                                        return { label: 'Vắng mặt', color: 'error' };
+                                                    case 'not_checked_in':
+                                                    default:
+                                                        return { label: 'Chưa điểm danh', color: 'default' };
+                                                }
+                                            };
+
+                                            const attendanceInfo = getAttendanceInfo(attendanceStatus);
 
                                             return (
                                                 <TableCell
@@ -229,13 +251,33 @@ const MySchedule = () => {
                                                     sx={{
                                                         border: '1px solid #e0e0e0',
                                                         p: 2,
-                                                        // Đánh dấu ca của mình
                                                         backgroundColor: isMyShift ? '#e7f0ff' : 'inherit',
                                                         fontWeight: isMyShift ? 'bold' : 'normal',
                                                         color: isMyShift ? '#0a58ca' : 'inherit'
                                                     }}
                                                 >
-                                                    {isMyShift ? 'CÓ LỊCH' : '-'}
+                                                    {isMyShift ? (
+                                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'center' }}>
+                                                            <Typography variant="body2" fontWeight="bold">
+                                                                CÓ LỊCH
+                                                            </Typography>
+                                                            <Tooltip title={attendanceInfo.label} arrow>
+                                                                <Chip
+                                                                    icon={attendanceStatus !== 'not_checked_in' && attendanceStatus !== 'absent' ? <CheckCircle /> : <RadioButtonUnchecked />}
+                                                                    label={
+                                                                        attendanceStatus === 'checked_in' ? 'Đang làm việc' :
+                                                                        attendanceStatus === 'checked_out' ? 'Đã kết ca' :
+                                                                        attendanceStatus === 'absent' ? 'Vắng mặt' :
+                                                                        'Chưa điểm danh'
+                                                                    }
+                                                                    size="small"
+                                                                    color={attendanceInfo.color}
+                                                                    variant={attendanceStatus !== 'not_checked_in' && attendanceStatus !== 'absent' ? 'filled' : 'outlined'}
+                                                                    sx={{ height: 22, fontSize: '0.7rem' }}
+                                                                />
+                                                            </Tooltip>
+                                                        </Box>
+                                                    ) : '-'}
                                                 </TableCell>
                                             );
                                         })}

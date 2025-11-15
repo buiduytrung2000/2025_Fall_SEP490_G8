@@ -1,12 +1,16 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Form, Button, InputGroup, ListGroup, Spinner } from 'react-bootstrap';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-bootstrap';
 import {
-     FaSearch, FaQrcode, FaCartPlus,
-    FaShoppingCart, FaUserCircle, FaTimes, FaMoneyBillWave, FaCreditCard, FaTicketAlt
+    FaSearch, FaQrcode, FaCartPlus,
+    FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
+    FaMoneyBillWave, FaCreditCard, FaTicketAlt
 } from 'react-icons/fa';
 import '../../assets/POS.css';
-import { getProductsByStore } from '../../api/productApi';
+import { getProductsByStore, getProduct } from '../../api/productApi';
+import { checkoutCart } from '../../api/transactionApi';
+import { getMyOpenShift, checkinShift, checkoutShift } from '../../api/shiftApi';
+import { getMySchedules } from '../../api/scheduleApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
 import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
@@ -19,7 +23,6 @@ import { toast } from 'react-toastify';
 const formatCurrency = (number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
 }
-
 
 
 const POS = () => {
@@ -44,11 +47,145 @@ const POS = () => {
 
     // Payment states
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
+    const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'bank_transfer'
+    const [paymentReference, setPaymentReference] = useState(''); // For bank transfer
+    const [paymentGiven, setPaymentGiven] = useState(''); // Cash amount given by customer
+    const [checkoutMessage, setCheckoutMessage] = useState(''); // Checkout status message
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
     const [cashPaymentData, setCashPaymentData] = useState(null);
     const [qrPaymentData, setQrPaymentData] = useState(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    // Shift states
+    const [isShiftActive, setIsShiftActive] = useState(false);
+    const [shiftId, setShiftId] = useState(null);
+    const [openingCash, setOpeningCash] = useState('');
+    const [cashSalesTotal, setCashSalesTotal] = useState(0); // tổng bán bằng tiền mặt trong ca
+    const [showCheckinModal, setShowCheckinModal] = useState(false);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [closingCashInput, setClosingCashInput] = useState('');
+    const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
+    const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
+
+    // Load trạng thái ca từ API (open shift) và check schedule attendance_status
+    useEffect(() => {
+        const fetchOpenShift = async () => {
+            const storedStoreId = (() => {
+                if (user && user.store_id) return user.store_id;
+                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                return 1;
+            })();
+            const resp = await getMyOpenShift(storedStoreId);
+            if (resp && resp.err === 0 && resp.data) {
+                setIsShiftActive(true);
+                setShiftId(resp.data.shift_id);
+                setOpeningCash(String(resp.data.opening_cash || 0));
+                setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+                // Lưu attendance_status từ schedule nếu có
+                if (resp.data.schedule && resp.data.schedule.attendance_status) {
+                    setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
+                    setHasTodaySchedule(true); // Có schedule vì đã check-in thành công
+                } else {
+                    setHasTodaySchedule(false);
+                }
+            } else {
+                setIsShiftActive(false);
+                setShiftId(null);
+                setCashSalesTotal(0);
+                // Check schedule của ngày hôm nay để xem đã checkout chưa
+                const today = new Date().toISOString().split('T')[0];
+                try {
+                    const scheduleResp = await getMySchedules(today, today);
+                    if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
+                        // Tìm schedule của ngày hôm nay
+                        const todaySchedule = scheduleResp.data.find(s => s.work_date === today);
+                        if (todaySchedule) {
+                            setHasTodaySchedule(true);
+                            if (todaySchedule.attendance_status === 'checked_out') {
+                                setScheduleAttendanceStatus('checked_out');
+                            } else {
+                                setScheduleAttendanceStatus(todaySchedule.attendance_status || null);
+                            }
+                        } else {
+                            setHasTodaySchedule(false);
+                            setScheduleAttendanceStatus(null);
+                        }
+                    } else {
+                        setHasTodaySchedule(false);
+                        setScheduleAttendanceStatus(null);
+                    }
+                } catch (e) {
+                    setHasTodaySchedule(false);
+                    setScheduleAttendanceStatus(null);
+                }
+            }
+        };
+        fetchOpenShift();
+    }, [user]);
+
+    const refreshOpenShift = useCallback(async () => {
+        const storedStoreId = (() => {
+            if (user && user.store_id) return user.store_id;
+            try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+            return 1;
+        })();
+        const resp = await getMyOpenShift(storedStoreId);
+        if (resp && resp.err === 0 && resp.data) {
+            setIsShiftActive(true);
+            setShiftId(resp.data.shift_id);
+            setOpeningCash(String(resp.data.opening_cash || 0));
+            setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+            // Lưu attendance_status từ schedule nếu có
+            if (resp.data.schedule && resp.data.schedule.attendance_status) {
+                setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
+                setHasTodaySchedule(true);
+            } else {
+                setHasTodaySchedule(false);
+            }
+        } else {
+            setIsShiftActive(false);
+            setShiftId(null);
+            setCashSalesTotal(0);
+            setOpeningCash('');
+            // Check schedule của ngày hôm nay để xem đã checkout chưa
+            const today = new Date().toISOString().split('T')[0];
+            try {
+                const scheduleResp = await getMySchedules(today, today);
+                if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
+                    const todaySchedule = scheduleResp.data.find(s => s.work_date === today);
+                    if (todaySchedule) {
+                        setHasTodaySchedule(true);
+                        if (todaySchedule.attendance_status === 'checked_out') {
+                            setScheduleAttendanceStatus('checked_out');
+                        } else {
+                            setScheduleAttendanceStatus(todaySchedule.attendance_status || null);
+                        }
+                    } else {
+                        setHasTodaySchedule(false);
+                        setScheduleAttendanceStatus(null);
+                    }
+                } else {
+                    setHasTodaySchedule(false);
+                    setScheduleAttendanceStatus(null);
+                }
+            } catch (e) {
+                setHasTodaySchedule(false);
+                setScheduleAttendanceStatus(null);
+            }
+        }
+    }, [user]);
+
+    // Auto-refresh shift data mỗi 10 giây để cập nhật realtime
+    useEffect(() => {
+        if (!isShiftActive) return; // Chỉ refresh khi đang trong ca
+        
+        const interval = setInterval(() => {
+            refreshOpenShift();
+        }, 10000); // Refresh mỗi 10 giây
+
+        return () => clearInterval(interval);
+    }, [isShiftActive, refreshOpenShift]);
 
     // Tải sản phẩm theo store_id của cashier
     useEffect(() => {
@@ -88,12 +225,26 @@ const POS = () => {
 
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchesCategory = activeFilter === 'Tất cả' || p.category === activeFilter;
-            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  p.code.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
-        });
+        if (!products || products.length === 0) return [];
+        
+        let filtered = products;
+        
+        // Lọc theo category
+        if (activeFilter !== 'Tất cả') {
+            filtered = filtered.filter(p => p.category && p.category === activeFilter);
+        }
+        
+        // Lọc theo search term (chỉ khi có searchTerm)
+        if (searchTerm && searchTerm.trim()) {
+            const searchLower = searchTerm.toLowerCase().trim();
+            filtered = filtered.filter(p => {
+                const nameMatch = p.name && p.name.toLowerCase().includes(searchLower);
+                const codeMatch = p.code && p.code.toLowerCase().includes(searchLower);
+                return nameMatch || codeMatch;
+            });
+        }
+        
+        return filtered;
     }, [products, activeFilter, searchTerm]);
 
     // Thêm sản phẩm vào giỏ
@@ -159,6 +310,12 @@ const POS = () => {
         return Math.max(0, calculatedTotal);
     }, [subtotal, vat, voucherDiscount]);
 
+    // Tính tiền mặt dự kiến khi kết ca
+    const expectedCashAtClose = useMemo(() => {
+        const open = Number(openingCash || 0);
+        const sales = Number(cashSalesTotal || 0);
+        return open + sales; // có thể cộng thêm/ trừ chi khác nếu sau này có
+    }, [openingCash, cashSalesTotal]);
     // Tìm kiếm khách hàng khi nhập số điện thoại
     useEffect(() => {
         const delaySearch = setTimeout(() => {
@@ -483,9 +640,32 @@ const POS = () => {
             {/* ------------------- BÊN TRÁI: SẢN PHẨM ------------------- */}
             <div className="pos-main">
                 {/* Header */}
-                <header className="pos-header">
-                    
+                <header className="pos-header d-flex justify-content-between align-items-center">
                     <h2>CCMS System</h2>
+                    <div className="d-flex align-items-center gap-2">
+                        {isShiftActive ? (
+                            <>
+                                <div className="me-2 small">
+                                    Đang trong ca • Tiền đầu ca: <strong>{formatCurrency(Number(openingCash || 0))}</strong> • Tiền mặt bán được: <strong>{formatCurrency(cashSalesTotal)}</strong>
+                                </div>
+                                <Button variant="warning" size="sm" onClick={() => { setClosingCashInput(''); setShowCheckoutModal(true); }}>
+                                    <FaSignOutAlt className="me-1" /> Kết ca
+                                </Button>
+                            </>
+                        ) : scheduleAttendanceStatus === 'checked_out' ? (
+                            <div className="text-muted small">
+                                Đã kết ca hôm nay
+                            </div>
+                        ) : !hasTodaySchedule ? (
+                            <div className="text-muted small">
+                                Không có lịch làm việc hôm nay
+                            </div>
+                        ) : (
+                            <Button variant="success" size="sm" onClick={() => setShowCheckinModal(true)}>
+                                <FaSignInAlt className="me-1" /> Bắt đầu ca (Check-in)
+                            </Button>
+                        )}
+                    </div>
                 </header>
 
                 {/* Search */}
@@ -519,22 +699,40 @@ const POS = () => {
 
                 {/* Product List */}
                 <div className="pos-product-list">
-                    {filteredProducts.map(product => (
-                        <div className="product-item" key={product.id}>
-                            <span className="product-name">{product.name}</span>
-                            {product.oldPrice && (
-                                <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
+                    {filteredProducts.length === 0 ? (
+                        <div className="text-center py-4 text-muted">
+                            <p>Không có sản phẩm nào</p>
+                            {products.length === 0 && (
+                                <small>Đang tải sản phẩm...</small>
                             )}
-                            <span className="product-price">{formatCurrency(product.price)}</span>
-                            <Button
-                                variant="light"
-                                className="btn-add-cart"
-                                onClick={() => handleAddToCart(product)}
-                            >
-                                <FaCartPlus />
-                            </Button>
+                            {products.length > 0 && !searchTerm && activeFilter === 'Tất cả' && (
+                                <small>Đã tải {products.length} sản phẩm nhưng không hiển thị. Vui lòng kiểm tra filter.</small>
+                            )}
+                            {products.length > 0 && searchTerm && (
+                                <small>Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</small>
+                            )}
+                            {products.length > 0 && !searchTerm && activeFilter !== 'Tất cả' && (
+                                <small>Không có sản phẩm nào trong danh mục "{activeFilter}"</small>
+                            )}
                         </div>
-                    ))}
+                    ) : (
+                        filteredProducts.map(product => (
+                            <div className="product-item" key={product.id}>
+                                <span className="product-name">{product.name}</span>
+                                {product.oldPrice && (
+                                    <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
+                                )}
+                                <span className="product-price">{formatCurrency(product.price)}</span>
+                                <Button
+                                    variant="light"
+                                    className="btn-add-cart"
+                                    onClick={() => handleAddToCart(product)}
+                                >
+                                    <FaCartPlus />
+                                </Button>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -910,6 +1108,60 @@ const POS = () => {
                             <strong className="fs-5 text-primary">{formatCurrency(total)}</strong>
                         </div>
                     </div>
+                    {/* Payment method selector */}
+                    <div className="mb-2 d-flex align-items-center">
+                        <Form.Select
+                            aria-label="Chọn phương thức thanh toán"
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            style={{ width: 220 }}
+                            className="me-2"
+                            disabled={!isShiftActive}
+                        >
+                            <option value="cash">Tiền mặt</option>
+                            <option value="bank_transfer">Chuyển khoản</option>
+                        </Form.Select>
+
+                        {paymentMethod === 'bank_transfer' && (
+                            <Form.Control
+                                type="text"
+                                placeholder="Mã GD / Thông tin chuyển khoản"
+                                value={paymentReference}
+                                onChange={(e) => setPaymentReference(e.target.value)}
+                                style={{ width: 300 }}
+                                disabled={!isShiftActive}
+                            />
+                        )}
+
+                        {paymentMethod === 'cash' && (
+                            <div className="d-flex align-items-center ms-2">
+                                <Form.Control
+                                    type="number"
+                                    min={0}
+                                    placeholder="Số tiền khách đưa"
+                                    value={paymentGiven}
+                                    onChange={(e) => setPaymentGiven(e.target.value)}
+                                    style={{ width: 220 }}
+                                    disabled={!isShiftActive}
+                                />
+                                <div className="ms-3">
+                                    <div className="small text-muted">Tiền phải trả:</div>
+                                    <div style={{ fontWeight: 600 }}>{formatCurrency(total)}</div>
+                                </div>
+                                <div className="ms-3">
+                                    <div className="small text-muted">Tiền thối:</div>
+                                    <div
+                                        style={{
+                                            fontWeight: 600,
+                                            color: paymentGiven && Number(paymentGiven) < total ? 'red' : 'inherit'
+                                        }}
+                                    >
+                                        {paymentGiven ? formatCurrency(Math.max(Number(paymentGiven) - total, 0)) : formatCurrency(0)}
+                                    </div>
+                                </div>
+                        </div>
+                    )}
+                    </div>
 
                     {/* Payment Method Selection */}
                     {cart.length > 0 && (
@@ -940,6 +1192,7 @@ const POS = () => {
 
                     <Button
                         variant="success"
+                        size="lg"
                         className="w-100 mt-2"
                         disabled={cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
@@ -953,6 +1206,10 @@ const POS = () => {
                             'Thanh toán'
                         )}
                     </Button>
+                    {!isShiftActive && (
+                        <div className="text-danger small mt-2">Chưa bắt đầu ca. Hãy Check-in để bán hàng.</div>
+                    )}
+                    {checkoutMessage && <div className="text-success small mt-2">{checkoutMessage}</div>}
                 </div>
             </div>
 
@@ -969,6 +1226,151 @@ const POS = () => {
                 onPrintInvoice={handlePrintInvoice}
             />
 
+            {/* Check-in Modal */}
+            <Modal show={showCheckinModal} onHide={() => setShowCheckinModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Bắt đầu ca làm việc</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group>
+                        <Form.Label>Tiền mặt đầu ca (VND)</Form.Label>
+                        <Form.Control
+                            type="number"
+                            min={0}
+                            placeholder="Nhập số tiền trong két trước ca"
+                            value={openingCash}
+                            onChange={(e) => setOpeningCash(e.target.value)}
+                            autoFocus
+                        />
+                    </Form.Group>
+                    <div className="mt-3 text-muted small">
+                        Số tiền này sẽ dùng để đối soát khi kết ca.
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCheckinModal(false)}>Hủy</Button>
+                    <Button
+                        variant="success"
+                        onClick={async () => {
+                            // Kiểm tra lại có lịch làm việc hôm nay không
+                            if (!hasTodaySchedule) {
+                                alert('Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.');
+                                setShowCheckinModal(false);
+                                return;
+                            }
+                            
+                            const open = Number(openingCash);
+                            if (isNaN(open) || open < 0) {
+                                alert('Vui lòng nhập số tiền hợp lệ');
+                                return;
+                            }
+                            const storedStoreId = (() => {
+                                if (user && user.store_id) return user.store_id;
+                                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                                return 1;
+                            })();
+                            const resp = await checkinShift({ store_id: storedStoreId, opening_cash: open });
+                            if (resp && resp.err === 0 && resp.data) {
+                                // Cập nhật ngay lập tức từ response
+                                setIsShiftActive(true);
+                                setShiftId(resp.data.shift_id);
+                                setOpeningCash(String(resp.data.opening_cash || open));
+                                setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+                                
+                                // Refresh lại để đảm bảo có data mới nhất
+                                await refreshOpenShift();
+                                
+                                setShowCheckinModal(false);
+                                setOpeningCash('');
+                            } else {
+                                alert(resp?.msg || 'Không thể bắt đầu ca');
+                            }
+                        }}
+                    >
+                        Xác nhận bắt đầu ca
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Checkout (End shift) Modal */}
+            <Modal show={showCheckoutModal} onHide={() => setShowCheckoutModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Kết ca làm việc</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <div className="mb-3">
+                        <div className="d-flex justify-content-between">
+                            <span>Tiền đầu ca:</span>
+                            <strong>{formatCurrency(Number(openingCash || 0))}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between">
+                            <span>Tổng bán tiền mặt:</span>
+                            <strong>{formatCurrency(cashSalesTotal)}</strong>
+                        </div>
+                        <hr />
+                        <div className="d-flex justify-content-between">
+                            <span>Tiền mặt dự kiến trong két:</span>
+                            <strong>{formatCurrency(expectedCashAtClose)}</strong>
+                        </div>
+                    </div>
+                    <Form.Group>
+                        <Form.Label>Kiểm đếm thực tế (VND)</Form.Label>
+                        <Form.Control
+                            type="number"
+                            min={0}
+                            placeholder="Nhập số tiền thực tế trong két"
+                            value={closingCashInput}
+                            onChange={(e) => setClosingCashInput(e.target.value)}
+                            autoFocus
+                        />
+                    </Form.Group>
+                    {closingCashInput !== '' && (
+                        <div className="mt-3">
+                            <div className="d-flex justify-content-between">
+                                <span>Chênh lệch:</span>
+                                <strong style={{ color: Number(closingCashInput) === expectedCashAtClose ? '#28a745' : '#dc3545' }}>
+                                    {formatCurrency(Number(closingCashInput || 0) - expectedCashAtClose)}
+                                </strong>
+                            </div>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>Hủy</Button>
+                    <Button
+                        variant="warning"
+                        onClick={async () => {
+                            const actual = Number(closingCashInput);
+                            if (isNaN(actual) || actual < 0) {
+                                alert('Vui lòng nhập số tiền hợp lệ');
+                                return;
+                            }
+                            if (!shiftId) {
+                                alert('Không tìm thấy ca làm việc');
+                                return;
+                            }
+                            const resp = await checkoutShift({ shift_id: shiftId, closing_cash: actual });
+                            if (resp && resp.err === 0) {
+                                setIsShiftActive(false);
+                                setShiftId(null);
+                                setCashSalesTotal(0);
+                                setOpeningCash('');
+                                setClosingCashInput('');
+                                setPaymentGiven('');
+                                setPaymentReference('');
+                                // Đánh dấu đã checkout để không hiển thị nút check-in nữa
+                                setScheduleAttendanceStatus('checked_out');
+                                setShowCheckoutModal(false);
+                                alert('Kết ca thành công!');
+                            } else {
+                                alert(resp?.msg || 'Không thể kết ca');
+                            }
+                        }}
+                    >
+                        Xác nhận kết ca
+                    </Button>
+                </Modal.Footer>
+            </Modal>
             {/* Payment Modal for QR */}
             <PaymentModal
                 show={showPaymentModal}

@@ -10,6 +10,10 @@ import scheduleRouter from './schedule'
 import employeeRouter from './employee'
 import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
+import warehouseOrderRouter from './warehouseOrder'
+import transactionRouter from './transaction'
+import shiftRouter from './shift'
+import dashboardRouter from './dashboard'
 import customerRouter from './customer'
 import customerVoucherRouter from './customerVoucher'
 import voucherTemplateRouter from './voucherTemplate'
@@ -28,6 +32,10 @@ const initRoutes = (app) => {
     app.use('/api/v1/employee', employeeRouter)
     app.use('/api/v1/inventory', inventoryRouter)
     app.use('/api/v1/store-order', storeOrderRouter)
+    app.use('/api/v1/warehouse-order', warehouseOrderRouter)
+    app.use('/api/v1/transaction', transactionRouter)
+    app.use('/api/v1/dashboard', dashboardRouter)
+    app.use('/api/v1/shifts', shiftRouter)
     app.use('/api/v1/customer', customerRouter)
     app.use('/api/v1/voucher', customerVoucherRouter)
     app.use('/api/v1/voucher-template', voucherTemplateRouter)
