@@ -29,7 +29,6 @@ const POS = () => {
     const { user } = useAuth();
     const [products, setProducts] = useState([]);
     const [cart, setCart] = useState([]);
-    const [activeFilter, setActiveFilter] = useState('Tất cả');
     const [searchTerm, setSearchTerm] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -226,26 +225,24 @@ const POS = () => {
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {
         if (!products || products.length === 0) return [];
-        
+
+        // Chỉ hiển thị danh sách khi có tìm kiếm
+        if (!searchTerm || !searchTerm.trim()) {
+            return [];
+        }
+
         let filtered = products;
-        
-        // Lọc theo category
-        if (activeFilter !== 'Tất cả') {
-            filtered = filtered.filter(p => p.category && p.category === activeFilter);
-        }
-        
-        // Lọc theo search term (chỉ khi có searchTerm)
-        if (searchTerm && searchTerm.trim()) {
-            const searchLower = searchTerm.toLowerCase().trim();
-            filtered = filtered.filter(p => {
-                const nameMatch = p.name && p.name.toLowerCase().includes(searchLower);
-                const codeMatch = p.code && p.code.toLowerCase().includes(searchLower);
-                return nameMatch || codeMatch;
-            });
-        }
-        
+
+        // Lọc theo search term
+        const searchLower = searchTerm.toLowerCase().trim();
+        filtered = filtered.filter(p => {
+            const nameMatch = p.name && p.name.toLowerCase().includes(searchLower);
+            const codeMatch = p.code && p.code.toLowerCase().includes(searchLower);
+            return nameMatch || codeMatch;
+        });
+
         return filtered;
-    }, [products, activeFilter, searchTerm]);
+    }, [products, searchTerm]);
 
     // Thêm sản phẩm vào giỏ
     const handleAddToCart = (product) => {
@@ -253,11 +250,13 @@ const POS = () => {
             const itemInCart = currentCart.find(item => item.id === product.id);
             if (itemInCart) {
                 // Tăng số lượng
+                toast.info(`Đã thêm ${product.name} (số lượng: ${itemInCart.qty + 1})`);
                 return currentCart.map(item =>
                     item.id === product.id ? { ...item, qty: item.qty + 1 } : item
                 );
             } else {
                 // Thêm mới
+                toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
                 return [...currentCart, { ...product, qty: 1 }];
             }
         });
@@ -712,52 +711,35 @@ const POS = () => {
                     </InputGroup>
                 </div>
 
-                {/* Filters */}
-                <div className="pos-filters">
-                    {['Tất cả', 'Đồ ăn', 'Đồ uống'].map(filter => (
-                        <Button
-                            key={filter}
-                            variant={activeFilter === filter ? 'primary' : 'outline-secondary'}
-                            onClick={() => setActiveFilter(filter)}
-                        >
-                            {filter}
-                        </Button>
-                    ))}
-                </div>
-
                 {/* Product List */}
                 <div className="pos-product-list">
                     {filteredProducts.length === 0 ? (
                         <div className="text-center py-4 text-muted">
-                            <p>Không có sản phẩm nào</p>
-                            {products.length === 0 && (
-                                <small>Đang tải sản phẩm...</small>
-                            )}
-                            {products.length > 0 && !searchTerm && activeFilter === 'Tất cả' && (
-                                <small>Đã tải {products.length} sản phẩm nhưng không hiển thị. Vui lòng kiểm tra filter.</small>
-                            )}
-                            {products.length > 0 && searchTerm && (
-                                <small>Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</small>
-                            )}
-                            {products.length > 0 && !searchTerm && activeFilter !== 'Tất cả' && (
-                                <small>Không có sản phẩm nào trong danh mục "{activeFilter}"</small>
+                            {!searchTerm ? (
+                                <>
+                                    <p>Nhập tên sản phẩm hoặc mã vạch để tìm kiếm</p>
+                                    <small>Danh sách sản phẩm sẽ hiển thị khi bạn tìm kiếm</small>
+                                </>
+                            ) : (
+                                <>
+                                    <p>Không tìm thấy sản phẩm</p>
+                                    <small>Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</small>
+                                </>
                             )}
                         </div>
                     ) : (
                         filteredProducts.map(product => (
-                            <div className="product-item" key={product.id}>
+                            <div
+                                className="product-item"
+                                key={product.id}
+                                onClick={() => handleAddToCart(product)}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <span className="product-name">{product.name}</span>
                                 {product.oldPrice && (
                                     <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
                                 )}
                                 <span className="product-price">{formatCurrency(product.price)}</span>
-                                <Button
-                                    variant="light"
-                                    className="btn-add-cart"
-                                    onClick={() => handleAddToCart(product)}
-                                >
-                                    <FaCartPlus />
-                                </Button>
                             </div>
                         ))
                     )}
