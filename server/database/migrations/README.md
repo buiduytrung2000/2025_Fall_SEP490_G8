@@ -25,7 +25,7 @@ Get-Content server/database/migrations/2025-01-10_create_customer_voucher_table.
 ## Tính năng Loyalty Points và Voucher
 
 ### Quy tắc tích điểm
-- **100đ = 1 điểm**
+- **200,000đ = 1 điểm**
 - Điểm được cộng tự động sau mỗi lần thanh toán thành công
 - Điểm tích lũy không có hạn sử dụng
 
@@ -57,7 +57,7 @@ Get-Content server/database/migrations/2025-01-10_create_customer_voucher_table.
 ### Cách hoạt động
 
 1. **Khi khách hàng thanh toán:**
-   - Hệ thống tự động tính điểm dựa trên tổng tiền (10,000đ = 10 điểm)
+   - Hệ thống tự động tính điểm dựa trên tổng tiền (200,000đ = 1 điểm)
    - Cộng điểm vào tài khoản khách hàng
    - Tự động tạo voucher mới nếu khách hàng đạt mức điểm mới
 
