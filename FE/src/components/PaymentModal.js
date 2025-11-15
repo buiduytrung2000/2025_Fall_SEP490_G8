@@ -43,11 +43,8 @@ const PaymentModal = ({
                                 }
                             } else {
                                 console.error('Failed to sync payment status:', syncResult);
-                                setPaymentStatus('completed');
+                                setPaymentStatus('failed');
                                 clearInterval(interval);
-                                if (onPaymentSuccess) {
-                                    onPaymentSuccess(paymentData.transaction_id);
-                                }
                             }
                         } else if (status === 'CANCELLED') {
                             setPaymentStatus('failed');

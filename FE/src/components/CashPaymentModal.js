@@ -15,8 +15,16 @@ const CashPaymentModal = ({
     const [changeAmount, setChangeAmount] = useState(0);
     const [isCompleting, setIsCompleting] = useState(false);
     const [paymentCompleted, setPaymentCompleted] = useState(false);
+    const [transactionId, setTransactionId] = useState(null);
 
     const totalAmount = paymentData?.total_amount || 0;
+
+    // Update transaction ID when paymentData changes
+    useEffect(() => {
+        if (paymentData?.transaction_id) {
+            setTransactionId(paymentData.transaction_id);
+        }
+    }, [paymentData?.transaction_id]);
 
     // Calculate change amount when cash received changes
     useEffect(() => {
@@ -45,23 +53,39 @@ const CashPaymentModal = ({
 
         setIsCompleting(true);
         try {
+            console.log('Calling onComplete with:', {
+                cash_received: parseFloat(cashReceived),
+                change_amount: changeAmount,
+                transaction_id: paymentData?.transaction_id
+            });
+
             await onComplete({
                 cash_received: parseFloat(cashReceived),
                 change_amount: changeAmount,
                 transaction_id: paymentData?.transaction_id
             });
+
+            console.log('Payment completed successfully');
             setPaymentCompleted(true);
         } catch (error) {
             console.error('Error completing payment:', error);
-            alert('Lỗi khi hoàn thành thanh toán');
+            // Don't show alert here, let the parent component handle it via toast
+            // The error is already handled in handleCashPaymentComplete
         } finally {
             setIsCompleting(false);
         }
     };
 
     const handlePrintInvoice = async () => {
-        if (paymentData?.transaction_id) {
-            await generateAndPrintInvoice(paymentData.transaction_id);
+        if (transactionId) {
+            try {
+                await generateAndPrintInvoice(transactionId);
+            } catch (error) {
+                console.error('Error printing invoice:', error);
+                alert('Lỗi khi in hóa đơn');
+            }
+        } else {
+            alert('Không có mã giao dịch để in hóa đơn');
         }
     };
 

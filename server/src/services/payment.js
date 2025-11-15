@@ -1,4 +1,5 @@
 import db from '../models';
+import * as customerVoucherService from './customerVoucher';
 
 // Lazy load PayOS to avoid import issues with Babel
 let payOSInstance = null;
@@ -17,9 +18,10 @@ const getPayOS = () => {
 
 // Create cash payment and transaction
 export const createCashPayment = (paymentData) => new Promise(async (resolve, reject) => {
-    const transaction = await db.sequelize.transaction();
+    let transaction = null;
 
     try {
+        transaction = await db.sequelize.transaction();
         let {
             store_id,
             cashier_id,
@@ -146,8 +148,12 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
                 }, { transaction });
 
                 // Auto-generate vouchers based on new loyalty points
-                const customerVoucherService = require('./customerVoucher');
-                await customerVoucherService.autoGenerateVouchersForCustomer(customer_id, newPoints);
+                try {
+                    await customerVoucherService.autoGenerateVouchersForCustomer(customer_id, newPoints);
+                } catch (voucherError) {
+                    console.error('Error auto-generating vouchers:', voucherError);
+                    // Don't fail the payment if voucher generation fails
+                }
             }
         }
 
@@ -183,7 +189,13 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
         });
 
     } catch (error) {
-        await transaction.rollback();
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackError) {
+                console.error('Error rolling back transaction:', rollbackError);
+            }
+        }
         console.error('Error creating cash payment:', error);
         resolve({
             err: -1,
@@ -748,8 +760,8 @@ export const getTransactionHistory = (filters = {}) => new Promise(async (resolv
             }
         }
 
-        // Show both completed and pending transactions (pending QR payments waiting for webhook)
-        // whereClause.status = 'completed';
+        // Only show completed transactions
+        whereClause.status = 'completed';
 
         const transactions = await db.Transaction.findAll({
             where: whereClause,
@@ -859,7 +871,8 @@ export const generateInvoicePDF = (transactionId) => new Promise(async (resolve,
                 },
                 {
                     model: db.User,
-                    as: 'cashier'
+                    as: 'cashier',
+                    attributes: ['user_id', 'username', 'email', 'phone']
                 }
             ]
         });

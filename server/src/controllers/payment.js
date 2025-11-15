@@ -18,7 +18,7 @@ export const createCashPayment = async (req, res) => {
         } = req.body;
 
         // Validation
-        if (!cart_items || cart_items.length === 0 || !total_amount) {
+        if (!cart_items || cart_items.length === 0 || total_amount === undefined || total_amount === null) {
             return res.status(400).json({
                 err: 1,
                 msg: 'Missing required fields: cart_items, total_amount'
@@ -80,7 +80,7 @@ export const createQRPayment = async (req, res) => {
         } = req.body;
 
         // Validation
-        if (!cart_items || cart_items.length === 0 || !total_amount) {
+        if (!cart_items || cart_items.length === 0 || total_amount === undefined || total_amount === null) {
             return res.status(400).json({
                 err: 1,
                 msg: 'Missing required fields: cart_items, total_amount'

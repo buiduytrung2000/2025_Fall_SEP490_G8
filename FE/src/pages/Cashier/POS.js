@@ -551,10 +551,15 @@ const POS = () => {
     };
 
     // Xử lý in hóa đơn
-    const handlePrintInvoice = (transactionId) => {
-        // TODO: Implement print invoice functionality
-        toast.info('Chức năng in hóa đơn đang được phát triển');
-        setShowPaymentModal(false);
+    const handlePrintInvoice = async (transactionId) => {
+        try {
+            const { generateAndPrintInvoice } = await import('../utils/invoicePDF');
+            await generateAndPrintInvoice(transactionId);
+            toast.success('Đang mở cửa sổ in...');
+        } catch (error) {
+            console.error('Error printing invoice:', error);
+            toast.error('Lỗi khi in hóa đơn');
+        }
     };
 
     // Xử lý tạo khách hàng mới
@@ -581,13 +586,38 @@ const POS = () => {
     // Xử lý hoàn thành thanh toán tiền mặt
     const handleCashPaymentComplete = async (cashPaymentInfo) => {
         try {
+            // Extract only the necessary fields from cashPaymentData.paymentData
+            const {
+                store_id,
+                cashier_id,
+                customer_id,
+                cart_items,
+                subtotal,
+                tax_amount,
+                discount_amount,
+                voucher_code,
+                total_amount
+            } = cashPaymentData.paymentData;
+
             const paymentDataWithCash = {
-                ...cashPaymentData.paymentData,
+                store_id,
+                cashier_id,
+                customer_id,
+                cart_items,
+                subtotal,
+                tax_amount,
+                discount_amount,
+                voucher_code,
+                total_amount,
                 cash_received: cashPaymentInfo.cash_received,
                 change_amount: cashPaymentInfo.change_amount
             };
 
+            console.log('Sending cash payment data:', paymentDataWithCash);
+
             const res = await createCashPayment(paymentDataWithCash);
+
+            console.log('Cash payment response:', res);
 
             if (res && res.err === 0) {
                 toast.success('Thanh toán thành công!');
@@ -595,8 +625,8 @@ const POS = () => {
                 // Update cash payment data with transaction info
                 setCashPaymentData(prev => ({
                     ...prev,
-                    transaction_id: res.data.transaction_id,
-                    payment_id: res.data.payment_id
+                    transaction_id: res.data?.transaction_id,
+                    payment_id: res.data?.payment_id
                 }));
 
                 // Reload customer data if customer is selected
@@ -614,13 +644,11 @@ const POS = () => {
                 setSelectedVoucher(null);
                 setSelectedPaymentMethod(null);
             } else {
-                toast.error(res.msg || 'Thanh toán thất bại');
-                throw new Error(res.msg || 'Payment failed');
+                toast.error(res?.msg || 'Thanh toán thất bại');
             }
         } catch (error) {
             console.error('Error completing cash payment:', error);
-            toast.error('Lỗi khi hoàn thành thanh toán');
-            throw error;
+            toast.error('Lỗi khi hoàn thành thanh toán: ' + error.message);
         }
     };
 
@@ -1107,60 +1135,6 @@ const POS = () => {
                             <strong className="fs-6">Tổng cộng</strong>
                             <strong className="fs-5 text-primary">{formatCurrency(total)}</strong>
                         </div>
-                    </div>
-                    {/* Payment method selector */}
-                    <div className="mb-2 d-flex align-items-center">
-                        <Form.Select
-                            aria-label="Chọn phương thức thanh toán"
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
-                            style={{ width: 220 }}
-                            className="me-2"
-                            disabled={!isShiftActive}
-                        >
-                            <option value="cash">Tiền mặt</option>
-                            <option value="bank_transfer">Chuyển khoản</option>
-                        </Form.Select>
-
-                        {paymentMethod === 'bank_transfer' && (
-                            <Form.Control
-                                type="text"
-                                placeholder="Mã GD / Thông tin chuyển khoản"
-                                value={paymentReference}
-                                onChange={(e) => setPaymentReference(e.target.value)}
-                                style={{ width: 300 }}
-                                disabled={!isShiftActive}
-                            />
-                        )}
-
-                        {paymentMethod === 'cash' && (
-                            <div className="d-flex align-items-center ms-2">
-                                <Form.Control
-                                    type="number"
-                                    min={0}
-                                    placeholder="Số tiền khách đưa"
-                                    value={paymentGiven}
-                                    onChange={(e) => setPaymentGiven(e.target.value)}
-                                    style={{ width: 220 }}
-                                    disabled={!isShiftActive}
-                                />
-                                <div className="ms-3">
-                                    <div className="small text-muted">Tiền phải trả:</div>
-                                    <div style={{ fontWeight: 600 }}>{formatCurrency(total)}</div>
-                                </div>
-                                <div className="ms-3">
-                                    <div className="small text-muted">Tiền thối:</div>
-                                    <div
-                                        style={{
-                                            fontWeight: 600,
-                                            color: paymentGiven && Number(paymentGiven) < total ? 'red' : 'inherit'
-                                        }}
-                                    >
-                                        {paymentGiven ? formatCurrency(Math.max(Number(paymentGiven) - total, 0)) : formatCurrency(0)}
-                                    </div>
-                                </div>
-                        </div>
-                    )}
                     </div>
 
                     {/* Payment Method Selection */}

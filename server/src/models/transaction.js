@@ -34,6 +34,13 @@ module.exports = (sequelize, DataTypes) => {
                 onDelete: 'SET NULL'
             });
 
+            // Transaction belongs to Shift
+            Transaction.belongsTo(models.Shift, {
+                foreignKey: 'shift_id',
+                as: 'shift',
+                onDelete: 'SET NULL'
+            });
+
             // Transaction has many TransactionItems
             Transaction.hasMany(models.TransactionItem, {
                 foreignKey: 'transaction_id',
@@ -64,6 +71,11 @@ module.exports = (sequelize, DataTypes) => {
         store_id: {
             type: DataTypes.INTEGER,
             allowNull: false
+        },
+        shift_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            comment: 'Shift ID for tracking which shift this transaction belongs to'
         },
         cashier_id: {
             type: DataTypes.INTEGER,

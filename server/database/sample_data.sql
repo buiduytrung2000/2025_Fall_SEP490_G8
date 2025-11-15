@@ -180,12 +180,4 @@
     -- Yêu cầu đổi ca với ca trống (swap với ca trống - ví dụ)
     (1, 3, 3, NULL, NULL, '2024-12-25', 2, 'swap', 'Muốn đổi sang ca tối ngày 25/12', 'pending', NULL, NULL);
 
-    -- 20. Insert Voucher Templates
-    INSERT INTO VoucherTemplate (voucher_code_prefix, voucher_name, discount_type, discount_value, min_purchase_amount, max_discount_amount, required_loyalty_points, validity_days, is_active) VALUES
-    ('WELCOME', 'Voucher chào mừng khách hàng mới', 'percentage', 5.00, 0, 500, 0, 30, true),
-    ('LOYAL50', 'Voucher khách hàng thân thiết 50 điểm', 'percentage', 10.00, 1000, 100000, 50, 30, true),
-    ('LOYAL100', 'Voucher khách hàng thân thiết 100 điểm', 'percentage', 15.00, 2000, 150000, 100, 30, true),
-    ('LOYAL200', 'Voucher khách hàng VIP 200 điểm', 'percentage', 20.00, 300000, 2000, 200, 30, true),
-    ('FIXED50K', 'Voucher giảm 50K', 'fixed_amount', 50000, 2000, NULL, 100, 30, true),
-    ('FIXED100K', 'Voucher giảm 100K', 'fixed_amount', 100000, 500, NULL, 200, 30, true);
 
