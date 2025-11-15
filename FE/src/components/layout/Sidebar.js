@@ -12,7 +12,7 @@ import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
     FaBars, FaUserClock, FaCashRegister, FaChartPie, FaExchangeAlt,
-    FaBoxes, FaTags, FaClipboardList 
+    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift
 } from 'react-icons/fa';
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
@@ -23,12 +23,15 @@ const navLinks = {
         { to: "/manager/inventory", icon: <FaWarehouse />, text: "Quản lý Tồn kho" },
         { to: "/manager/orders", icon: <FaClipboardList />, text: "Đơn nhập hàng" },
         { to: "/manager/reports/shifts", icon: <FaChartPie />, text: "Báo cáo ca làm" },
+        { to: "/manager/payment-history", icon: <FaHistory />, text: "Lịch sử thanh toán" },
+        { to: "/manager/vouchers", icon: <FaGift />, text: "Quản lý Voucher" },
         { to: "/manager/staff", icon: <FaUserFriends />, text: "Quản lý Nhân viên" },
         { to: "/manager/schedule", icon: <FaCalendarAlt />, text: "Lịch làm việc" },
         { to: "/manager/shift-change-requests", icon: <FaExchangeAlt />, text: "Yêu cầu đổi ca" },
     ],
     Cashier: [
         { to: "/cashier/pos", icon: <FaCashRegister />, text: "Bán hàng (POS)" },
+        { to: "/cashier/payment-history", icon: <FaHistory />, text: "Lịch sử thanh toán" },
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" },
         { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" }
     ],

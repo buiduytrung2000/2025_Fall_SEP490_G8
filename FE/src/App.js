@@ -27,6 +27,7 @@ import StaffManagement from "./pages/Store_Manager/StaffManagement";
 import ScheduleManagement from "./pages/Store_Manager/ScheduleManagement";
 import StoreInventory from "./pages/Store_Manager/InventoryManagement";
 import PurchaseOrders from "./pages/Store_Manager/PurchaseOrders";
+import VoucherManagement from "./pages/Store_Manager/VoucherManagement";
 import WarehouseIncomingOrders from "./pages/Warehouse/IncomingOrders";
 import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
 import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
@@ -37,6 +38,8 @@ import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
+import CashierPaymentHistory from "./pages/Cashier/PaymentHistory";
+import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
 import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
 import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
 import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
@@ -118,10 +121,26 @@ function App() {
               }
             />
             <Route
+              path="/manager/payment-history"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <ManagerPaymentHistory />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/manager/shift-change-requests"
               element={
                 <ProtectedRoute allowedRoles={["Manager"]}>
                   <ShiftChangeRequestManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/vouchers"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <VoucherManagement />
                 </ProtectedRoute>
               }
             />
@@ -139,6 +158,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Cashier"]}>
                   <POS />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/cashier/payment-history"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <CashierPaymentHistory />
                 </ProtectedRoute>
               }
             />

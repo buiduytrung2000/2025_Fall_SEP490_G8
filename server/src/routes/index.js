@@ -12,8 +12,12 @@ import inventoryRouter from './inventory'
 import storeOrderRouter from './storeOrder'
 import warehouseOrderRouter from './warehouseOrder'
 import transactionRouter from './transaction'
-import dashboardRouter from './dashboard'
 import shiftRouter from './shift'
+import dashboardRouter from './dashboard'
+import customerRouter from './customer'
+import customerVoucherRouter from './customerVoucher'
+import voucherTemplateRouter from './voucherTemplate'
+import paymentRouter from './payment'
 
 const initRoutes = (app) => {
     app.use('/api/v1/auth', authRouter)
@@ -32,6 +36,10 @@ const initRoutes = (app) => {
     app.use('/api/v1/transaction', transactionRouter)
     app.use('/api/v1/dashboard', dashboardRouter)
     app.use('/api/v1/shifts', shiftRouter)
+    app.use('/api/v1/customer', customerRouter)
+    app.use('/api/v1/voucher', customerVoucherRouter)
+    app.use('/api/v1/voucher-template', voucherTemplateRouter)
+    app.use('/api/v1/payment', paymentRouter)
 
     app.get('/', (req, res) => {
         res.status(200).json({
