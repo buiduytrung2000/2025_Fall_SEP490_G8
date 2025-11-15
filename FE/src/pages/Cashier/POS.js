@@ -1,20 +1,16 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Form, Button, InputGroup, Modal } from 'react-bootstrap';
-import React, { useState, useMemo, useEffect } from 'react';
-import { Form, Button, InputGroup, ListGroup, Spinner } from 'react-bootstrap';
+import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-bootstrap';
 import {
     FaSearch, FaQrcode, FaCartPlus,
-    FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt
-     FaSearch, FaQrcode, FaCartPlus,
-    FaShoppingCart, FaUserCircle, FaTimes, FaMoneyBillWave, FaCreditCard, FaTicketAlt
+    FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
+    FaMoneyBillWave, FaCreditCard, FaTicketAlt
 } from 'react-icons/fa';
 import '../../assets/POS.css';
 import { getProductsByStore, getProduct } from '../../api/productApi';
 import { checkoutCart } from '../../api/transactionApi';
 import { getMyOpenShift, checkinShift, checkoutShift } from '../../api/shiftApi';
 import { getMySchedules } from '../../api/scheduleApi';
-import { getProductsByStore } from '../../api/productApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
 import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
@@ -51,6 +47,10 @@ const POS = () => {
 
     // Payment states
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
+    const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'bank_transfer'
+    const [paymentReference, setPaymentReference] = useState(''); // For bank transfer
+    const [paymentGiven, setPaymentGiven] = useState(''); // Cash amount given by customer
+    const [checkoutMessage, setCheckoutMessage] = useState(''); // Checkout status message
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
     const [cashPaymentData, setCashPaymentData] = useState(null);
@@ -225,12 +225,26 @@ const POS = () => {
 
     // Lọc sản phẩm dựa trên filter và search term
     const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchesCategory = activeFilter === 'Tất cả' || p.category === activeFilter;
-            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                  p.code.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
-        });
+        if (!products || products.length === 0) return [];
+        
+        let filtered = products;
+        
+        // Lọc theo category
+        if (activeFilter !== 'Tất cả') {
+            filtered = filtered.filter(p => p.category && p.category === activeFilter);
+        }
+        
+        // Lọc theo search term (chỉ khi có searchTerm)
+        if (searchTerm && searchTerm.trim()) {
+            const searchLower = searchTerm.toLowerCase().trim();
+            filtered = filtered.filter(p => {
+                const nameMatch = p.name && p.name.toLowerCase().includes(searchLower);
+                const codeMatch = p.code && p.code.toLowerCase().includes(searchLower);
+                return nameMatch || codeMatch;
+            });
+        }
+        
+        return filtered;
     }, [products, activeFilter, searchTerm]);
 
     // Thêm sản phẩm vào giỏ
@@ -623,8 +637,6 @@ const POS = () => {
             <div className="pos-main">
                 {/* Header */}
                 <header className="pos-header d-flex justify-content-between align-items-center">
-                <header className="pos-header">
-                    
                     <h2>CCMS System</h2>
                     <div className="d-flex align-items-center gap-2">
                         {isShiftActive ? (
@@ -683,22 +695,40 @@ const POS = () => {
 
                 {/* Product List */}
                 <div className="pos-product-list">
-                    {filteredProducts.map(product => (
-                        <div className="product-item" key={product.id}>
-                            <span className="product-name">{product.name}</span>
-                            {product.oldPrice && (
-                                <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
+                    {filteredProducts.length === 0 ? (
+                        <div className="text-center py-4 text-muted">
+                            <p>Không có sản phẩm nào</p>
+                            {products.length === 0 && (
+                                <small>Đang tải sản phẩm...</small>
                             )}
-                            <span className="product-price">{formatCurrency(product.price)}</span>
-                            <Button
-                                variant="light"
-                                className="btn-add-cart"
-                                onClick={() => handleAddToCart(product)}
-                            >
-                                <FaCartPlus />
-                            </Button>
+                            {products.length > 0 && !searchTerm && activeFilter === 'Tất cả' && (
+                                <small>Đã tải {products.length} sản phẩm nhưng không hiển thị. Vui lòng kiểm tra filter.</small>
+                            )}
+                            {products.length > 0 && searchTerm && (
+                                <small>Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</small>
+                            )}
+                            {products.length > 0 && !searchTerm && activeFilter !== 'Tất cả' && (
+                                <small>Không có sản phẩm nào trong danh mục "{activeFilter}"</small>
+                            )}
                         </div>
-                    ))}
+                    ) : (
+                        filteredProducts.map(product => (
+                            <div className="product-item" key={product.id}>
+                                <span className="product-name">{product.name}</span>
+                                {product.oldPrice && (
+                                    <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
+                                )}
+                                <span className="product-price">{formatCurrency(product.price)}</span>
+                                <Button
+                                    variant="light"
+                                    className="btn-add-cart"
+                                    onClick={() => handleAddToCart(product)}
+                                >
+                                    <FaCartPlus />
+                                </Button>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -1125,6 +1155,10 @@ const POS = () => {
                                         {paymentGiven ? formatCurrency(Math.max(Number(paymentGiven) - total, 0)) : formatCurrency(0)}
                                     </div>
                                 </div>
+                        </div>
+                    )}
+                    </div>
+
                     {/* Payment Method Selection */}
                     {cart.length > 0 && (
                         <div className="payment-method-section mt-2">
@@ -1153,40 +1187,8 @@ const POS = () => {
                     )}
 
                     <Button
-                        variant="primary"
-                        size="lg"
-                        className="w-100 mt-3"
-                        disabled={cart.length === 0 || !isShiftActive}
-                        onClick={async () => {
-                            setCheckoutMessage('');
-                            if (cart.length === 0) return;
-                            if (!isShiftActive) {
-                                setCheckoutMessage('Vui lòng check-in bắt đầu ca trước khi thanh toán');
-                                return;
-                            }
-
-                            // For cash, require paymentGiven and ensure >= total
-                            if (paymentMethod === 'cash') {
-                                const givenNum = Number(paymentGiven);
-                                if (!paymentGiven || isNaN(givenNum)) {
-                                    setCheckoutMessage('Vui lòng nhập số tiền khách đưa');
-                                    return;
-                                }
-                                if (givenNum < total) {
-                                    setCheckoutMessage('Số tiền khách đưa nhỏ hơn tổng đơn hàng');
-                                    return;
-                                }
-                            }
-
-                            if (paymentMethod === 'bank_transfer' && !paymentReference.trim()) {
-                                setCheckoutMessage('Vui lòng nhập mã giao dịch/chú thích chuyển khoản');
-                                return;
-                            }
-
-                            // Show confirmation modal
-                            setShowPaymentModal(true);
-                        }}
                         variant="success"
+                        size="lg"
                         className="w-100 mt-2"
                         disabled={cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
@@ -1219,61 +1221,6 @@ const POS = () => {
                 onComplete={handleCashPaymentComplete}
                 onPrintInvoice={handlePrintInvoice}
             />
-
-                            const storedStoreId = (() => {
-                                if (user && user.store_id) return user.store_id;
-                                try {
-                                    const persisted = localStorage.getItem('store_id');
-                                    if (persisted) return Number(persisted);
-                                } catch { }
-                                return 1;
-                            })();
-
-                            const given = paymentMethod === 'cash' ? givenNum : null;
-                            const change = paymentMethod === 'cash' ? Math.max(given - total, 0) : 0;
-
-                            const payload = {
-                                store_id: storedStoreId,
-                                shift_id: shiftId, // Gửi shift_id để gắn transaction vào ca
-                                customer_id: null,
-                                payment: {
-                                    method: paymentMethod,
-                                    amount: total,
-                                    status: paymentMethod === 'cash' ? 'completed' : 'pending',
-                                    paid_at: paymentMethod === 'cash' ? new Date() : null,
-                                    reference: paymentMethod === 'bank_transfer' ? (paymentReference || null) : null,
-                                    given_amount: paymentMethod === 'cash' ? given : null,
-                                    change_amount: paymentMethod === 'cash' ? change : null
-                                },
-                                items: cart.map(item => ({ product_id: item.id, quantity: item.qty, unit_price: item.price }))
-                            };
-
-                            const res = await checkoutCart(payload);
-                            if (res && res.err === 0) {
-                                const successMsg = paymentMethod === 'cash'
-                                    ? `Thanh toán thành công. Tiền thối: ${formatCurrency(change)}`
-                                    : 'Đã gửi yêu cầu thanh toán chuyển khoản (chờ xác nhận)';
-                                setCheckoutMessage(successMsg);
-
-                                // Cộng dồn doanh thu tiền mặt trong ca
-                                // Làm mới thông tin ca (lấy từ server)
-                                await refreshOpenShift();
-
-                                setCart([]);
-                                setPaymentReference('');
-                                setPaymentMethod('cash');
-                                setPaymentGiven('');
-                                setShowPaymentModal(false);
-                            } else {
-                                setCheckoutMessage(res?.msg || 'Thanh toán thất bại');
-                                setShowPaymentModal(false);
-                            }
-                        }}
-                    >
-                        Xác nhận thanh toán
-                    </Button>
-                </Modal.Footer>
-            </Modal>
 
             {/* Check-in Modal */}
             <Modal show={showCheckinModal} onHide={() => setShowCheckinModal(false)} centered>
