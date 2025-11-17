@@ -483,6 +483,49 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
     INDEX idx_store_order_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS CustomerVoucher (
+    customer_voucher_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NULL,
+    voucher_code VARCHAR(50) NOT NULL UNIQUE,
+    voucher_name VARCHAR(255) NOT NULL,
+    discount_type ENUM('percentage', 'fixed_amount') NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    min_purchase_amount DECIMAL(10, 2) DEFAULT 0,
+    max_discount_amount DECIMAL(10, 2) NULL,
+    required_loyalty_points INT DEFAULT 0 COMMENT 'Số điểm tích lũy tối thiểu để nhận voucher',
+    start_date DATETIME NOT NULL,
+    end_date DATETIME NOT NULL,
+    status ENUM('available', 'used', 'expired') DEFAULT 'available',
+    used_at DATETIME NULL,
+    transaction_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES Customer(customer_id) ON DELETE CASCADE,
+    INDEX idx_customer_voucher_customer (customer_id),
+    INDEX idx_customer_voucher_code (voucher_code),
+    INDEX idx_customer_voucher_status (status),
+    INDEX idx_customer_voucher_dates (start_date, end_date),
+    INDEX idx_customer_voucher_loyalty (required_loyalty_points)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tạo bảng VoucherTemplate để quản lý các mẫu voucher theo điểm
+CREATE TABLE IF NOT EXISTS VoucherTemplate (
+    voucher_template_id INT PRIMARY KEY AUTO_INCREMENT,
+    voucher_code_prefix VARCHAR(20) NOT NULL COMMENT 'Tiền tố mã voucher',
+    voucher_name VARCHAR(255) NOT NULL,
+    discount_type ENUM('percentage', 'fixed_amount') NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    min_purchase_amount DECIMAL(10, 2) DEFAULT 0,
+    max_discount_amount DECIMAL(10, 2) NULL,
+    required_loyalty_points INT DEFAULT 0 COMMENT 'Số điểm tích lũy tối thiểu để nhận voucher',
+    validity_days INT DEFAULT 30 COMMENT 'Số ngày voucher có hiệu lực',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_voucher_template_loyalty (required_loyalty_points),
+    INDEX idx_voucher_template_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =====================================================
 -- NOTES AND RECOMMENDATIONS
 -- =====================================================
