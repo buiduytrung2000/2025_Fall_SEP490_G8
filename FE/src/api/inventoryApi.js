@@ -89,10 +89,10 @@ export async function updateInventoryStock(inventoryId, stock, minStockLevel, re
 }
 
 /**
- * Get all warehouse inventory with filters
+ * Get all store inventory with filters (for viewing all stores' inventory)
  * For Warehouse staff
  */
-export async function getAllWarehouseInventory({ page = 1, limit = 10, storeId, categoryId, status, search } = {}) {
+export async function getAllStoreInventory({ page = 1, limit = 10, storeId, categoryId, status, search } = {}) {
     try {
         const params = new URLSearchParams({ page, limit });
         if (storeId) params.append('storeId', storeId);
@@ -112,13 +112,13 @@ export async function getAllWarehouseInventory({ page = 1, limit = 10, storeId, 
         
         return await res.json();
     } catch (error) {
-        console.error('Error fetching warehouse inventory:', error);
+        console.error('Error fetching store inventory:', error);
         return { err: -1, msg: 'Network error: ' + error.message };
     }
 }
 
 /**
- * Get inventory detail by ID
+ * Get store inventory detail by ID
  * For Warehouse staff
  */
 export async function getInventoryDetail(inventoryId) {
@@ -141,7 +141,7 @@ export async function getInventoryDetail(inventoryId) {
 }
 
 /**
- * Get inventory statistics
+ * Get store inventory statistics
  * For Warehouse staff
  */
 export async function getInventoryStatistics(storeId) {
@@ -193,7 +193,7 @@ export async function getLowStockItems({ storeId, page = 1, limit = 10 } = {}) {
 }
 
 /**
- * Update inventory settings (min_stock_level, reorder_point)
+ * Update store inventory settings (min_stock_level, reorder_point)
  * For Warehouse staff
  */
 export async function updateInventorySettings(inventoryId, { min_stock_level, reorder_point }) {
@@ -217,7 +217,7 @@ export async function updateInventorySettings(inventoryId, { min_stock_level, re
 }
 
 /**
- * Adjust stock manually
+ * Adjust store stock manually
  * For Warehouse staff
  */
 export async function adjustStock(inventoryId, { adjustment, reason }) {
@@ -236,6 +236,156 @@ export async function adjustStock(inventoryId, { adjustment, reason }) {
         return await res.json();
     } catch (error) {
         console.error('Error adjusting stock:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// =====================================================
+// WAREHOUSE INVENTORY APIs (Separate from Store Inventory)
+// =====================================================
+
+/**
+ * Get all warehouse inventory with filters
+ * For Warehouse staff
+ */
+export async function getAllWarehouseInventory({ page = 1, limit = 10, categoryId, status, search } = {}) {
+    try {
+        const params = new URLSearchParams({ page, limit });
+        if (categoryId) params.append('categoryId', categoryId);
+        if (status) params.append('status', status);
+        if (search) params.append('search', search);
+
+        const res = await fetch(`${API_BASE}/warehouse-inventory?${params}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching warehouse inventory:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Get warehouse inventory detail by ID
+ * For Warehouse staff
+ */
+export async function getWarehouseInventoryDetail(inventoryId) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-inventory/${inventoryId}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching warehouse inventory detail:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Get warehouse inventory statistics
+ * For Warehouse staff
+ */
+export async function getWarehouseInventoryStatistics() {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-inventory/statistics`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching warehouse inventory statistics:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Update warehouse inventory settings
+ * For Warehouse staff
+ */
+export async function updateWarehouseInventorySettings(inventoryId, { min_stock_level, reorder_point, location, notes }) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-inventory/${inventoryId}`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ min_stock_level, reorder_point, location, notes })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error updating warehouse inventory settings:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Adjust warehouse stock manually
+ * For Warehouse staff
+ */
+export async function adjustWarehouseStock(inventoryId, { adjustment, reason }) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-inventory/${inventoryId}/adjust`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ adjustment, reason })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error adjusting warehouse stock:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Create warehouse inventory
+ * For Warehouse staff
+ */
+export async function createWarehouseInventory({ product_id, stock, min_stock_level, reorder_point, location, notes }) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-inventory`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ product_id, stock, min_stock_level, reorder_point, location, notes })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error('Error creating warehouse inventory:', error);
         return { err: -1, msg: 'Network error: ' + error.message };
     }
 }

@@ -322,3 +322,47 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
     }
 });
 
+// Update store order status (for store to mark as delivered)
+export const updateStoreOrderStatus = ({ orderId, status, updatedBy }) => new Promise(async (resolve, reject) => {
+    try {
+        const order = await db.StoreOrder.findByPk(orderId);
+
+        if (!order) {
+            return resolve({
+                err: 1,
+                msg: 'Order not found'
+            });
+        }
+
+        // Only allow updating to 'delivered' when current status is 'shipped'
+        if (order.status !== 'shipped') {
+            return resolve({
+                err: 1,
+                msg: `Chỉ có thể xác nhận đã nhận hàng khi đơn hàng ở trạng thái "shipped". Trạng thái hiện tại: ${order.status}`
+            });
+        }
+
+        if (status !== 'delivered') {
+            return resolve({
+                err: 1,
+                msg: 'Store can only update status to "delivered"'
+            });
+        }
+
+        // Update order status
+        await order.update({
+            status: 'delivered',
+            updated_at: new Date()
+        });
+
+        resolve({
+            err: 0,
+            msg: 'Cập nhật trạng thái đơn hàng thành công',
+            data: order
+        });
+    } catch (error) {
+        console.error('Error updating store order status:', error);
+        reject(error);
+    }
+});
+

@@ -509,41 +509,43 @@ const OrderShipment = () => {
           </Grid>
 
           {/* Right Column - Action */}
-          <Grid item xs={12} lg={4}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Thao tác xuất kho
-              </Typography>
-              <Divider sx={{ my: 2 }} />
+          {order.status !== 'shipped' && (
+            <Grid item xs={12} lg={4}>
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                  Thao tác xuất kho
+                </Typography>
+                <Divider sx={{ my: 2 }} />
 
-              {canProceed ? (
-                <>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
+                {canProceed ? (
+                  <>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
+                    </Alert>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={getStatusActionIcon(next)}
+                      onClick={handleOpenConfirmDialog}
+                      sx={{ py: 1.5, fontWeight: 600 }}
+                    >
+                      {getStatusActionLabel(next)}
+                    </Button>
+                  </>
+                ) : order.status === 'delivered' ? (
+                  <Alert severity="success">
+                    ✅ Đơn hàng đã được giao thành công vào {formatDate(order.updated_at)}
                   </Alert>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="primary"
-                    size="large"
-                    startIcon={getStatusActionIcon(next)}
-                    onClick={handleOpenConfirmDialog}
-                    sx={{ py: 1.5, fontWeight: 600 }}
-                  >
-                    {getStatusActionLabel(next)}
-                  </Button>
-                </>
-              ) : order.status === 'delivered' ? (
-                <Alert severity="success">
-                  ✅ Đơn hàng đã được giao thành công vào {formatDate(order.updated_at)}
-                </Alert>
-              ) : (
-                <Alert severity="info">
-                  Đơn hàng đang trong quá trình xử lý
-                </Alert>
-              )}
-            </Paper>
-          </Grid>
+                ) : (
+                  <Alert severity="info">
+                    Đơn hàng đang trong quá trình xử lý
+                  </Alert>
+                )}
+              </Paper>
+            </Grid>
+          )}
         </Grid>
       </Box>
 

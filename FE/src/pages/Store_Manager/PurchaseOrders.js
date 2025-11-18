@@ -26,7 +26,7 @@ import {
   useTheme
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
-import { createStoreOrder, getStoreOrders } from '../../api/storeOrderApi';
+import { createStoreOrder, getStoreOrders, updateStoreOrderStatus } from '../../api/storeOrderApi';
 import { toast } from 'react-toastify';
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
@@ -45,6 +45,7 @@ const PurchaseOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
 
@@ -188,6 +189,35 @@ const PurchaseOrders = () => {
       order_type: typeFilter
     }).then(setOrders);
   }, [statusFilter, typeFilter]);
+
+  const handleConfirmReceived = async () => {
+    if (!selectedOrder) return;
+    
+    if (!window.confirm(`Bạn có chắc chắn đã nhận hàng cho đơn hàng #${selectedOrder.store_order_id}?`)) {
+      return;
+    }
+
+    setUpdatingStatus(true);
+    try {
+      const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered');
+      if (response.err === 0) {
+        toast.success('Xác nhận đã nhận hàng thành công!');
+        // Reload orders
+        getStoreOrders({
+          status: statusFilter,
+          order_type: typeFilter
+        }).then(setOrders);
+        // Update selected order
+        setSelectedOrder({ ...selectedOrder, status: 'delivered' });
+      } else {
+        toast.error(response.msg || 'Không thể cập nhật trạng thái đơn hàng');
+      }
+    } catch (error) {
+      toast.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
@@ -545,7 +575,18 @@ const PurchaseOrders = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenModal(false)} variant="outlined">
+          {selectedOrder?.status === 'shipped' && (
+            <Button 
+              onClick={handleConfirmReceived} 
+              variant="contained" 
+              color="success"
+              disabled={updatingStatus}
+              sx={{ mr: 'auto' }}
+            >
+              {updatingStatus ? 'Đang xử lý...' : 'Đã nhận hàng'}
+            </Button>
+          )}
+          <Button onClick={() => setOpenModal(false)} variant="outlined" disabled={updatingStatus}>
             Đóng
           </Button>
         </DialogActions>

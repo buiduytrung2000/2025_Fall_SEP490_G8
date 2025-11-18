@@ -153,3 +153,39 @@ export const getStoreOrders = async (req, res) => {
     }
 };
 
+// Update store order status (for store to mark as delivered)
+export const updateStoreOrderStatus = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
+
+        if (!orderId || !status) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required inputs: order ID and status'
+            });
+        }
+
+        // Only allow store to update status to 'delivered' when current status is 'shipped'
+        if (status !== 'delivered') {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Store can only update status to "delivered"'
+            });
+        }
+
+        const response = await storeOrderService.updateStoreOrderStatus({
+            orderId: parseInt(orderId),
+            status,
+            updatedBy: req.user?.user_id
+        });
+
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at store order controller: ' + error.message
+        });
+    }
+};
+

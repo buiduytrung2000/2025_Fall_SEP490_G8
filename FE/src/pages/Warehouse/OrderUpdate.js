@@ -351,103 +351,105 @@ const OrderUpdate = () => {
           </Grid>
 
           {/* Right Column - Actions */}
-          <Grid item xs={12} lg={4}>
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Thao tác
-              </Typography>
-              <Divider sx={{ my: 2 }} />
+          {order.status !== 'delivered' && (
+            <Grid item xs={12} lg={4}>
+              <Paper sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom>
+                  Thao tác
+                </Typography>
+                <Divider sx={{ my: 2 }} />
 
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Ngày giao dự kiến
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    type="datetime-local"
-                    size="small"
-                    value={newDeliveryDate}
-                    onChange={(e) => setNewDeliveryDate(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Box>
-                {/* 
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Ghi chú phản hồi
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={3}
-                    size="small"
-                    placeholder="Nhập ghi chú..."
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                  />
-                </Box> */}
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Ngày giao dự kiến
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="datetime-local"
+                      size="small"
+                      value={newDeliveryDate}
+                      onChange={(e) => setNewDeliveryDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Box>
+                  {/* 
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Ghi chú phản hồi
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={3}
+                      size="small"
+                      placeholder="Nhập ghi chú..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                  </Box> */}
 
-                <Divider />
+                  <Divider />
 
-                {/* Single Update Button */}
-                {isPending && (
-                  <>
+                  {/* Single Update Button */}
+                  {isPending && (
+                    <>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        size="large"
+                        startIcon={<CheckIcon />}
+                        onClick={() => setConfirmDialog(true)}
+                        sx={{ py: 1.5, fontWeight: 600 }}
+                      >
+                        Xác nhận đơn hàng
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        color="error"
+                        size="large"
+                        startIcon={<CancelIcon />}
+                        onClick={() => setRejectDialog(true)}
+                        sx={{ py: 1.5, fontWeight: 600 }}
+                      >
+                        Từ chối đơn hàng
+                      </Button>
+                    </>
+                  )}
+
+                  {canShip && (
+                    <Link to={`/warehouse/order-shipment/${id}`}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="primary"
+                        size="large"
+                        startIcon={<ShippingIcon />}
+                        sx={{ py: 1.5, fontWeight: 600 }}
+                      >
+                        Chuyển sang xuất hàng
+                      </Button>
+                    </Link>
+                  )}
+
+                  {!isPending && !canShip && (
                     <Button
                       fullWidth
                       variant="contained"
-                      color="success"
                       size="large"
-                      startIcon={<CheckIcon />}
-                      onClick={() => setConfirmDialog(true)}
+                      onClick={handleUpdateDelivery}
+                      disabled={updating}
                       sx={{ py: 1.5, fontWeight: 600 }}
                     >
-                      Xác nhận đơn hàng
+                      Cập nhật ngày giao
                     </Button>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      color="error"
-                      size="large"
-                      startIcon={<CancelIcon />}
-                      onClick={() => setRejectDialog(true)}
-                      sx={{ py: 1.5, fontWeight: 600 }}
-                    >
-                      Từ chối đơn hàng
-                    </Button>
-                  </>
-                )}
-
-                {canShip && (
-                  <Link to={`/warehouse/order-shipment/${id}`}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      color="primary"
-                      size="large"
-                      startIcon={<ShippingIcon />}
-                      sx={{ py: 1.5, fontWeight: 600 }}
-                    >
-                      Chuyển sang xuất hàng
-                    </Button>
-                  </Link>
-                )}
-
-                {!isPending && !canShip && (
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    onClick={handleUpdateDelivery}
-                    disabled={updating}
-                    sx={{ py: 1.5, fontWeight: 600 }}
-                  >
-                    Cập nhật ngày giao
-                  </Button>
-                )}
-              </Stack>
-            </Paper>
-          </Grid>
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+          )}
         </Grid>
       </Box>
 

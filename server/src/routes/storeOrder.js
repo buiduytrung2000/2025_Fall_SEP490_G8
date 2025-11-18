@@ -10,5 +10,8 @@ router.post('/', verifyToken, storeOrderController.createStoreOrder);
 // Get store orders
 router.get('/', verifyToken, storeOrderController.getStoreOrders);
 
+// Update store order status (for store to mark as delivered)
+router.patch('/:orderId/status', verifyToken, storeOrderController.updateStoreOrderStatus);
+
 export default router;
 

@@ -18,10 +18,7 @@ import {
   TablePagination,
   IconButton,
   Tooltip,
-  CircularProgress,
-  Card,
-  CardContent,
-  Grid
+  CircularProgress
 } from '@mui/material';
 import {
   Visibility as ViewIcon,
@@ -30,7 +27,7 @@ import {
   LocalShipping as ShippingIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
-import { getAllWarehouseOrders, getOrderStatistics } from '../../api/warehouseOrderApi';
+import { getAllWarehouseOrders } from '../../api/warehouseOrderApi';
 
 const statusColors = {
   pending: 'warning',
@@ -70,7 +67,6 @@ const BranchOrders = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalOrders, setTotalOrders] = useState(0);
-  const [statistics, setStatistics] = useState(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -99,24 +95,9 @@ const BranchOrders = () => {
     }
   };
 
-  const loadStatistics = async () => {
-    try {
-      const response = await getOrderStatistics();
-      if (response.err === 0) {
-        setStatistics(response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load statistics:', error);
-    }
-  };
-
   useEffect(() => {
     loadOrders();
   }, [page, rowsPerPage, statusFilter]);
-
-  useEffect(() => {
-    loadStatistics();
-  }, []);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -145,7 +126,6 @@ const BranchOrders = () => {
     setStatusFilter('');
     setSearchTerm('');
     loadOrders();
-    loadStatistics();
   };
 
   return (
@@ -172,60 +152,6 @@ const BranchOrders = () => {
           </IconButton>
         </Tooltip>
       </Stack>
-
-      {/* Statistics Cards */}
-      {statistics && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" variant="body2">
-                  Tổng đơn hàng
-                </Typography>
-                <Typography variant="h4" fontWeight={700}>
-                  {statistics.totalOrders}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" variant="body2">
-                  Tổng giá trị
-                </Typography>
-                <Typography variant="h5" fontWeight={700} color="primary">
-                  {formatVnd(statistics.totalAmount)}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: 'warning.light' }}>
-              <CardContent>
-                <Typography color="text.secondary" variant="body2">
-                  Chờ xử lý
-                </Typography>
-                <Typography variant="h4" fontWeight={700}>
-                  {statistics.byStatus?.find(s => s.status === 'pending')?.count || 0}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: 'success.light' }}>
-              <CardContent>
-                <Typography color="text.secondary" variant="body2">
-                  Đã giao
-                </Typography>
-                <Typography variant="h4" fontWeight={700}>
-                  {statistics.byStatus?.find(s => s.status === 'delivered')?.count || 0}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
 
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 2 }}>

@@ -259,8 +259,8 @@ const InventoryList = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                inventory.map((item) => (
-                  <TableRow key={item.inventory_id} hover>
+                inventory.map((item, index) => (
+                  <TableRow key={item.warehouse_inventory_id || item.inventory_id || `inventory-${index}`} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight={600}>
                         {item.product?.sku}

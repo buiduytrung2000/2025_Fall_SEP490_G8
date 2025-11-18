@@ -79,3 +79,25 @@ export async function getStoreOrders(filters = {}) {
     }
 }
 
+// Update store order status (for store to mark as delivered)
+export async function updateStoreOrderStatus(orderId, status) {
+    try {
+        const res = await fetch(`${API_BASE}/store-order/${orderId}/status`, {
+            method: 'PATCH',
+            headers: getHeaders(),
+            body: JSON.stringify({ status })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error updating store order status:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
