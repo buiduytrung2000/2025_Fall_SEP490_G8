@@ -79,6 +79,32 @@
     transition: opacity 0.2s ease, padding 0.3s ease;
 }
 
+/* --- Nav Links Container --- */
+.sidebar-nav {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0; /* Cho phép flex item co lại */
+}
+
+/* Custom scrollbar styling */
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background: #5c607a;
+    border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: #767a92;
+}
+
 /* --- Nav Links --- */
 .sidebar-nav .nav-link {
     color: #9a9cae;

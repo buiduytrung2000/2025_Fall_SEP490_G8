@@ -86,6 +86,107 @@ export async function getProductsForPriceManagement(query = {}) {
     }
 }
 
+// CREATE PRODUCT
+export async function createProduct(productData) {
+    try {
+        const token = getAuthToken();
+        if (!token) {
+            return { err: 1, msg: 'Missing access token. Please login again.' };
+        }
+
+        const res = await fetch(`${API_BASE}/product`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(productData)
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// UPDATE PRODUCT
+export async function updateProduct(productId, productData) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/product/${productId}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(productData)
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// DELETE PRODUCT
+export async function deleteProduct(productId) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/product/${productId}`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// CATEGORY APIs
+export async function getAllCategories() {
+    try {
+        const res = await fetch(`${API_BASE}/category`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: [] };
+    }
+}
+
+// SUPPLIER APIs
+export async function getAllSuppliers() {
+    try {
+        const res = await fetch(`${API_BASE}/supplier`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: [] };
+    }
+}
+
 // PRICING RULE APIs
 export async function getAllPricingRules(query = {}) {
     try {

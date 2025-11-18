@@ -1,16 +1,20 @@
 // src/pages/Warehouse/ProductManagement.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Spinner } from 'react-bootstrap';
-import { getProducts } from '../../api/mockApi';
+import { Spinner, Alert } from 'react-bootstrap';
+import { getAllProducts, createProduct, updateProduct, deleteProduct, getAllCategories, getAllSuppliers } from '../../api/productApi';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
-import { Box, IconButton } from '@mui/material';
+import { Box, IconButton, Button } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 import AddIcon from '@mui/icons-material/Add';
 
 // Hàm helper format tiền
@@ -19,87 +23,243 @@ const formatCurrency = (number) =>
 
 const ProductManagement = () => {
     const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
-    const [editData, setEditData] = useState({ id: null, code: '', name: '', price: '', stock: '' });
+    const [editData, setEditData] = useState({ 
+        product_id: null, 
+        sku: '', 
+        name: '', 
+        hq_price: '', 
+        category_id: '',
+        supplier_id: '',
+        description: ''
+    });
     const [isEditMode, setIsEditMode] = useState(false);
+    const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
 
+    // Load products, categories, suppliers
     useEffect(() => {
-        getProducts().then(data => {
-            setProducts(data);
-            setLoading(false);
-        });
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const [productsRes, categoriesRes, suppliersRes] = await Promise.all([
+                getAllProducts(),
+                getAllCategories(),
+                getAllSuppliers()
+            ]);
+
+            if (productsRes.err === 0) {
+                setProducts(productsRes.data || []);
+            } else {
+                setError(productsRes.msg || 'Không thể tải danh sách sản phẩm');
+            }
+
+            if (categoriesRes.err === 0) {
+                setCategories(categoriesRes.data || []);
+            }
+
+            if (suppliersRes.err === 0) {
+                setSuppliers(suppliersRes.data || []);
+            }
+        } catch (err) {
+            setError('Lỗi khi tải dữ liệu: ' + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleDeleteClick = (product) => {
         setSelectedProduct(product);
         setShowModal(true);
     };
 
-    const confirmDelete = () => {
-        console.log("Deleting product:", selectedProduct.name);
-        // Add logic to call delete API here
+    const confirmDelete = async () => {
+        if (!selectedProduct) return;
+        
+        setError(null);
+        setSuccess(null);
+        
+        try {
+            const result = await deleteProduct(selectedProduct.product_id);
+            if (result.err === 0) {
+                setSuccess('Xóa sản phẩm thành công');
+                await loadData();
+            } else {
+                setError(result.msg || 'Không thể xóa sản phẩm');
+            }
+        } catch (err) {
+            setError('Lỗi khi xóa sản phẩm: ' + err.message);
+        }
+        
         setShowModal(false);
         setSelectedProduct(null);
     };
 
     const handleOpenAdd = () => {
-        setEditData({ id: null, code: '', name: '', price: '', stock: '' });
+        setEditData({ 
+            product_id: null, 
+            sku: '', 
+            name: '', 
+            hq_price: '', 
+            category_id: '',
+            supplier_id: '',
+            description: ''
+        });
         setIsEditMode(false);
+        setError(null);
+        setSuccess(null);
         setShowEditDialog(true);
     };
-    const handleOpenEdit = prod => {
-        setEditData({ ...prod });
+
+    const handleOpenEdit = (prod) => {
+        setEditData({ 
+            product_id: prod.product_id,
+            sku: prod.sku || '', 
+            name: prod.name || '', 
+            hq_price: prod.hq_price || '', 
+            category_id: prod.category_id || '',
+            supplier_id: prod.supplier_id || '',
+            description: prod.description || ''
+        });
         setIsEditMode(true);
+        setError(null);
+        setSuccess(null);
         setShowEditDialog(true);
     };
-    const handleCloseEditDialog = () => setShowEditDialog(false);
-    const handleEditField = e => setEditData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    const handleSaveProduct = e => {
-        e.preventDefault();
-        if (isEditMode) {
-            setProducts(ps => ps.map(item => item.id === editData.id ? { ...editData, price: parseInt(editData.price), stock: parseInt(editData.stock) } : item));
-        } else {
-            const newId = products.length > 0 ? Math.max(...products.map(p => p.id))+1 : 1;
-            setProducts(ps => [{ ...editData, id: newId, price: parseInt(editData.price), stock: parseInt(editData.stock) }, ...ps]);
-        }
+
+    const handleCloseEditDialog = () => {
         setShowEditDialog(false);
+        setError(null);
+        setSuccess(null);
+    };
+
+    const handleEditField = (e) => {
+        const { name, value } = e.target;
+        setEditData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveProduct = async (e) => {
+        e.preventDefault();
+        setError(null);
+        setSuccess(null);
+
+        // Validate required fields
+        if (!editData.sku || !editData.name) {
+            setError('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
+            return;
+        }
+
+        try {
+            const productData = {
+                sku: editData.sku.trim(),
+                name: editData.name.trim(),
+                hq_price: parseFloat(editData.hq_price) || 0,
+                category_id: editData.category_id || null,
+                supplier_id: editData.supplier_id || null,
+                description: editData.description?.trim() || null
+            };
+
+            let result;
+            if (isEditMode) {
+                result = await updateProduct(editData.product_id, productData);
+                if (result.err === 0) {
+                    setSuccess('Cập nhật sản phẩm thành công');
+                    await loadData();
+                    setShowEditDialog(false);
+                } else {
+                    setError(result.msg || 'Không thể cập nhật sản phẩm');
+                }
+            } else {
+                result = await createProduct(productData);
+                if (result.err === 0) {
+                    setSuccess('Thêm sản phẩm thành công');
+                    await loadData();
+                    setShowEditDialog(false);
+                } else {
+                    setError(result.msg || 'Không thể thêm sản phẩm');
+                }
+            }
+        } catch (err) {
+            setError('Lỗi khi lưu sản phẩm: ' + err.message);
+        }
     };
 
     // Định nghĩa cột
     const columns = useMemo(
         () => [
             {
-                accessorKey: 'code',
-                header: 'Mã SP',
-                size: 100,
+                accessorKey: 'sku',
+                header: 'Mã SKU',
+                size: 120,
             },
             {
                 accessorKey: 'name',
                 header: 'Tên sản phẩm',
+                size: 200,
             },
             {
-                accessorKey: 'price',
-                header: 'Giá bán',
-                // Custom cell render để format tiền
-                Cell: ({ cell }) => formatCurrency(cell.getValue()),
+                accessorKey: 'hq_price',
+                header: 'Giá HQ',
+                size: 120,
+                Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
             },
             {
-                accessorKey: 'stock',
-                header: 'Tồn kho',
-                size: 100,
+                accessorKey: 'category.name',
+                header: 'Danh mục',
+                size: 150,
+                Cell: ({ row }) => row.original.category?.name || '-',
+            },
+            {
+                accessorKey: 'supplier.name',
+                header: 'Nhà cung cấp',
+                size: 150,
+                Cell: ({ row }) => row.original.supplier?.name || '-',
+            },
+            {
+                accessorKey: 'description',
+                header: 'Mô tả',
+                size: 200,
+                Cell: ({ cell }) => {
+                    const desc = cell.getValue();
+                    return desc ? (desc.length > 50 ? desc.substring(0, 50) + '...' : desc) : '-';
+                },
             },
         ],
         [],
     );
 
-    if (loading) return <Spinner animation="border" />;
+    if (loading) {
+        return (
+            <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+                <Spinner animation="border" />
+            </div>
+        );
+    }
 
     return (
-        <div>
-            {/* Modal vẫn dùng của React Bootstrap */}
+        <div style={{ padding: '20px' }}>
+            {/* Thông báo lỗi/thành công */}
+            {error && (
+                <Alert variant="danger" dismissible onClose={() => setError(null)} style={{ marginBottom: '20px' }}>
+                    {error}
+                </Alert>
+            )}
+            {success && (
+                <Alert variant="success" dismissible onClose={() => setSuccess(null)} style={{ marginBottom: '20px' }}>
+                    {success}
+                </Alert>
+            )}
+
+            {/* Modal xác nhận xóa */}
             <ConfirmationModal
                 show={showModal}
                 onHide={() => setShowModal(false)}
@@ -140,14 +300,98 @@ const ProductManagement = () => {
                 }}
             />
             {/* Dialog Thêm/Sửa */}
-            <Dialog open={showEditDialog} onClose={handleCloseEditDialog} fullWidth maxWidth="xs">
+            <Dialog open={showEditDialog} onClose={handleCloseEditDialog} fullWidth maxWidth="sm">
                 <form onSubmit={handleSaveProduct}>
                     <DialogTitle>{isEditMode ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}</DialogTitle>
                     <DialogContent dividers>
-                        <TextField label="Mã sản phẩm" name="code" value={editData.code} required onChange={handleEditField} fullWidth margin="normal" />
-                        <TextField label="Tên sản phẩm" name="name" value={editData.name} required onChange={handleEditField} fullWidth margin="normal" />
-                        <TextField label="Giá bán" name="price" type="number" value={editData.price} required inputProps={{ min: 0 }} onChange={handleEditField} fullWidth margin="normal" />
-                        <TextField label="Tồn kho" name="stock" type="number" value={editData.stock} required inputProps={{ min: 0 }} onChange={handleEditField} fullWidth margin="normal" />
+                        {error && (
+                            <Alert variant="danger" style={{ marginBottom: '15px' }}>
+                                {error}
+                            </Alert>
+                        )}
+                        {success && (
+                            <Alert variant="success" style={{ marginBottom: '15px' }}>
+                                {success}
+                            </Alert>
+                        )}
+                        <TextField 
+                            label="Mã SKU" 
+                            name="sku" 
+                            value={editData.sku} 
+                            required 
+                            onChange={handleEditField} 
+                            fullWidth 
+                            margin="normal"
+                            disabled={isEditMode}
+                            helperText={isEditMode ? "Không thể thay đổi mã SKU" : ""}
+                        />
+                        <TextField 
+                            label="Tên sản phẩm" 
+                            name="name" 
+                            value={editData.name} 
+                            required 
+                            onChange={handleEditField} 
+                            fullWidth 
+                            margin="normal" 
+                        />
+                        <TextField 
+                            label="Giá HQ (VND)" 
+                            name="hq_price" 
+                            type="number" 
+                            value={editData.hq_price} 
+                            required 
+                            inputProps={{ min: 0, step: 1000 }} 
+                            onChange={handleEditField} 
+                            fullWidth 
+                            margin="normal"
+                            helperText="Giá tại trụ sở chính"
+                        />
+                        <FormControl fullWidth margin="normal">
+                            <InputLabel>Danh mục</InputLabel>
+                            <Select
+                                name="category_id"
+                                value={editData.category_id || ''}
+                                onChange={handleEditField}
+                                label="Danh mục"
+                            >
+                                <MenuItem value="">
+                                    <em>Không chọn</em>
+                                </MenuItem>
+                                {categories.map((cat) => (
+                                    <MenuItem key={cat.category_id} value={cat.category_id}>
+                                        {cat.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth margin="normal">
+                            <InputLabel>Nhà cung cấp</InputLabel>
+                            <Select
+                                name="supplier_id"
+                                value={editData.supplier_id || ''}
+                                onChange={handleEditField}
+                                label="Nhà cung cấp"
+                            >
+                                <MenuItem value="">
+                                    <em>Không chọn</em>
+                                </MenuItem>
+                                {suppliers.map((sup) => (
+                                    <MenuItem key={sup.supplier_id} value={sup.supplier_id}>
+                                        {sup.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField 
+                            label="Mô tả" 
+                            name="description" 
+                            value={editData.description} 
+                            onChange={handleEditField} 
+                            fullWidth 
+                            margin="normal"
+                            multiline
+                            rows={3}
+                        />
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseEditDialog} color="secondary" variant="outlined">Huỷ</Button>
