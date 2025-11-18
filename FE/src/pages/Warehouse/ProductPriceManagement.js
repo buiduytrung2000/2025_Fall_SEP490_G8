@@ -354,16 +354,29 @@ const ProductPriceManagement = () => {
         }
     };
 
-    const handleDeleteRule = async (ruleId) => {
+    const handleDeleteRule = async (ruleId, productId = null) => {
         if (!window.confirm('Bạn có chắc chắn muốn xóa quy tắc giá này?')) return;
         
         try {
             const response = await deletePricingRule(ruleId);
             if (response.err === 0) {
                 toast.success('Xóa quy tắc giá thành công');
-                if (selectedProduct) {
-                    await loadPriceHistory(selectedProduct.product_id);
+                
+                // Xác định productId từ tham số hoặc từ selectedProduct
+                const targetProductId = productId || (selectedProduct?.product_id || selectedProduct?.id);
+                
+                // Cập nhật realtime số quy tắc
+                if (selectedProducts.length === 1 && targetProductId) {
+                    // Nếu chỉ có 1 sản phẩm được chọn, reload lịch sử
+                    await loadPriceHistory(targetProductId);
+                } else if (selectedProducts.length > 1) {
+                    // Nếu có nhiều sản phẩm, cập nhật lịch sử cho tất cả
+                    await loadPriceHistories(selectedProducts);
+                } else if (targetProductId) {
+                    // Nếu có productId nhưng không có trong selectedProducts, reload riêng
+                    await loadPriceHistory(targetProductId);
                 }
+                
                 // Reload products to show updated prices
                 await loadProducts();
             } else {
@@ -985,7 +998,7 @@ const ProductPriceManagement = () => {
                                                                             <IconButton 
                                                                                 color="error" 
                                                                                 size="small"
-                                                                                onClick={() => handleDeleteRule(rule.rule_id)}
+                                                                                onClick={() => handleDeleteRule(rule.rule_id, selectedProduct?.product_id || selectedProduct?.id)}
                                                                                 title="Xóa"
                                                                             >
                                                                                 <DeleteIcon fontSize="small" />
@@ -1103,7 +1116,7 @@ const ProductPriceManagement = () => {
                                                                                     size="small"
                                                                                     onClick={() => {
                                                                                         setSelectedProduct(product);
-                                                                                        handleDeleteRule(rule.rule_id);
+                                                                                        handleDeleteRule(rule.rule_id, product.product_id || product.id);
                                                                                     }}
                                                                                     title="Xóa"
                                                                                 >

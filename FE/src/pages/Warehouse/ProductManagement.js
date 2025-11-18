@@ -1,6 +1,6 @@
 // src/pages/Warehouse/ProductManagement.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { Spinner, Alert } from 'react-bootstrap';
+import { Alert } from 'react-bootstrap';
 import { getAllProducts, createProduct, updateProduct, deleteProduct, getAllCategories, getAllSuppliers } from '../../api/productApi';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
@@ -25,7 +25,6 @@ const ProductManagement = () => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
@@ -48,7 +47,6 @@ const ProductManagement = () => {
     }, []);
 
     const loadData = async () => {
-        setLoading(true);
         setError(null);
         try {
             const [productsRes, categoriesRes, suppliersRes] = await Promise.all([
@@ -72,8 +70,6 @@ const ProductManagement = () => {
             }
         } catch (err) {
             setError('Lỗi khi tải dữ liệu: ' + err.message);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -236,14 +232,6 @@ const ProductManagement = () => {
         ],
         [],
     );
-
-    if (loading) {
-        return (
-            <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
-                <Spinner animation="border" />
-            </div>
-        );
-    }
 
     return (
         <div style={{ padding: '20px' }}>
