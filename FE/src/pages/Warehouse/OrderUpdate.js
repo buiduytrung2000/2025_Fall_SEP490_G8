@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -8,8 +8,6 @@ import {
   Stack,
   Divider,
   Grid,
-  Card,
-  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -18,44 +16,39 @@ import {
   TableRow,
   Chip,
   TextField,
-  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
   CircularProgress,
   Alert
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
-  Edit as EditIcon,
-  Save as SaveIcon,
-  Cancel as CancelIcon
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
+  LocalShipping as ShippingIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import {
   getWarehouseOrderDetail,
   updateWarehouseOrderStatus,
-  updateExpectedDelivery,
-  updateOrderItemQuantity
+  updateExpectedDelivery
 } from '../../api/warehouseOrderApi';
-
-// =====================================================
-// CONSTANTS
-// =====================================================
 
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
+  preparing: 'secondary',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error'
 };
 
 const statusLabels = {
-  pending: 'Chờ xử lý',
+  pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
+  preparing: 'Đang chuẩn bị',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
@@ -66,85 +59,37 @@ const formatDate = (dateString) => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   return date.toLocaleDateString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
     day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
   });
 };
 
-// =====================================================
-// COMPONENT
-// =====================================================
-
 const OrderUpdate = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // State management
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-
-  // Dialogs
-  const [statusDialog, setStatusDialog] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState(false);
   const [deliveryDialog, setDeliveryDialog] = useState(false);
-
-  // Form states
-  const [newStatus, setNewStatus] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
-
-  // Editable quantities
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [editingQuantity, setEditingQuantity] = useState('');
-
-  // =====================================================
-  // HELPER FUNCTIONS
-  // =====================================================
-
-  const getAvailableStatuses = (currentStatus) => {
-    const statusFlow = {
-      pending: ['confirmed', 'cancelled'],
-      confirmed: ['pending', 'shipped', 'cancelled'],
-      shipped: ['confirmed', 'delivered', 'cancelled'],
-      delivered: ['shipped'],
-      cancelled: ['pending']
-    };
-    return statusFlow[currentStatus] || [];
-  };
-
-  const getStatusTransitionMessage = (currentStatus, newStatus) => {
-    const messages = {
-      'pending_confirmed': '✅ Xác nhận đơn hàng và chuẩn bị xuất kho',
-      'pending_cancelled': '❌ Hủy đơn hàng',
-      'confirmed_pending': '⚠️ Chuyển ngược về chờ xử lý (có thể chỉnh sửa lại)',
-      'confirmed_shipped': '🚚 Đơn hàng đang được vận chuyển đến chi nhánh',
-      'confirmed_cancelled': '❌ Hủy đơn hàng đã xác nhận',
-      'shipped_confirmed': '⚠️ Chuyển ngược về đã xác nhận (đã hủy vận chuyển)',
-      'shipped_delivered': '✅ Xác nhận giao hàng thành công. Hệ thống sẽ tự động cập nhật tồn kho.',
-      'shipped_cancelled': '❌ Hủy đơn đang giao',
-      'delivered_shipped': '⚠️ Chuyển ngược về đang giao. Tồn kho sẽ được điều chỉnh lại.',
-      'cancelled_pending': '🔄 Kích hoạt lại đơn hàng đã hủy'
-    };
-
-    const key = `${currentStatus}_${newStatus}`;
-    return messages[key] || `Chuyển từ "${statusLabels[currentStatus]}" sang "${statusLabels[newStatus]}"`;
-  };
-
-  // =====================================================
-  // DATA LOADING
-  // =====================================================
+  const [rejectReason, setRejectReason] = useState('');
 
   const loadOrderDetail = async () => {
     setLoading(true);
     try {
       const response = await getWarehouseOrderDetail(id);
       if (response.err === 0) {
-        setOrder(response.data);
-        setNewStatus(response.data.status);
-        if (response.data.expected_delivery) {
-          const date = new Date(response.data.expected_delivery);
+        const orderData = response.data;
+        setOrder(orderData);
+
+        if (orderData.expected_delivery) {
+          const date = new Date(orderData.expected_delivery);
           const formatted = date.toISOString().slice(0, 16);
           setNewDeliveryDate(formatted);
         }
@@ -164,25 +109,39 @@ const OrderUpdate = () => {
     loadOrderDetail();
   }, [id]);
 
-  // =====================================================
-  // EVENT HANDLERS
-  // =====================================================
+  const handleConfirmOrder = async () => {
+    setUpdating(true);
+    try {
+      const response = await updateWarehouseOrderStatus(id, 'confirmed');
+      if (response.err === 0) {
+        toast.success('Xác nhận đơn hàng thành công!');
+        setConfirmDialog(false);
+        loadOrderDetail();
+      } else {
+        toast.error(response.msg || 'Không thể xác nhận đơn hàng');
+      }
+    } catch (error) {
+      toast.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
-  const handleUpdateStatus = async () => {
-    if (!newStatus || newStatus === order.status) {
-      setStatusDialog(false);
+  const handleRejectOrder = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Vui lòng nhập lý do từ chối');
       return;
     }
 
     setUpdating(true);
     try {
-      const response = await updateWarehouseOrderStatus(id, newStatus);
+      const response = await updateWarehouseOrderStatus(id, 'cancelled', rejectReason);
       if (response.err === 0) {
-        toast.success(response.msg || 'Cập nhật trạng thái thành công!');
-        setStatusDialog(false);
-        loadOrderDetail();
+        toast.success('Đã từ chối đơn hàng');
+        setRejectDialog(false);
+        navigate('/warehouse/branch-orders');
       } else {
-        toast.error(response.msg || 'Không thể cập nhật trạng thái');
+        toast.error(response.msg || 'Không thể từ chối đơn hàng');
       }
     } catch (error) {
       toast.error('Lỗi kết nối: ' + error.message);
@@ -193,14 +152,13 @@ const OrderUpdate = () => {
 
   const handleUpdateDelivery = async () => {
     if (!newDeliveryDate) {
-      toast.warning('Vui lòng chọn ngày giao hàng');
+      toast.error('Vui lòng chọn ngày giao hàng');
       return;
     }
 
     setUpdating(true);
     try {
-      const formattedDate = new Date(newDeliveryDate).toISOString().slice(0, 19).replace('T', ' ');
-      const response = await updateExpectedDelivery(id, formattedDate);
+      const response = await updateExpectedDelivery(id, newDeliveryDate);
       if (response.err === 0) {
         toast.success('Cập nhật ngày giao hàng thành công!');
         setDeliveryDialog(false);
@@ -215,34 +173,9 @@ const OrderUpdate = () => {
     }
   };
 
-  const handleEditQuantity = (item) => {
-    setEditingItemId(item.order_item_id);
-    setEditingQuantity(item.actual_quantity ?? item.quantity);
+  const handleGoToShipment = () => {
+    navigate(`/warehouse/orders/${id}/shipment`);
   };
-
-  const handleSaveQuantity = async (orderItemId) => {
-    try {
-      const response = await updateOrderItemQuantity(orderItemId, parseInt(editingQuantity));
-      if (response.err === 0) {
-        toast.success('Cập nhật số lượng thành công!');
-        setEditingItemId(null);
-        loadOrderDetail();
-      } else {
-        toast.error(response.msg || 'Không thể cập nhật số lượng');
-      }
-    } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingItemId(null);
-    setEditingQuantity('');
-  };
-
-  // =====================================================
-  // RENDER
-  // =====================================================
 
   if (loading) {
     return (
@@ -260,424 +193,311 @@ const OrderUpdate = () => {
     );
   }
 
-  const availableStatuses = getAvailableStatuses(order.status);
+  const isPending = order.status === 'pending';
+  const canShip = ['confirmed', 'preparing', 'shipped'].includes(order.status);
 
   return (
-    <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       {/* Header */}
-      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-        <IconButton onClick={() => navigate('/warehouse/branch-orders')}>
-          <BackIcon />
-        </IconButton>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h4" fontWeight={700}>
-            Chi tiết đơn hàng #{order.order_id}
-          </Typography>
-          <Typography color="text.secondary">
-            Ngày tạo: {formatDate(order.created_at)}
-          </Typography>
-        </Box>
-        <Chip
-          size="large"
-          color={statusColors[order.status]}
-          label={statusLabels[order.status]}
-          sx={{ fontSize: '1rem', px: 2 }}
-        />
-      </Stack>
+      <Box sx={{ bgcolor: '#2e7d32', color: 'white', px: 4, py: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <CheckIcon sx={{ fontSize: 40 }} />
+          <Box>
+            <Typography variant="h4" fontWeight={700}>
+              orderupdate
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Kiểm tra và xác nhận đơn hàng từ chi nhánh
+            </Typography>
+          </Box>
+        </Stack>
+      </Box>
 
-      {/* Action Buttons */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
-        <Button
-          variant="outlined"
-          startIcon={<EditIcon />}
-          onClick={() => setStatusDialog(true)}
-        >
-          Thay đổi trạng thái
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<EditIcon />}
-          onClick={() => setDeliveryDialog(true)}
-        >
-          Cập nhật ngày giao
-        </Button>
-      </Stack>
-
-      <Grid container spacing={3}>
-        {/* Order Information */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Thông tin đơn hàng
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Cửa hàng đặt hàng
-                  </Typography>
-                  <Typography variant="body1" fontWeight={600}>
-                    {order.store?.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {order.store?.address}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    SĐT: {order.store?.phone}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Nhà cung cấp
-                  </Typography>
-                  <Typography variant="body1" fontWeight={600}>
-                    {order.supplier?.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Liên hệ: {order.supplier?.contact}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Email: {order.supplier?.email}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Người tạo đơn
-                  </Typography>
-                  <Typography variant="body1">
-                    {order.creator?.username} ({order.creator?.role})
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {order.creator?.email}
-                  </Typography>
-                </Box>
+      {/* Main Content */}
+      <Box sx={{ px: 4, py: 3 }}>
+        <Grid container spacing={3}>
+          {/* Left Column */}
+          <Grid item xs={12} lg={8}>
+            {/* Order Header */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6" fontWeight={700}>
+                  Thông tin đơn hàng #ORD{String(order.order_id).padStart(3, '0')}
+                </Typography>
+                <Chip
+                  label={statusLabels[order.status]}
+                  color={statusColors[order.status]}
+                  sx={{ fontWeight: 600 }}
+                />
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
 
-        {/* Delivery Information */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Thông tin giao hàng
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Ngày dự kiến giao
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Chi nhánh:</strong> {order.store?.name}
                   </Typography>
-                  <Typography variant="h6" color="primary">
-                    {formatDate(order.expected_delivery)}
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Ngày đặt:</strong> {formatDate(order.created_at)}
                   </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Tổng số sản phẩm
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Người đặt:</strong> {order.store?.contact || 'N/A'}
                   </Typography>
-                  <Typography variant="h6">
-                    {order.totalItems} sản phẩm
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Ngày cần hàng:</strong> {formatDate(order.expected_delivery)}
                   </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Tổng giá trị đơn hàng
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Điện thoại:</strong> {order.store?.phone}
                   </Typography>
-                  <Typography variant="h5" color="success.main" fontWeight={700}>
-                    {formatVnd(order.totalAmount)}
-                  </Typography>
-                </Box>
-              </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+                </Grid>
+              </Grid>
+            </Paper>
 
-        {/* Order Items */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Chi tiết sản phẩm
-              </Typography>
-              <Divider sx={{ my: 2 }} />
+            {/* Products Table */}
+            <Paper>
+              <Box sx={{ px: 3, py: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
+                <Typography variant="h6" fontWeight={600}>
+                  Danh sách sản phẩm
+                </Typography>
+              </Box>
               <TableContainer>
-                <Table>
+                <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                    <TableRow sx={{ bgcolor: '#fafafa' }}>
+                      <TableCell sx={{ fontWeight: 700, width: 40 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Mã SP</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">SL Yêu cầu</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">SL Thực tế</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Đơn vị</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">SL yêu cầu</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Đơn giá</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Thành tiền</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {order.orderItems?.map((item) => {
-                      const isEditing = editingItemId === item.order_item_id;
-                      const actualQty = item.actual_quantity ?? item.quantity;
+                    {order.orderItems?.map((item, index) => {
                       const stockAvailable = item.inventory?.stock ?? 0;
+                      const isLowStock = stockAvailable < item.quantity;
 
                       return (
                         <TableRow key={item.order_item_id} hover>
-                          <TableCell>{item.product?.sku}</TableCell>
+                          <TableCell>{index + 1}</TableCell>
                           <TableCell>
                             <Typography variant="body2" fontWeight={600}>
-                              {item.product?.name}
+                              {item.product?.sku}
                             </Typography>
-                            {item.product?.description && (
-                              <Typography variant="caption" color="text.secondary">
-                                {item.product.description}
-                              </Typography>
-                            )}
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              size="small"
-                              label={item.product?.category?.name || 'N/A'}
-                              variant="outlined"
-                            />
+                            <Typography variant="body2">
+                              {item.product?.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {item.product?.unit || 'Thùng'}
+                            </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Typography fontWeight={600}>
+                            <Typography variant="body2" fontWeight={600}>
                               {item.quantity}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            {isEditing ? (
-                              <TextField
-                                type="number"
-                                size="small"
-                                value={editingQuantity}
-                                onChange={(e) => setEditingQuantity(e.target.value)}
-                                sx={{ width: 100 }}
-                                InputProps={{
-                                  inputProps: {
-                                    min: 0,
-                                    max: Math.min(item.quantity, stockAvailable)
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <Typography
-                                fontWeight={600}
-                                color={actualQty < item.quantity ? 'warning.main' : 'inherit'}
-                              >
-                                {actualQty}
-                              </Typography>
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
                             <Chip
-                              size="small"
                               label={stockAvailable}
-                              color={stockAvailable >= item.quantity ? 'success' : 'warning'}
-                              sx={{ minWidth: 60 }}
+                              size="small"
+                              sx={{
+                                bgcolor: isLowStock ? '#ff5252' : '#4caf50',
+                                color: 'white',
+                                fontWeight: 700,
+                                minWidth: 50
+                              }}
                             />
-                            {stockAvailable < item.quantity && (
-                              <Typography variant="caption" color="error" display="block">
-                                Thiếu {item.quantity - stockAvailable}
-                              </Typography>
-                            )}
                           </TableCell>
-                          <TableCell align="right">{formatVnd(item.unit_price)}</TableCell>
                           <TableCell align="right">
-                            <Typography fontWeight={600} color="primary">
-                              {formatVnd(actualQty * item.unit_price)}
+                            <Typography variant="body2">
+                              {formatVnd(item.unit_price)}
                             </Typography>
                           </TableCell>
-                          <TableCell align="center">
-                            {isEditing ? (
-                              <Stack direction="row" spacing={1} justifyContent="center">
-                                <IconButton
-                                  size="small"
-                                  color="success"
-                                  onClick={() => handleSaveQuantity(item.order_item_id)}
-                                >
-                                  <SaveIcon fontSize="small" />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={handleCancelEdit}
-                                >
-                                  <CancelIcon fontSize="small" />
-                                </IconButton>
-                              </Stack>
-                            ) : (
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => handleEditQuantity(item)}
-                                disabled={stockAvailable === 0}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            )}
+                          <TableCell align="right">
+                            <Typography variant="body2" fontWeight={700}>
+                              {formatVnd(item.quantity * item.unit_price)}
+                            </Typography>
                           </TableCell>
                         </TableRow>
                       );
                     })}
                     <TableRow>
-                      <TableCell colSpan={7} align="right">
-                        <Typography variant="h6" fontWeight={700}>
-                          Tổng cộng:
-                        </Typography>
+                      <TableCell colSpan={7} align="right" sx={{ bgcolor: '#f5f5f5', fontWeight: 700 }}>
+                        Tổng cộng:
                       </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="h6" fontWeight={700} color="success.main">
+                      <TableCell align="right" sx={{ bgcolor: '#f5f5f5' }}>
+                        <Typography variant="h6" fontWeight={700} color="primary">
                           {formatVnd(order.totalAmount)}
                         </Typography>
                       </TableCell>
-                      <TableCell />
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
-            </CardContent>
-          </Card>
+            </Paper>
+          </Grid>
+
+          {/* Right Column - Actions */}
+          <Grid item xs={12} lg={4}>
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" fontWeight={600} gutterBottom>
+                Thao tác
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Ngày giao dự kiến
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="datetime-local"
+                    size="small"
+                    value={newDeliveryDate}
+                    onChange={(e) => setNewDeliveryDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Box>
+                {/* 
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Ghi chú phản hồi
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    size="small"
+                    placeholder="Nhập ghi chú..."
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                  />
+                </Box> */}
+
+                <Divider />
+
+                {/* Single Update Button */}
+                {isPending && (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="success"
+                      size="large"
+                      startIcon={<CheckIcon />}
+                      onClick={() => setConfirmDialog(true)}
+                      sx={{ py: 1.5, fontWeight: 600 }}
+                    >
+                      Xác nhận đơn hàng
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      color="error"
+                      size="large"
+                      startIcon={<CancelIcon />}
+                      onClick={() => setRejectDialog(true)}
+                      sx={{ py: 1.5, fontWeight: 600 }}
+                    >
+                      Từ chối đơn hàng
+                    </Button>
+                  </>
+                )}
+
+                {canShip && (
+                  <Link to={`/warehouse/order-shipment/${id}`}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={<ShippingIcon />}
+                      sx={{ py: 1.5, fontWeight: 600 }}
+                    >
+                      Chuyển sang xuất hàng
+                    </Button>
+                  </Link>
+                )}
+
+                {!isPending && !canShip && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    onClick={handleUpdateDelivery}
+                    disabled={updating}
+                    sx={{ py: 1.5, fontWeight: 600 }}
+                  >
+                    Cập nhật ngày giao
+                  </Button>
+                )}
+              </Stack>
+            </Paper>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
 
-      {/* Status Update Dialog */}
-      <Dialog
-        open={statusDialog}
-        onClose={() => !updating && setStatusDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Typography variant="h6" fontWeight={600}>
-            Cập nhật trạng thái đơn hàng #{order.order_id}
-          </Typography>
-        </DialogTitle>
+      {/* Confirm Dialog */}
+      <Dialog open={confirmDialog} onClose={() => !updating && setConfirmDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Xác nhận đơn hàng</DialogTitle>
         <DialogContent>
-          {/* Current Status */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Trạng thái hiện tại
-            </Typography>
-            <Chip
-              color={statusColors[order.status]}
-              label={statusLabels[order.status]}
-              size="medium"
-              sx={{ fontWeight: 600 }}
-            />
-          </Box>
-
-          {/* New Status Selection */}
-          <TextField
-            select
-            fullWidth
-            label="Chọn trạng thái mới"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            helperText={`Có ${availableStatuses.length} lựa chọn khả dụng`}
-            SelectProps={{
-              MenuProps: {
-                PaperProps: {
-                  sx: {
-                    maxHeight: 400,
-                    '& .MuiMenuItem-root': {
-                      py: 1.5,
-                      px: 2,
-                    },
-                  },
-                },
-              },
-            }}
-          >
-            {availableStatuses.length === 0 ? (
-              <MenuItem disabled>Không có trạng thái khả dụng</MenuItem>
-            ) : (
-              availableStatuses.map((status) => (
-                <MenuItem key={status} value={status}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                    <Chip
-                      size="small"
-                      color={statusColors[status]}
-                      label={statusLabels[status]}
-                    />
-                    {status === order.status && (
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-                        (Hiện tại)
-                      </Typography>
-                    )}
-                  </Box>
-                </MenuItem>
-              ))
-            )}
-          </TextField>
-
-          {/* Transition Info Alert */}
-          {newStatus && newStatus !== order.status && (
-            <Alert
-              severity={
-                newStatus === 'cancelled' ? 'error' :
-                  newStatus === 'delivered' ? 'success' :
-                    ['pending', 'confirmed'].includes(newStatus) &&
-                      ['shipped', 'delivered'].includes(order.status) ? 'warning' : 'info'
-              }
-              sx={{ mt: 2 }}
-            >
-              {getStatusTransitionMessage(order.status, newStatus)}
-            </Alert>
-          )}
+          <Alert severity="success" sx={{ mb: 2 }}>
+            ✅ Bạn đang xác nhận đơn hàng <strong>#ORD{String(order.order_id).padStart(3, '0')}</strong>
+          </Alert>
+          <Typography variant="body2" color="text.secondary">
+            Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái "Đã xác nhận" và bắt đầu quá trình chuẩn bị hàng.
+          </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setStatusDialog(false)} disabled={updating}>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmDialog(false)} disabled={updating}>
             Hủy
           </Button>
           <Button
-            onClick={handleUpdateStatus}
+            onClick={handleConfirmOrder}
             variant="contained"
-            disabled={updating || newStatus === order.status}
-            color={newStatus === 'cancelled' ? 'error' : 'primary'}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : null}
+            color="success"
+            disabled={updating}
+            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <CheckIcon />}
           >
-            {updating ? 'Đang cập nhật...' : 'Xác nhận cập nhật'}
+            {updating ? 'Đang xử lý...' : 'Xác nhận'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delivery Date Update Dialog */}
-      <Dialog
-        open={deliveryDialog}
-        onClose={() => !updating && setDeliveryDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Cập nhật ngày giao hàng</DialogTitle>
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialog} onClose={() => !updating && setRejectDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Từ chối đơn hàng</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            type="datetime-local"
-            label="Ngày giao dự kiến"
-            value={newDeliveryDate}
-            onChange={(e) => setNewDeliveryDate(e.target.value)}
-            sx={{ mt: 2 }}
-            InputLabelProps={{ shrink: true }}
-          />
+          <Alert severity="error" sx={{ mb: 2 }}>
+            ❌ Bạn đang từ chối đơn hàng <strong>#ORD{String(order.order_id).padStart(3, '0')}</strong>
+          </Alert>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeliveryDialog(false)} disabled={updating}>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setRejectDialog(false)} disabled={updating}>
             Hủy
           </Button>
           <Button
-            onClick={handleUpdateDelivery}
+            onClick={handleRejectOrder}
             variant="contained"
+            color="error"
             disabled={updating}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : null}
+            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <CancelIcon />}
           >
-            {updating ? 'Đang cập nhật...' : 'Cập nhật'}
+            {updating ? 'Đang xử lý...' : 'Từ chối'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -29,6 +29,12 @@ module.exports = (sequelize, DataTypes) => {
         as: 'orders',
         onDelete: 'CASCADE'
       });
+      // THÊM DÒNG NÀY
+      Store.hasMany(models.StoreOrder, {
+        foreignKey: 'store_id',
+        as: 'storeOrders',
+        onDelete: 'CASCADE'
+      });
       Store.hasMany(models.Transaction, {
         foreignKey: 'store_id',
         as: 'transactions',
@@ -73,4 +79,3 @@ module.exports = (sequelize, DataTypes) => {
   });
   return Store;
 };
-

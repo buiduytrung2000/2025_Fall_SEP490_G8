@@ -12,7 +12,7 @@ import { Op } from 'sequelize';
 export const getAllOrdersService = async ({ page, limit, status, storeId, supplierId, search }) => {
     try {
         const offset = (page - 1) * limit;
-        
+
         const whereConditions = {};
         if (status) whereConditions.status = status;
         if (storeId) whereConditions.store_id = storeId;
@@ -38,8 +38,8 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
                 attributes: ['user_id', 'username', 'email', 'role']
             },
             {
-                model: db.OrderItem,
-                as: 'orderItems',
+                model: db.StoreOrderItem,
+                as: 'storeOrderItems',
                 include: [
                     {
                         model: db.Product,
@@ -50,7 +50,7 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
             }
         ];
 
-        const { count, rows } = await db.Order.findAndCountAll({
+        const { count, rows } = await db.StoreOrder.findAndCountAll({
             where: whereConditions,
             include: includeConditions,
             limit,
@@ -61,8 +61,8 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
 
         const ordersWithInventory = await Promise.all(rows.map(async (order) => {
             const orderData = order.toJSON();
-            
-            for (let item of orderData.orderItems) {
+
+            for (let item of orderData.storeOrderItems) {
                 const inventory = await db.Inventory.findOne({
                     where: {
                         store_id: order.store_id,
@@ -70,15 +70,18 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
                     },
                     attributes: ['stock']
                 });
-                
+
                 item.inventory = inventory ? { stock: inventory.stock } : { stock: 0 };
+                item.order_item_id = item.store_order_item_id; // Map for frontend compatibility
             }
-            
-            const totalItems = orderData.orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-            const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
-            
+
+            const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+            const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+
             return {
                 ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
                 totalAmount: parseFloat(totalAmount.toFixed(2))
             };
@@ -107,8 +110,8 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
  */
 export const getOrderDetailService = async (orderId) => {
     try {
-        const order = await db.Order.findOne({
-            where: { order_id: orderId },
+        const order = await db.StoreOrder.findOne({
+            where: { store_order_id: orderId },
             include: [
                 {
                     model: db.Store,
@@ -126,8 +129,8 @@ export const getOrderDetailService = async (orderId) => {
                     attributes: ['user_id', 'username', 'email', 'role', 'phone']
                 },
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems',
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems',
                     include: [
                         {
                             model: db.Product,
@@ -152,7 +155,7 @@ export const getOrderDetailService = async (orderId) => {
 
         const orderData = order.toJSON();
 
-        for (let item of orderData.orderItems) {
+        for (let item of orderData.storeOrderItems) {
             const inventory = await db.Inventory.findOne({
                 where: {
                     store_id: order.store_id,
@@ -170,16 +173,19 @@ export const getOrderDetailService = async (orderId) => {
                 min_stock_level: 0,
                 reorder_point: 0
             };
+            item.order_item_id = item.store_order_item_id; // Map for frontend compatibility
         }
 
-        const totalItems = orderData.orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-        const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+        const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+        const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
 
         return {
             err: 0,
             msg: 'Get order detail successfully',
             data: {
                 ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
                 totalAmount: parseFloat(totalAmount.toFixed(2))
             }
@@ -196,7 +202,7 @@ export const getOrdersByStoreService = async ({ storeId, page, limit }) => {
     try {
         const offset = (page - 1) * limit;
 
-        const { count, rows } = await db.Order.findAndCountAll({
+        const { count, rows } = await db.StoreOrder.findAndCountAll({
             where: { store_id: storeId },
             include: [
                 {
@@ -210,8 +216,8 @@ export const getOrdersByStoreService = async ({ storeId, page, limit }) => {
                     attributes: ['supplier_id', 'name', 'contact']
                 },
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems'
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems'
                 }
             ],
             limit,
@@ -221,8 +227,13 @@ export const getOrdersByStoreService = async ({ storeId, page, limit }) => {
 
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
-            const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
-            return { ...orderData, totalAmount: parseFloat(totalAmount.toFixed(2)) };
+            const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            return {
+                ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
+                totalAmount: parseFloat(totalAmount.toFixed(2))
+            };
         });
 
         return {
@@ -250,7 +261,7 @@ export const getOrdersBySupplierService = async ({ supplierId, page, limit }) =>
     try {
         const offset = (page - 1) * limit;
 
-        const { count, rows } = await db.Order.findAndCountAll({
+        const { count, rows } = await db.StoreOrder.findAndCountAll({
             where: { supplier_id: supplierId },
             include: [
                 {
@@ -264,8 +275,8 @@ export const getOrdersBySupplierService = async ({ supplierId, page, limit }) =>
                     attributes: ['supplier_id', 'name', 'contact', 'email']
                 },
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems'
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems'
                 }
             ],
             limit,
@@ -275,8 +286,13 @@ export const getOrdersBySupplierService = async ({ supplierId, page, limit }) =>
 
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
-            const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
-            return { ...orderData, totalAmount: parseFloat(totalAmount.toFixed(2)) };
+            const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            return {
+                ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
+                totalAmount: parseFloat(totalAmount.toFixed(2))
+            };
         });
 
         return {
@@ -304,7 +320,7 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
     try {
         const offset = (page - 1) * limit;
 
-        const { count, rows } = await db.Order.findAndCountAll({
+        const { count, rows } = await db.StoreOrder.findAndCountAll({
             where: { status },
             include: [
                 {
@@ -318,8 +334,8 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
                     attributes: ['supplier_id', 'name']
                 },
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems'
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems'
                 }
             ],
             limit,
@@ -329,8 +345,13 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
 
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
-            const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
-            return { ...orderData, totalAmount: parseFloat(totalAmount.toFixed(2)) };
+            const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            return {
+                ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
+                totalAmount: parseFloat(totalAmount.toFixed(2))
+            };
         });
 
         return {
@@ -369,7 +390,7 @@ export const getOrdersByDateRangeService = async ({ startDate, endDate, page, li
     try {
         const offset = (page - 1) * limit;
 
-        const { count, rows } = await db.Order.findAndCountAll({
+        const { count, rows } = await db.StoreOrder.findAndCountAll({
             where: {
                 created_at: {
                     [Op.between]: [new Date(startDate), new Date(endDate)]
@@ -387,8 +408,8 @@ export const getOrdersByDateRangeService = async ({ startDate, endDate, page, li
                     attributes: ['supplier_id', 'name']
                 },
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems'
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems'
                 }
             ],
             limit,
@@ -398,8 +419,13 @@ export const getOrdersByDateRangeService = async ({ startDate, endDate, page, li
 
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
-            const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
-            return { ...orderData, totalAmount: parseFloat(totalAmount.toFixed(2)) };
+            const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            return {
+                ...orderData,
+                order_id: orderData.store_order_id, // Map for frontend compatibility
+                orderItems: orderData.storeOrderItems, // Map for frontend compatibility
+                totalAmount: parseFloat(totalAmount.toFixed(2))
+            };
         });
 
         return {
@@ -434,21 +460,21 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             };
         }
 
-        const statusCounts = await db.Order.findAll({
+        const statusCounts = await db.StoreOrder.findAll({
             where: whereConditions,
             attributes: [
                 'status',
-                [db.sequelize.fn('COUNT', db.sequelize.col('order_id')), 'count']
+                [db.sequelize.fn('COUNT', db.sequelize.col('store_order_id')), 'count']
             ],
             group: ['status'],
             raw: true
         });
 
-        const storeCounts = await db.Order.findAll({
+        const storeCounts = await db.StoreOrder.findAll({
             where: whereConditions,
             attributes: [
                 'store_id',
-                [db.sequelize.fn('COUNT', db.sequelize.col('order_id')), 'count']
+                [db.sequelize.fn('COUNT', db.sequelize.col('store_order_id')), 'count']
             ],
             include: [
                 {
@@ -460,21 +486,21 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             group: ['store_id']
         });
 
-        const totalOrders = await db.Order.count({ where: whereConditions });
+        const totalOrders = await db.StoreOrder.count({ where: whereConditions });
 
-        const orders = await db.Order.findAll({
+        const orders = await db.StoreOrder.findAll({
             where: whereConditions,
             include: [
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems',
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems',
                     attributes: ['subtotal']
                 }
             ]
         });
 
         const totalAmount = orders.reduce((sum, order) => {
-            const orderTotal = order.orderItems.reduce((s, item) => s + parseFloat(item.subtotal), 0);
+            const orderTotal = order.storeOrderItems.reduce((s, item) => s + parseFloat(item.subtotal), 0);
             return sum + orderTotal;
         }, 0);
 
@@ -500,17 +526,15 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
 /**
  * Update order status with inventory management
  * LOGIC:
- * - pending → confirmed: TRỪ actual_quantity từ inventory
- * - confirmed → pending: CỘNG lại actual_quantity vào inventory
- * - confirmed → cancelled: CỘNG lại actual_quantity vào inventory
- * - shipped → delivered: CỘNG actual_quantity vào store, KHÓA đơn hàng
- * - delivered: KHÔNG CHO SỬA
+ * - preparing → shipped: TRỪ actual_quantity từ inventory của kho.
+ * - shipped → preparing/cancelled: CỘNG lại actual_quantity vào inventory.
+ * - delivered: KHÔNG CHO SỬA.
  */
 export const updateOrderStatusService = async ({ orderId, status, updatedBy }) => {
     const transaction = await db.sequelize.transaction();
-    
+
     try {
-        const order = await db.Order.findByPk(orderId, { transaction });
+        const order = await db.StoreOrder.findByPk(orderId, { transaction });
 
         if (!order) {
             await transaction.rollback();
@@ -530,8 +554,9 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
 
         const validTransitions = {
             'pending': ['confirmed', 'cancelled'],
-            'confirmed': ['pending', 'shipped', 'cancelled'],
-            'shipped': ['confirmed', 'delivered', 'cancelled'],
+            'confirmed': ['pending', 'preparing', 'cancelled'],
+            'preparing': ['confirmed', 'shipped', 'cancelled'],
+            'shipped': ['preparing', 'delivered', 'cancelled'],
             'delivered': [],
             'cancelled': ['pending']
         };
@@ -548,30 +573,19 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
         // INVENTORY MANAGEMENT LOGIC
         // =====================================================
 
-        // 1. PENDING → CONFIRMED: Trừ actual_quantity
-        if (currentStatus === 'pending' && status === 'confirmed') {
+        // 1. TRỪ TỒN KHO KHI GIAO HÀNG
+        if (currentStatus === 'preparing' && status === 'shipped') {
             await deductInventory(orderId, transaction);
         }
 
-        // 2. CONFIRMED → PENDING: Hoàn lại actual_quantity
-        if (currentStatus === 'confirmed' && status === 'pending') {
+        // 2. HOÀN LẠI TỒN KHO KHI HỦY GIAO HÀNG
+        if (currentStatus === 'shipped' && (status === 'preparing' || status === 'cancelled')) {
             await restoreInventory(orderId, transaction);
         }
 
-        // 3. CONFIRMED → CANCELLED: Hoàn lại actual_quantity
-        if (currentStatus === 'confirmed' && status === 'cancelled') {
-            await restoreInventory(orderId, transaction);
-        }
-
-        // 4. SHIPPED → DELIVERED: Cộng vào store (nếu cần logic riêng cho store)
-        if (currentStatus === 'shipped' && status === 'delivered') {
-            // Inventory đã được trừ từ lúc confirmed, không cần làm gì thêm
-            // Hoặc có thể thêm logic cộng vào store inventory nếu có 2 inventory riêng
-        }
-
-        await order.update({ 
-            status, 
-            updated_at: new Date() 
+        await order.update({
+            status,
+            updated_at: new Date()
         }, { transaction });
 
         await transaction.commit();
@@ -584,7 +598,7 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
     } catch (error) {
         await transaction.rollback();
         console.error('❌ Error updating order status:', error);
-        
+
         return {
             err: -1,
             msg: error.message || 'Lỗi khi cập nhật trạng thái đơn hàng'
@@ -597,7 +611,7 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
  */
 export const updateExpectedDeliveryService = async ({ orderId, expected_delivery }) => {
     try {
-        const order = await db.Order.findByPk(orderId);
+        const order = await db.StoreOrder.findByPk(orderId);
 
         if (!order) {
             return { err: 1, msg: 'Order not found' };
@@ -627,11 +641,12 @@ export const updateExpectedDeliveryService = async ({ orderId, expected_delivery
  */
 export const updateOrderItemQuantityService = async ({ orderItemId, actual_quantity }) => {
     try {
-        const orderItem = await db.OrderItem.findByPk(orderItemId, {
+        // orderItemId is actually store_order_item_id from frontend mapping
+        const orderItem = await db.StoreOrderItem.findByPk(orderItemId, {
             include: [
                 {
-                    model: db.Order,
-                    as: 'order',
+                    model: db.StoreOrder,
+                    as: 'storeOrder',
                     attributes: ['status']
                 }
             ]
@@ -641,7 +656,7 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
             return { err: 1, msg: 'Order item not found' };
         }
 
-        if (orderItem.order.status === 'delivered') {
+        if (orderItem.storeOrder.status === 'delivered') {
             return {
                 err: 1,
                 msg: 'Không thể thay đổi số lượng của đơn hàng đã giao'
@@ -677,12 +692,12 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
  */
 const deductInventory = async (orderId, transaction) => {
     try {
-        const order = await db.Order.findOne({
-            where: { order_id: orderId },
+        const order = await db.StoreOrder.findOne({
+            where: { store_order_id: orderId },
             include: [
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems',
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems',
                     include: [{ model: db.Product, as: 'product' }]
                 }
             ],
@@ -691,9 +706,9 @@ const deductInventory = async (orderId, transaction) => {
 
         if (!order) return;
 
-        for (const item of order.orderItems) {
+        for (const item of order.storeOrderItems) {
             const qty = item.actual_quantity || item.quantity;
-            
+
             const inventory = await db.Inventory.findOne({
                 where: {
                     store_id: order.store_id,
@@ -728,12 +743,12 @@ const deductInventory = async (orderId, transaction) => {
  */
 const restoreInventory = async (orderId, transaction) => {
     try {
-        const order = await db.Order.findOne({
-            where: { order_id: orderId },
+        const order = await db.StoreOrder.findOne({
+            where: { store_order_id: orderId },
             include: [
                 {
-                    model: db.OrderItem,
-                    as: 'orderItems',
+                    model: db.StoreOrderItem,
+                    as: 'storeOrderItems',
                     include: [{ model: db.Product, as: 'product' }]
                 }
             ],
@@ -742,9 +757,9 @@ const restoreInventory = async (orderId, transaction) => {
 
         if (!order) return;
 
-        for (const item of order.orderItems) {
+        for (const item of order.storeOrderItems) {
             const qty = item.actual_quantity || item.quantity;
-            
+
             const inventory = await db.Inventory.findOne({
                 where: {
                     store_id: order.store_id,

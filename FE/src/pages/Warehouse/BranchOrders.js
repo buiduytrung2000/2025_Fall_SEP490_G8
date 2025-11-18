@@ -26,7 +26,8 @@ import {
 import {
   Visibility as ViewIcon,
   Refresh as RefreshIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  LocalShipping as ShippingIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { getAllWarehouseOrders, getOrderStatistics } from '../../api/warehouseOrderApi';
@@ -34,6 +35,7 @@ import { getAllWarehouseOrders, getOrderStatistics } from '../../api/warehouseOr
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
+  preparing: 'secondary',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error'
@@ -42,6 +44,7 @@ const statusColors = {
 const statusLabels = {
   pending: 'Chờ xử lý',
   confirmed: 'Đã xác nhận',
+  preparing: 'Chuẩn bị hàng',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
@@ -126,6 +129,10 @@ const BranchOrders = () => {
 
   const handleViewDetail = (orderId) => {
     navigate(`/warehouse/branch-orders/${orderId}`);
+  };
+
+  const handleShipOrder = (orderId) => {
+    navigate(`/warehouse/order-shipment/${orderId}`);
   };
 
   const handleSearch = () => {
@@ -234,6 +241,7 @@ const BranchOrders = () => {
             <MenuItem value="">Tất cả</MenuItem>
             <MenuItem value="pending">Chờ xử lý</MenuItem>
             <MenuItem value="confirmed">Đã xác nhận</MenuItem>
+            <MenuItem value="preparing">Chuẩn bị hàng</MenuItem>
             <MenuItem value="shipped">Đang giao</MenuItem>
             <MenuItem value="delivered">Đã giao</MenuItem>
             <MenuItem value="cancelled">Đã hủy</MenuItem>
@@ -321,15 +329,28 @@ const BranchOrders = () => {
                     />
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title="Xem chi tiết">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => handleViewDetail(order.order_id)}
-                      >
-                        <ViewIcon />
-                      </IconButton>
-                    </Tooltip>
+                    <Stack direction="row" spacing={1} justifyContent="center">
+                      <Tooltip title="Xem chi tiết">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleViewDetail(order.order_id)}
+                        >
+                          <ViewIcon />
+                        </IconButton>
+                      </Tooltip>
+                      {['confirmed', 'preparing', 'shipped'].includes(order.status) && (
+                        <Tooltip title="Xuất đơn hàng">
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleShipOrder(order.order_id)}
+                          >
+                            <ShippingIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))
