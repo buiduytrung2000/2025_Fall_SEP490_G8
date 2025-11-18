@@ -31,6 +31,7 @@ import VoucherManagement from "./pages/Store_Manager/VoucherManagement";
 import WarehouseIncomingOrders from "./pages/Warehouse/IncomingOrders";
 import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
 import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
+import WarehouseOrderShipment from "./pages/Warehouse/OrderShipment";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
@@ -258,6 +259,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <WarehouseOrderUpdate />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/order-shipment/:id"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse"]}>
+                  <WarehouseOrderShipment />
                 </ProtectedRoute>
               }
             />
