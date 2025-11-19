@@ -1,19 +1,7 @@
--- =====================================================
--- CCMS Database Schema - MySQL
--- =====================================================
--- Database: CCMS_DB
--- =====================================================
 
--- Drop database if exists (for fresh start)
--- DROP DATABASE IF EXISTS CCMS_DB;
-
--- Create database
 CREATE DATABASE IF NOT EXISTS CCMS_DB;
 USE CCMS_DB;
 
--- =====================================================
--- 1. STORE TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS Store (
     store_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -25,9 +13,6 @@ CREATE TABLE IF NOT EXISTS Store (
     INDEX idx_store_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 2. CATEGORY TABLE (Self-referencing for hierarchy)
--- =====================================================
 CREATE TABLE IF NOT EXISTS Category (
     category_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -38,9 +23,6 @@ CREATE TABLE IF NOT EXISTS Category (
     INDEX idx_category_parent (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 3. SUPPLIER TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS Supplier (
     supplier_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -52,9 +34,6 @@ CREATE TABLE IF NOT EXISTS Supplier (
     INDEX idx_supplier_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 4. USER TABLE (Employees)
--- =====================================================
 CREATE TABLE IF NOT EXISTS User (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(100) NOT NULL UNIQUE,
@@ -74,9 +53,6 @@ CREATE TABLE IF NOT EXISTS User (
     INDEX idx_user_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 5. PRODUCT TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS Product (
     product_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -94,9 +70,6 @@ CREATE TABLE IF NOT EXISTS Product (
     INDEX idx_product_sku (sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 6. INVENTORY TABLE (For Store Inventory)
--- =====================================================
 CREATE TABLE IF NOT EXISTS Inventory (
     inventory_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -114,9 +87,6 @@ CREATE TABLE IF NOT EXISTS Inventory (
     INDEX idx_inventory_stock (stock)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 6.1. WAREHOUSE INVENTORY TABLE (For Warehouse/Main Inventory)
--- =====================================================
 CREATE TABLE IF NOT EXISTS WarehouseInventory (
     warehouse_inventory_id INT PRIMARY KEY AUTO_INCREMENT,
     product_id INT NOT NULL,
@@ -134,9 +104,6 @@ CREATE TABLE IF NOT EXISTS WarehouseInventory (
     INDEX idx_warehouse_inventory_location (location)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 7. PRICING RULE TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS PricingRule (
     rule_id INT PRIMARY KEY AUTO_INCREMENT,
     product_id INT NOT NULL,
@@ -154,9 +121,7 @@ CREATE TABLE IF NOT EXISTS PricingRule (
     INDEX idx_pricing_dates (start_date, end_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 9. ORDER TABLE (Purchase Orders from Suppliers)
--- =====================================================
+
 CREATE TABLE IF NOT EXISTS `Order` (
     order_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -176,9 +141,6 @@ CREATE TABLE IF NOT EXISTS `Order` (
     INDEX idx_order_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 10. ORDER ITEM TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS OrderItem (
     order_item_id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
@@ -194,9 +156,6 @@ CREATE TABLE IF NOT EXISTS OrderItem (
     INDEX idx_order_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 11. CUSTOMER TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS Customer (
     customer_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -211,9 +170,6 @@ CREATE TABLE IF NOT EXISTS Customer (
     INDEX idx_customer_tier (tier)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 12. PAYMENT TABLE
--- =====================================================
 CREATE TABLE IF NOT EXISTS Payment (
     payment_id INT PRIMARY KEY AUTO_INCREMENT,
     method ENUM('cash', 'card', 'mobile_payment', 'bank_transfer', 'loyalty_points') NOT NULL,
@@ -236,63 +192,6 @@ CREATE TABLE IF NOT EXISTS Payment (
     INDEX idx_payment_payos_payment_link_id (payos_payment_link_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 13. TRANSACTION TABLE (Sales Transactions)
--- Note: shift_id column and foreign key will be added after Shift table is created (see section 20)
--- =====================================================
-CREATE TABLE IF NOT EXISTS Transaction (
-    transaction_id INT PRIMARY KEY AUTO_INCREMENT,
-    order_id INT NULL,
-    customer_id INT NULL,
-    payment_id INT NOT NULL,
-    store_id INT NOT NULL,
-    shift_id INT NULL,
-    cashier_id INT NULL,
-    total_amount DECIMAL(10, 2) NOT NULL,
-    subtotal DECIMAL(10, 2) NULL,
-    tax_amount DECIMAL(10, 2) DEFAULT 0,
-    discount_amount DECIMAL(10, 2) DEFAULT 0,
-    voucher_code VARCHAR(50) NULL,
-    status ENUM('pending', 'completed', 'cancelled', 'refunded') DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (order_id) REFERENCES `Order`(order_id) ON DELETE SET NULL,
-    FOREIGN KEY (customer_id) REFERENCES Customer(customer_id) ON DELETE SET NULL,
-    FOREIGN KEY (payment_id) REFERENCES Payment(payment_id) ON DELETE CASCADE,
-    FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
-    FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE SET NULL,
-    FOREIGN KEY (cashier_id) REFERENCES User(user_id) ON DELETE SET NULL,
-    INDEX idx_transaction_order (order_id),
-    INDEX idx_transaction_customer (customer_id),
-    INDEX idx_transaction_payment (payment_id),
-    INDEX idx_transaction_store (store_id),
-    INDEX idx_transaction_shift (shift_id),
-    INDEX idx_transaction_cashier (cashier_id),
-    INDEX idx_transaction_voucher_code (voucher_code),
-    INDEX idx_transaction_status (status),
-    INDEX idx_transaction_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 15. TRANSACTION ITEM TABLE (Items sold in a transaction)
--- =====================================================
-CREATE TABLE IF NOT EXISTS TransactionItem (
-    transaction_item_id INT PRIMARY KEY AUTO_INCREMENT,
-    transaction_id INT NOT NULL,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL DEFAULT 1,
-    unit_price DECIMAL(10, 2) NOT NULL,
-    subtotal DECIMAL(10, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (transaction_id) REFERENCES Transaction(transaction_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
-    INDEX idx_transaction_item_transaction (transaction_id),
-    INDEX idx_transaction_item_product (product_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 16. SHIFT TEMPLATE TABLE (Ca làm việc định nghĩa sẵn)
--- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftTemplate (
     shift_template_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -305,9 +204,6 @@ CREATE TABLE IF NOT EXISTS ShiftTemplate (
     INDEX idx_shift_template_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 19. SCHEDULE TABLE (Phân công lịch làm việc)
--- =====================================================
 CREATE TABLE IF NOT EXISTS Schedule (
     schedule_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -333,10 +229,6 @@ CREATE TABLE IF NOT EXISTS Schedule (
     INDEX idx_schedule_store_date (store_id, work_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- 20. SHIFT TABLE (Ca làm việc của nhân viên)
--- Note: Created after Schedule because Shift references Schedule
--- =====================================================
 CREATE TABLE IF NOT EXISTS Shift (
     shift_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -362,18 +254,6 @@ CREATE TABLE IF NOT EXISTS Shift (
     INDEX idx_shift_store_cashier_status (store_id, cashier_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Now add shift_id column and foreign key to Transaction table
-ALTER TABLE Transaction 
-    ADD COLUMN shift_id INT NULL COMMENT 'Shift this transaction belongs to' AFTER store_id;
-
-ALTER TABLE Transaction 
-    ADD CONSTRAINT fk_transaction_shift FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE SET NULL;
-
-CREATE INDEX idx_transaction_shift ON Transaction(shift_id);
-
--- =====================================================
--- 21. SHIFT CHANGE REQUEST TABLE (Yêu cầu đổi ca)
--- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftChangeRequest (
     request_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -404,10 +284,7 @@ CREATE TABLE IF NOT EXISTS ShiftChangeRequest (
     INDEX idx_change_request_status (status),
     INDEX idx_change_request_from_schedule (from_schedule_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
--- Migration: Create StoreOrder and StoreOrderItem tables
--- Description: Tables for orders created by Store Manager to send to Warehouse Manager
 
--- StoreOrder table
 CREATE TABLE IF NOT EXISTS StoreOrder (
     store_order_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
@@ -492,4 +369,49 @@ CREATE TABLE IF NOT EXISTS VoucherTemplate (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_voucher_template_loyalty (required_loyalty_points),
     INDEX idx_voucher_template_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS Transaction (
+    transaction_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NULL,
+    customer_id INT NULL,
+    payment_id INT NOT NULL,
+    store_id INT NOT NULL,
+    shift_id INT NULL,
+    cashier_id INT NULL,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    subtotal DECIMAL(10, 2) NULL,
+    tax_amount DECIMAL(10, 2) DEFAULT 0,
+    discount_amount DECIMAL(10, 2) DEFAULT 0,
+    voucher_code VARCHAR(50) NULL,
+    status ENUM('pending', 'completed', 'cancelled', 'refunded') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES `Order`(order_id) ON DELETE SET NULL,
+    FOREIGN KEY (customer_id) REFERENCES Customer(customer_id) ON DELETE SET NULL,
+    FOREIGN KEY (payment_id) REFERENCES Payment(payment_id) ON DELETE CASCADE,
+    FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
+    FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE SET NULL,
+    FOREIGN KEY (cashier_id) REFERENCES User(user_id) ON DELETE SET NULL,
+    INDEX idx_transaction_order (order_id),
+    INDEX idx_transaction_customer (customer_id),
+    INDEX idx_transaction_payment (payment_id),
+    INDEX idx_transaction_store (store_id),
+    INDEX idx_transaction_shift (shift_id),
+    INDEX idx_transaction_cashier (cashier_id),
+    INDEX idx_transaction_voucher_code (voucher_code),
+    INDEX idx_transaction_status (status),
+    INDEX idx_transaction_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS TransactionItem (
+    transaction_item_id INT PRIMARY KEY AUTO_INCREMENT,
+    transaction_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (transaction_id) REFERENCES Transaction(transaction_id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
+    INDEX idx_transaction_item_transaction (transaction_id),
+    INDEX idx_transaction_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
