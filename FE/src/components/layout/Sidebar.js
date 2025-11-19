@@ -26,8 +26,7 @@ const navLinks = {
         { to: "/manager/payment-history", icon: <FaHistory />, text: "Lịch sử thanh toán" },
         { to: "/manager/vouchers", icon: <FaGift />, text: "Quản lý Voucher" },
         { to: "/manager/staff", icon: <FaUserFriends />, text: "Quản lý Nhân viên" },
-        { to: "/manager/schedule", icon: <FaCalendarAlt />, text: "Lịch làm việc" },
-        { to: "/manager/shift-change-requests", icon: <FaExchangeAlt />, text: "Yêu cầu đổi ca" },
+        { to: "/manager/schedule", icon: <FaCalendarAlt />, text: "Lịch & đổi ca" },
     ],
     Cashier: [
         { to: "/cashier/pos", icon: <FaCashRegister />, text: "Bán hàng (POS)" },

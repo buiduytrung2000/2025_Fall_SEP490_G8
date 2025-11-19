@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   getSchedules as apiGetSchedules,
   getShiftTemplates,
@@ -6,9 +6,11 @@ import {
   updateSchedule,
   getAvailableEmployees,
   deleteSchedule as apiDeleteSchedule,
+  getShiftChangeRequests,
 } from "../../api/scheduleApi";
 import { fetchEmployees, fetchEmployeeById } from "../../api/employeeApi";
 import ChangeShiftModal from "./ChangeShiftModal";
+import ShiftChangeRequestManagement from "./ShiftChangeRequestManagement";
 import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "react-toastify";
 
@@ -41,6 +43,8 @@ import {
   List,
   ListItem,
   ListItemText,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   ChevronLeft,
@@ -123,6 +127,8 @@ const ScheduleManagement = () => {
   const [selectedShiftDetail, setSelectedShiftDetail] = useState(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [activeTab, setActiveTab] = useState("schedule");
+  const [shiftRequestCount, setShiftRequestCount] = useState(0);
   const { user } = useAuth();
 
   const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
@@ -451,6 +457,25 @@ const ScheduleManagement = () => {
     load();
   }, [startOfWeek, endOfWeek, user.id]);
 
+  const refreshShiftRequestCount = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      const res = await getShiftChangeRequests({
+        store_id: storeId,
+        status: "pending",
+      });
+      if (res?.err === 0) {
+        setShiftRequestCount(res.data?.length || 0);
+      }
+    } catch (error) {
+      setShiftRequestCount(0);
+    }
+  }, [storeId]);
+
+  useEffect(() => {
+    refreshShiftRequestCount();
+  }, [refreshShiftRequestCount]);
+
   // Auto-refresh schedule data mỗi 30 giây để cập nhật attendance_status
   useEffect(() => {
     if (!storeId) return;
@@ -771,321 +796,261 @@ const ScheduleManagement = () => {
         px: { xs: 1, sm: 2, md: 4 },
         py: { xs: 2, md: 3 },
         minHeight: "100vh",
-        background: isMobile
-          ? "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)"
-          : "transparent",
+        bgcolor: "#f7f9fc",
       }}
     >
-      {/* Header Section */}
-      <Box
-        sx={{
-          mb: { xs: 3, md: 4 },
-          textAlign: { xs: "center", md: "left" },
-        }}
-      >
-        <Typography
-          variant={isMobile ? "h5" : "h4"}
-          fontWeight={700}
-          mb={1}
-          sx={{
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            letterSpacing: 1,
-          }}
+      <Box sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, value) => setActiveTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
         >
-          Quản lý lịch làm việc
-        </Typography>
-        <Typography
-          color="text.secondary"
-          variant={isMobile ? "body2" : "body1"}
-          sx={{ opacity: 0.8 }}
-        >
-          Theo dõi, phân công lịch cho nhân viên cửa hàng – thao tác trực quan,
-          dễ nhìn!
-        </Typography>
+          <Tab label="Quản lý lịch làm việc" value="schedule" />
+          <Tab
+            label={`Yêu cầu đổi ca (${shiftRequestCount})`}
+            value="shift-requests"
+          />
+        </Tabs>
       </Box>
 
-      {/* Week Navigation */}
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        mb={3}
-        sx={{
-          bgcolor: "white",
-          borderRadius: 3,
-          p: 2,
-          boxShadow: 2,
-        }}
-      >
-        <Tooltip title="Tuần trước" arrow>
-          <span>
-            <IconButton
-              onClick={handlePrevWeek}
-              sx={{
-                color: "text.secondary",
-                "&:hover": { bgcolor: "action.hover" },
-              }}
+      {activeTab === "schedule" && (
+        <>
+          {/* Header Section */}
+          <Box
+            sx={{
+              mb: { xs: 3, md: 4 },
+              textAlign: "left",
+            }}
+          >
+            <Typography
+              variant="h4"
+              fontWeight={700}
+              mb={0.5}
+              color="text.primary"
             >
+              Quản lý lịch làm việc
+            </Typography>
+            <Typography
+              color="text.secondary"
+              variant="h6"
+              fontWeight={400}
+            >
+            </Typography>
+          </Box>
+
+          {/* Week Navigation */}
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="center"
+            gap={2}
+            mb={3}
+            sx={{
+              bgcolor: "white",
+              borderRadius: 2,
+              p: 2,
+              boxShadow: 1,
+            }}
+          >
+            <IconButton onClick={handlePrevWeek} color="primary">
               <ChevronLeft />
             </IconButton>
-          </span>
-        </Tooltip>
-        <Typography
-          variant={isMobile ? "subtitle1" : "h6"}
-          sx={{
-            mx: 2,
-            fontWeight: 600,
-            color: "primary.main",
-          }}
-        >
-          Tuần {getWeekNumber(startOfWeek)} ({formatDate(startOfWeek)} -{" "}
-          {formatDate(endOfWeek)})
-        </Typography>
-        <Tooltip title="Tuần sau" arrow>
-          <span>
-            <IconButton
-              onClick={handleNextWeek}
-              sx={{
-                color: "text.secondary",
-                "&:hover": { bgcolor: "action.hover" },
-              }}
-            >
+            <Typography variant="subtitle1" fontWeight={600}>
+              Tuần {getWeekNumber(startOfWeek)} ({formatDate(startOfWeek)} -{" "}
+              {formatDate(endOfWeek)})
+            </Typography>
+            <IconButton onClick={handleNextWeek} color="primary">
               <ChevronRight />
             </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+          </Box>
 
-      {/* Schedule Content */}
-      {loading ? (
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="400px"
-        >
-          <CircularProgress size={60} thickness={4} />
-        </Box>
-      ) : isMobile ? (
-        // Mobile Card View
-        renderCardView()
-      ) : (
-        // Desktop Table View
-        <TableContainer
-          component={Paper}
-          sx={{
-            boxShadow: 6,
-            borderRadius: 4,
-            overflow: "hidden",
-            border: "1px solid",
-            borderColor: "divider",
-            width: "100%",
-          }}
-        >
-          <Table
-            sx={{
-              width: "100%",
-              tableLayout: "fixed", // Fixed layout để phân bổ đều các cột
-              bgcolor: "#fafbfc",
-              "& .MuiTableCell-root": {
-                border: "1px solid",
-                borderColor: "divider",
-                px: { xs: 0.5, sm: 0.75, md: 1 },
-                py: { xs: 0.75, md: 1 },
-              },
-              "& .MuiTableHead-root .MuiTableCell-root": {
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                color: "white",
-                fontWeight: 700,
-                letterSpacing: 0.5,
-                fontSize: { xs: "0.75rem", md: "0.875rem" },
-                textTransform: "uppercase",
-              },
-              "& .MuiTableBody-root .MuiTableRow-root": {
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  bgcolor: "action.hover",
-                  transform: "scale(1.01)",
-                },
-              },
-            }}
-            aria-label="schedule table"
-          >
-            <TableHead>
-              <TableRow>
-                <TableCell align="center" sx={{ width: "18%" }}>
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={700}
-                    sx={{
-                      fontSize: { xs: "0.7rem", sm: "0.8rem", md: "0.875rem" },
-                    }}
-                  >
-                    Ca làm việc
-                  </Typography>
-                </TableCell>
-                {weekDays.map((day, index) => (
-                  <TableCell
-                    key={index}
-                    align="center"
-                    sx={{ width: `${82 / 7}%` }}
-                  >
-                    <Box>
-                      <Typography
-                        variant="subtitle2"
-                        fontWeight={700}
-                        sx={{
-                          fontSize: {
-                            xs: "0.65rem",
-                            sm: "0.7rem",
-                            md: "0.75rem",
-                          },
-                        }}
-                      >
-                        {weekDayNames[index]}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          opacity: 0.9,
-                          fontSize: {
-                            xs: "0.6rem",
-                            sm: "0.65rem",
-                            md: "0.7rem",
-                          },
-                        }}
-                      >
-                        {formatDate(day)}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {shiftNames.map((shiftName) => (
-                <TableRow hover key={shiftName}>
-                  <TableCell
-                    align="left"
-                    sx={{
-                      fontWeight: 600,
-                      letterSpacing: 0.5,
-                      bgcolor: "white",
-                      fontSize: { xs: "0.7rem", sm: "0.75rem", md: "0.8rem" },
-                      px: { xs: 0.5, sm: 0.75, md: 1 },
-                    }}
-                  >
-                    {shiftName}
-                  </TableCell>
-                  {weekDays.map((day) => {
-                    const dayKey = toLocalDateKey(day);
-                    const tpl = shiftTemplatesData.find(
-                      (t) => formatShiftName(t) === shiftName
-                    );
-                    const templateId = tpl?.shift_template_id || tpl?.id;
-                    const shiftList = schedule[dayKey]?.[templateId] || [];
-
-                    return (
+          {/* Schedule Content */}
+          {loading ? (
+            <Box
+              display="flex"
+              justifyContent="center"
+              alignItems="center"
+              minHeight="400px"
+            >
+              <CircularProgress size={60} thickness={4} />
+            </Box>
+          ) : isMobile ? (
+            // Mobile Card View
+            renderCardView()
+          ) : (
+            // Desktop Table View
+            <TableContainer
+              component={Paper}
+              sx={{
+                boxShadow: 3,
+                borderRadius: 2,
+                overflow: "hidden",
+                border: "1px solid #e0e0e0",
+              }}
+            >
+              <Table
+                sx={{
+                  width: "100%",
+                  tableLayout: "fixed",
+                  "& .MuiTableCell-root": {
+                    border: "1px solid #e0e0e0",
+                    px: 1,
+                    py: 1.25,
+                  },
+                }}
+                aria-label="schedule table"
+              >
+                <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+                  <TableRow>
+                    <TableCell
+                      align="center"
+                      sx={{ width: "18%", fontWeight: 700, fontSize: "0.9rem" }}
+                    >
+                      Ca làm việc
+                    </TableCell>
+                    {weekDays.map((day, index) => (
                       <TableCell
-                        key={dayKey}
+                        key={index}
                         align="center"
+                        sx={{ width: `${82 / 7}%`, fontWeight: 600 }}
+                      >
+                        {weekDayNames[index]} ({formatDate(day)})
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {shiftNames.map((shiftName) => (
+                    <TableRow hover key={shiftName}>
+                      <TableCell
+                        align="left"
                         sx={{
+                          fontWeight: 600,
+                          letterSpacing: 0.5,
                           bgcolor: "white",
-                          cursor: "pointer",
-                          "&:hover": {
-                            bgcolor: "action.hover",
-                          },
-                          transition: "background-color 0.2s ease",
-                        }}
-                        onClick={() => {
-                          setSelectedShiftDetail({
-                            dayKey,
-                            dayName: weekDayNames[weekDays.indexOf(day)],
-                            date: formatDate(day),
-                            shiftName,
-                            shiftTemplate: tpl,
-                            templateId,
-                            shiftList,
-                          });
-                          setShowDetailModal(true);
+                          fontSize: { xs: "0.7rem", sm: "0.75rem", md: "0.8rem" },
+                          px: { xs: 0.5, sm: 0.75, md: 1 },
                         }}
                       >
-                        <Box
-                          display="flex"
-                          flexDirection="column"
-                          alignItems="center"
-                          gap={0.5}
-                          sx={{ width: "100%" }}
-                        >
-                          <Box
-                            sx={{ width: "100%" }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {renderAssignees(
-                              shiftList,
-                              dayKey,
-                              templateId,
-                              false
-                            )}
-                          </Box>
-                          <Tooltip title={isPastDate(dayKey) ? "Không thể thêm nhân viên cho ngày đã qua" : "Thêm nhân viên cho ca này"} arrow>
-                            <span>
-                              <Button
-                                variant="contained"
-                                color="primary"
-                                size="small"
-                                disabled={isPastDate(dayKey)}
-                                sx={{
-                                  borderRadius: 1.5,
-                                  minWidth: { xs: 60, sm: 70, md: 80 },
-                                  px: { xs: 1, sm: 1.25, md: 1.5 },
-                                  py: { xs: 0.25, sm: 0.35, md: 0.5 },
-                                  fontWeight: 600,
-                                  fontSize: {
-                                    xs: "0.65rem",
-                                    sm: "0.7rem",
-                                    md: "0.75rem",
-                                  },
-                                  textTransform: "none",
-                                  boxShadow: 1,
-                                  "&:hover": {
-                                    boxShadow: 2,
-                                  },
-                                  transition: "all 0.2s ease",
-                                  "& .MuiSvgIcon-root": {
-                                    fontSize: {
-                                      xs: "0.875rem",
-                                      sm: "1rem",
-                                      md: "1.125rem",
-                                    },
-                                  },
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!isPastDate(dayKey)) {
-                                    handleOpenModal(dayKey, templateId, shiftList);
-                                  }
-                                }}
-                                startIcon={<AddCircleOutline />}
-                              >
-                                Thêm
-                              </Button>
-                            </span>
-                          </Tooltip>
-                        </Box>
+                        {shiftName}
                       </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                      {weekDays.map((day) => {
+                        const dayKey = toLocalDateKey(day);
+                        const tpl = shiftTemplatesData.find(
+                          (t) => formatShiftName(t) === shiftName
+                        );
+                        const templateId = tpl?.shift_template_id || tpl?.id;
+                        const shiftList = schedule[dayKey]?.[templateId] || [];
+
+                        return (
+                          <TableCell
+                            key={dayKey}
+                            align="center"
+                            sx={{
+                              bgcolor: "white",
+                              cursor: "pointer",
+                              "&:hover": {
+                                bgcolor: "action.hover",
+                              },
+                              transition: "background-color 0.2s ease",
+                            }}
+                            onClick={() => {
+                              setSelectedShiftDetail({
+                                dayKey,
+                                dayName: weekDayNames[weekDays.indexOf(day)],
+                                date: formatDate(day),
+                                shiftName,
+                                shiftTemplate: tpl,
+                                templateId,
+                                shiftList,
+                              });
+                              setShowDetailModal(true);
+                            }}
+                          >
+                            <Box
+                              display="flex"
+                              flexDirection="column"
+                              alignItems="center"
+                              gap={0.5}
+                              sx={{ width: "100%" }}
+                            >
+                              <Box
+                                sx={{ width: "100%" }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {renderAssignees(
+                                  shiftList,
+                                  dayKey,
+                                  templateId,
+                                  false
+                                )}
+                              </Box>
+                              <Tooltip title={isPastDate(dayKey) ? "Không thể thêm nhân viên cho ngày đã qua" : "Thêm nhân viên cho ca này"} arrow>
+                                <span>
+                                  <Button
+                                    variant="contained"
+                                    color="primary"
+                                    size="small"
+                                    disabled={isPastDate(dayKey)}
+                                    sx={{
+                                      borderRadius: 1.5,
+                                      minWidth: { xs: 60, sm: 70, md: 80 },
+                                      px: { xs: 1, sm: 1.25, md: 1.5 },
+                                      py: { xs: 0.25, sm: 0.35, md: 0.5 },
+                                      fontWeight: 600,
+                                      fontSize: {
+                                        xs: "0.65rem",
+                                        sm: "0.7rem",
+                                        md: "0.75rem",
+                                      },
+                                      textTransform: "none",
+                                      boxShadow: 1,
+                                      "&:hover": {
+                                        boxShadow: 2,
+                                      },
+                                      transition: "all 0.2s ease",
+                                      "& .MuiSvgIcon-root": {
+                                        fontSize: {
+                                          xs: "0.875rem",
+                                          sm: "1rem",
+                                          md: "1.125rem",
+                                        },
+                                      },
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!isPastDate(dayKey)) {
+                                        handleOpenModal(dayKey, templateId, shiftList);
+                                      }
+                                    }}
+                                    startIcon={<AddCircleOutline />}
+                                  >
+                                    Thêm
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
       )}
 
-     
+      {activeTab === "shift-requests" && (
+        <Box sx={{ mt: 3 }}>
+          <ShiftChangeRequestManagement
+            onRequestsUpdated={refreshShiftRequestCount}
+          />
+        </Box>
+      )}
+
       {(availableStaff.length > 0 || staffList.length > 0) && (
         <ChangeShiftModal
           show={showModal}

@@ -130,17 +130,6 @@ export const checkout = async ({ shift_id, closing_cash = 0, note = null }) => {
   }
 }
 
-export const addCashMovement = async ({ shift_id, type, amount, reason = null }) => {
-  try {
-    const shift = await db.Shift.findOne({ where: { shift_id } })
-    if (!shift || shift.status !== 'opened') return { err: 1, msg: 'Ca không hợp lệ' }
-    const movement = await db.ShiftCashMovement.create({ shift_id, type, amount, reason })
-    return { err: 0, data: movement }
-  } catch (e) {
-    return { err: -1, msg: 'Fail at cash movement: ' + e.message }
-  }
-}
-
 export const list = async (query) => {
   const { store_id, cashier_id, status, from, to } = query
   const where = {}
@@ -169,7 +158,6 @@ export const detail = async (id) => {
     include: [
       { model: db.Store, as: 'store', attributes: ['store_id', 'name'] },
       { model: db.User, as: 'cashier', attributes: ['user_id', 'username'] },
-      { model: db.ShiftCashMovement, as: 'cashMovements', order: [['created_at', 'DESC']] },
       { 
         model: db.Transaction, 
         as: 'transactions', 
@@ -182,13 +170,9 @@ export const detail = async (id) => {
   })
   if (!shift) return { err: 1, msg: 'Not found' }
   
-  // Tính expected cash (opening + cash sales + cash movements)
-  const cashMovements = shift.cashMovements || []
-  const netCashMovement = cashMovements.reduce((acc, m) => {
-    return acc + (m.type === 'cash_in' ? parseFloat(m.amount || 0) : -parseFloat(m.amount || 0))
-  }, 0)
-  const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0) + netCashMovement
-  const discrepancy = shift.closing_cash ? parseFloat(shift.closing_cash) - expectedCash : null
+  // Tính expected cash (opening + cash sales)
+  const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0)
+  const discrepancy = shift.closing_cash != null ? parseFloat(shift.closing_cash) - expectedCash : null
   
   return { 
     err: 0, 
@@ -216,19 +200,14 @@ export const getShiftReport = async (query) => {
     where,
     include: [
       { model: db.Store, as: 'store', attributes: ['store_id', 'name'] },
-      { model: db.User, as: 'cashier', attributes: ['user_id', 'username'] },
-      { model: db.ShiftCashMovement, as: 'cashMovements' }
+      { model: db.User, as: 'cashier', attributes: ['user_id', 'username'] }
     ],
     order: [['opened_at', 'DESC']]
   })
 
   // Tính toán thống kê
   const stats = shifts.reduce((acc, shift) => {
-    const cashMovements = shift.cashMovements || []
-    const netCashMovement = cashMovements.reduce((sum, m) => {
-      return sum + (m.type === 'cash_in' ? parseFloat(m.amount || 0) : -parseFloat(m.amount || 0))
-    }, 0)
-    const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0) + netCashMovement
+    const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0)
     const actualCash = parseFloat(shift.closing_cash || 0)
     const discrepancy = actualCash - expectedCash
 

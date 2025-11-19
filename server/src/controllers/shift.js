@@ -28,18 +28,6 @@ export const checkout = async (req, res) => {
   }
 }
 
-export const addCashMovement = async (req, res) => {
-  try {
-    const shift_id = Number(req.params.id)
-    const { type, amount, reason } = req.body
-    if (!shift_id || !type || amount == null) return res.status(400).json({ err: 1, msg: 'Missing params' })
-    const resp = await shiftService.addCashMovement({ shift_id, type, amount: Number(amount), reason })
-    return res.status(200).json(resp)
-  } catch (e) {
-    return res.status(500).json({ err: -1, msg: 'Fail at cash movement: ' + e.message })
-  }
-}
-
 export const list = async (req, res) => {
   try {
     const resp = await shiftService.list(req.query)

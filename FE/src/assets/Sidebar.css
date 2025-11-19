@@ -79,13 +79,6 @@
     transition: opacity 0.2s ease, padding 0.3s ease;
 }
 
-/* --- Nav Links Container --- */
-.sidebar-nav {
-    overflow-y: auto;
-    overflow-x: hidden;
-    flex: 1;
-    min-height: 0; /* Cho phép flex item co lại */
-}
 
 /* Custom scrollbar styling */
 .sidebar-nav::-webkit-scrollbar {

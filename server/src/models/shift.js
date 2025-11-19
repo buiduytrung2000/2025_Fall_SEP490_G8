@@ -6,7 +6,6 @@ module.exports = (sequelize, DataTypes) => {
       Shift.belongsTo(models.Store, { foreignKey: 'store_id', as: 'store' });
       Shift.belongsTo(models.User, { foreignKey: 'cashier_id', as: 'cashier' });
       Shift.belongsTo(models.Schedule, { foreignKey: 'schedule_id', as: 'schedule', onDelete: 'SET NULL' });
-      Shift.hasMany(models.ShiftCashMovement, { foreignKey: 'shift_id', as: 'cashMovements', onDelete: 'CASCADE' });
       Shift.hasMany(models.Transaction, { foreignKey: 'shift_id', as: 'transactions', onDelete: 'SET NULL' });
     }
   }

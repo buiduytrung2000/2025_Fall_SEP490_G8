@@ -237,10 +237,10 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Chi nhánh</TableCell>
+                {/* <TableCell sx={{ fontWeight: 700 }}>Chi nhánh</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Min/Reorder</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Giá trị</TableCell>
+                {/* <TableCell sx={{ fontWeight: 700 }} align="right">Giá trị</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell>
               </TableRow>
@@ -283,11 +283,11 @@ const InventoryList = () => {
                         variant="outlined"
                       />
                     </TableCell>
-                    <TableCell>
+                    {/* <TableCell>
                       <Typography variant="body2">
                         {item.store?.name}
                       </Typography>
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell align="right">
                       <Typography variant="h6" fontWeight={700}>
                         {item.stock}
@@ -298,11 +298,11 @@ const InventoryList = () => {
                         {item.min_stock_level} / {item.reorder_point}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right">
+                    {/* <TableCell align="right">
                       <Typography variant="body2" fontWeight={600} color="success.main">
                         {formatVnd(item.stockValue)}
                       </Typography>
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell align="center">
                       <Chip
                         size="small"

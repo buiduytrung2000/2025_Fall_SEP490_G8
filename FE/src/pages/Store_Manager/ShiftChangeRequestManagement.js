@@ -88,7 +88,7 @@ const getRequestTypeLabel = (type) => {
     }
 };
 
-const ShiftChangeRequestManagement = () => {
+const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
     const { user } = useAuth();
     const [tabValue, setTabValue] = useState(0);
     const [requests, setRequests] = useState([]);
@@ -99,6 +99,12 @@ const ShiftChangeRequestManagement = () => {
     const [openReviewDialog, setOpenReviewDialog] = useState(false);
     const [reviewStatus, setReviewStatus] = useState('approved');
     const [reviewNotes, setReviewNotes] = useState('');
+    const [requestStats, setRequestStats] = useState({
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        all: 0,
+    });
 
     const loadStoreId = useCallback(async () => {
         try {
@@ -113,6 +119,33 @@ const ShiftChangeRequestManagement = () => {
             toast.error('Không thể tải thông tin cửa hàng');
         }
     }, [user.id]);
+
+    const fetchRequestStats = useCallback(async () => {
+        if (!storeId) return;
+        try {
+            const config = [
+                { key: 'pending', params: { status: 'pending' } },
+                { key: 'approved', params: { status: 'approved' } },
+                { key: 'rejected', params: { status: 'rejected' } },
+                { key: 'all', params: {} },
+            ];
+            const responses = await Promise.all(
+                config.map(({ params }) =>
+                    getShiftChangeRequests({ store_id: storeId, ...params })
+                )
+            );
+            const nextStats = { pending: 0, approved: 0, rejected: 0, all: 0 };
+            config.forEach((cfg, idx) => {
+                const res = responses[idx];
+                if (res?.err === 0) {
+                    nextStats[cfg.key] = res.data?.length || 0;
+                }
+            });
+            setRequestStats(nextStats);
+        } catch (error) {
+            // giữ nguyên stats nếu lỗi
+        }
+    }, [storeId]);
 
     const loadRequests = useCallback(async () => {
         try {
@@ -131,6 +164,12 @@ const ShiftChangeRequestManagement = () => {
             const res = await getShiftChangeRequests(filters);
             if (res?.err === 0) {
                 setRequests(res.data || []);
+                try {
+                    await onRequestsUpdated();
+                } catch (error) {
+                    // ignore callback errors
+                }
+                fetchRequestStats();
             } else {
                 toast.error(res?.msg || 'Không thể tải danh sách yêu cầu');
             }
@@ -140,7 +179,7 @@ const ShiftChangeRequestManagement = () => {
         } finally {
             setLoading(false);
         }
-    }, [storeId, tabValue]);
+    }, [storeId, tabValue, onRequestsUpdated, fetchRequestStats]);
 
     useEffect(() => {
         loadStoreId();
@@ -149,8 +188,9 @@ const ShiftChangeRequestManagement = () => {
     useEffect(() => {
         if (storeId) {
             loadRequests();
+            fetchRequestStats();
         }
-    }, [storeId, loadRequests]);
+    }, [storeId, loadRequests, fetchRequestStats]);
 
     const handleViewDetail = async (requestId) => {
         try {
@@ -188,6 +228,7 @@ const ShiftChangeRequestManagement = () => {
                 setOpenReviewDialog(false);
                 setSelectedRequest(null);
                 loadRequests();
+                fetchRequestStats();
             } else {
                 toast.error(res.msg || 'Xử lý yêu cầu thất bại');
             }
@@ -204,6 +245,30 @@ const ShiftChangeRequestManagement = () => {
         return true; // All
     });
 
+    const summaryCards = [
+        {
+            label: 'Đang chờ',
+            value: requestStats.pending,
+            color: '#ff9800',
+            bg: 'rgba(255, 152, 0, 0.1)',
+        },
+        {
+            label: 'Đã duyệt',
+            value: requestStats.approved,
+            color: '#43a047',
+            bg: 'rgba(67, 160, 71, 0.12)',
+        },
+        {
+            label: 'Đã từ chối',
+            value: requestStats.rejected,
+            color: '#e53935',
+            bg: 'rgba(229, 57, 53, 0.12)',
+        },
+    ];
+
+    const totalRequests =
+        requestStats.all || requestStats.pending + requestStats.approved + requestStats.rejected;
+
     return (
         <Box sx={{ p: 3 }}>
             <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -213,11 +278,13 @@ const ShiftChangeRequestManagement = () => {
                 Duyệt hoặc từ chối yêu cầu đổi ca của nhân viên
             </Typography>
 
+           
+
             <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 3 }}>
-                <Tab label={`Đang chờ (${requests.filter(r => r.status === 'pending').length})`} />
-                <Tab label={`Đã duyệt (${requests.filter(r => r.status === 'approved').length})`} />
-                <Tab label={`Đã từ chối (${requests.filter(r => r.status === 'rejected').length})`} />
-                <Tab label="Tất cả" />
+                <Tab label={`Đang chờ (${requestStats.pending})`} />
+                <Tab label={`Đã duyệt (${requestStats.approved})`} />
+                <Tab label={`Đã từ chối (${requestStats.rejected})`} />
+                <Tab label={`Tất cả (${totalRequests})`} />
             </Tabs>
 
             {loading ? (

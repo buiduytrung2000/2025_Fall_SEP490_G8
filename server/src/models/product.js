@@ -45,21 +45,6 @@ module.exports = (sequelize, DataTypes) => {
                 onDelete: 'CASCADE'
             });
 
-            // Product belongs to many Promotions through ProductPromotion
-            Product.belongsToMany(models.Promotion, {
-                through: models.ProductPromotion,
-                foreignKey: 'product_id',
-                otherKey: 'promotion_id',
-                as: 'promotions'
-            });
-
-            // Product has many ProductPromotions
-            Product.hasMany(models.ProductPromotion, {
-                foreignKey: 'product_id',
-                as: 'productPromotions',
-                onDelete: 'CASCADE'
-            });
-
             // Product has many Inventories
             Product.hasMany(models.Inventory, {
                 foreignKey: 'product_id',

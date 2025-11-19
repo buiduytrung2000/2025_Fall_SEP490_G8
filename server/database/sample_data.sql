@@ -35,13 +35,13 @@
     -- Note: includes phone column
     -- Passwords are hashed using bcrypt (password: '123')
     INSERT INTO User (username, password, role, store_id, email, phone, address, status) VALUES
-    ('ceo_admin', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', 'active'),
-    ('manager_store1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
-    ('cashier_store1_1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', '15 Cashier Lane, City A', 'active'),
-    ('cashier_store1_2', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
-    ('cashier_store1_3', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
-    ('warehouse_staff1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
-    ('supplier_rep1', '$2a$12$TOeiqj.9Rc3JIaICHIkRYe0P/JGVEEocb2vxGKyvI1L8DZ4gcg3JG', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
+    ('ceo_admin', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', 'active'),
+    ('manager_store1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
+    ('cashier_store1_1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', '15 Cashier Lane, City A', 'active'),
+    ('cashier_store1_2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
+    ('cashier_store1_3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
+    ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
+    ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
     -- 5. Insert Products
     INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
@@ -65,13 +65,7 @@
     (2, 4, 80, 20, 50),
     (3, 6, 150, 50, 100);
 
-    -- 7. Insert Promotions
-    INSERT INTO Promotion (name, type, start_date, end_date, status) VALUES
-    ('Summer Sale 2024', 'percentage', '2024-06-01 00:00:00', '2024-08-31 23:59:59', 'active'),
-    ('Black Friday', 'fixed_amount', '2024-11-25 00:00:00', '2024-11-30 23:59:59', 'inactive'),
-    ('Buy 2 Get 1 Free', 'buy_x_get_y', '2024-05-01 00:00:00', '2024-12-31 23:59:59', 'active');
-
-    -- 8. Insert Pricing Rules
+    -- 7. Insert Pricing Rules
     INSERT INTO PricingRule (product_id, store_id, type, value, start_date, end_date) VALUES
     (1, 1, 'markup', 10.00, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
     (2, 1, 'markup', 15.00, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
@@ -84,27 +78,13 @@
     ('Mary Shopper', '0902345678', 'mary.shopper@email.com', 150, 'silver'),
     ('Bob Buyer', '0903456789', 'bob.buyer@email.com', 50, 'bronze');
 
-    -- 10. Insert Product-Promotion relationships
-    INSERT INTO ProductPromotion (product_id, promotion_id) VALUES
-    (4, 1),
-    (5, 1),
-    (6, 1),
-    (1, 2),
-    (2, 2),
-    (3, 2),
-    (4, 3);
-
-    -- 11. Insert PricingRule-Promotion relationships
-    INSERT INTO PricingRulePromotion (rule_id, promotion_id) VALUES
-    (4, 1);
-
-    -- 12. Insert Orders (Purchase Orders from Suppliers)
+    -- 8. Insert Orders (Purchase Orders from Suppliers)
     INSERT INTO `Order` (store_id, supplier_id, created_by, status, expected_delivery) VALUES
     (1, 1, 2, 'confirmed', '2024-12-20 10:00:00'),
     (1, 2, 2, 'pending', '2024-12-25 14:00:00'),
     (1, 3, 2, 'delivered', '2024-12-15 09:00:00');
 
-    -- 13. Insert Order Items
+    -- 9. Insert Order Items
     INSERT INTO OrderItem (order_id, product_id, quantity, unit_price, subtotal) VALUES
     (1, 1, 10, 999.99, 9999.90),
     (1, 2, 5, 899.99, 4499.95),
@@ -112,21 +92,21 @@
     (2, 5, 30, 49.99, 1499.70),
     (3, 6, 100, 12.99, 1299.00);
 
-    -- 14. Insert Payments
+    -- 10. Insert Payments
     INSERT INTO Payment (method, amount, status, paid_at) VALUES
     ('card', 1099.98, 'completed', '2024-12-10 15:30:00'),
     ('cash', 599.97, 'completed', '2024-12-11 10:15:00'),
     ('mobile_payment', 2499.99, 'completed', '2024-12-12 14:45:00'),
     ('card', 129.90, 'completed', '2024-12-13 16:20:00');
 
-    -- 15. Insert Transactions (Sales)
+    -- 11. Insert Transactions (Sales)
     INSERT INTO Transaction (order_id, customer_id, payment_id, store_id, total_amount, status) VALUES
     (NULL, 1, 1, 1, 1099.98, 'completed'),
     (NULL, 2, 2, 1, 599.97, 'completed'),
     (NULL, 1, 3, 1, 2499.99, 'completed'),
     (NULL, 3, 4, 1, 129.90, 'completed');
 
-    -- 16. Insert Transaction Items
+    -- 12. Insert Transaction Items
     INSERT INTO TransactionItem (transaction_id, product_id, quantity, unit_price, subtotal) VALUES
     (1, 1, 1, 1099.98, 1099.98),
     (2, 2, 1, 599.97, 599.97),
@@ -138,13 +118,13 @@
     -- SCHEDULE MANAGEMENT DATA
     -- =====================================================
 
-    -- 17. Insert Shift Templates (Ca làm việc)
+    -- 13. Insert Shift Templates (Ca làm việc)
     INSERT INTO ShiftTemplate (name, start_time, end_time, description, is_active) VALUES
     ('Ca Sáng', '06:00:00', '14:00:00', 'Ca làm việc buổi sáng từ 6h đến 14h', TRUE),
     ('Ca Tối', '14:00:00', '22:00:00', 'Ca làm việc buổi tối từ 14h đến 22h', TRUE),
     ('Ca Đêm', '22:00:00', '06:00:00', 'Ca làm việc đêm từ 22h đến 6h sáng hôm sau', TRUE);
 
-    -- 18. Insert Schedules (Phân công lịch làm việc)
+    -- 14. Insert Schedules (Phân công lịch làm việc)
     -- Lịch làm việc tuần từ 2024-12-16 đến 2024-12-22 (Tuần 51)
     INSERT INTO Schedule (store_id, user_id, shift_template_id, work_date, status, notes, created_by) VALUES
     -- Thứ Hai (2024-12-16)
@@ -169,7 +149,7 @@
     (1, 5, 1, '2024-12-22', 'confirmed', 'Ca sáng chủ nhật', 2),
     (1, 4, 2, '2024-12-22', 'draft', 'Ca tối chủ nhật - chưa xác nhận', 2);
 
-    -- 19. Insert Shift Change Requests (Yêu cầu đổi ca)
+    -- 15. Insert Shift Change Requests (Yêu cầu đổi ca)
     INSERT INTO ShiftChangeRequest (store_id, from_schedule_id, from_user_id, to_user_id, to_schedule_id, to_work_date, to_shift_template_id, request_type, reason, status, reviewed_by, reviewed_at) VALUES
     -- Yêu cầu đổi ca đã được duyệt (swap với schedule có sẵn)
     (1, 5, 4, 3, 6, NULL, NULL, 'swap', 'Có việc đột xuất vào buổi sáng thứ tư', 'approved', 2, '2024-12-15 10:30:00'),

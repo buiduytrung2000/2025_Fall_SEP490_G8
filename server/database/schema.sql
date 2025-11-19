@@ -135,23 +135,7 @@ CREATE TABLE IF NOT EXISTS WarehouseInventory (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 7. PROMOTION TABLE
--- =====================================================
-CREATE TABLE IF NOT EXISTS Promotion (
-    promotion_id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL,
-    type ENUM('percentage', 'fixed_amount', 'buy_x_get_y', 'bundle') NOT NULL,
-    start_date DATETIME NOT NULL,
-    end_date DATETIME NOT NULL,
-    status ENUM('active', 'inactive', 'expired') DEFAULT 'inactive',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_promotion_status (status),
-    INDEX idx_promotion_dates (start_date, end_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 8. PRICING RULE TABLE
+-- 7. PRICING RULE TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS PricingRule (
     rule_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -179,7 +163,7 @@ CREATE TABLE IF NOT EXISTS `Order` (
     supplier_id INT NOT NULL,
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status ENUM('pending', 'confirmed', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+    status ENUM('pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     expected_delivery DATETIME NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
@@ -236,14 +220,20 @@ CREATE TABLE IF NOT EXISTS Payment (
     amount DECIMAL(10, 2) NOT NULL,
     given_amount DECIMAL(10, 2) NULL COMMENT 'For cash: amount customer gave',
     change_amount DECIMAL(10, 2) NULL COMMENT 'For cash: change to return',
+    cash_received DECIMAL(10, 2) NULL COMMENT 'Amount of cash received from customer (for cash payment)',
     reference VARCHAR(255) NULL COMMENT 'For bank transfer: transaction reference',
+    payos_order_code BIGINT NULL COMMENT 'PayOS order code for QR payment',
+    payos_payment_link_id VARCHAR(255) NULL COMMENT 'PayOS payment link ID',
+    payos_transaction_reference VARCHAR(255) NULL COMMENT 'PayOS transaction reference',
     status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
     paid_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_payment_status (status),
     INDEX idx_payment_method (method),
-    INDEX idx_payment_reference (reference)
+    INDEX idx_payment_reference (reference),
+    INDEX idx_payment_payos_order_code (payos_order_code),
+    INDEX idx_payment_payos_payment_link_id (payos_payment_link_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -278,6 +268,7 @@ CREATE TABLE IF NOT EXISTS Transaction (
     INDEX idx_transaction_store (store_id),
     INDEX idx_transaction_shift (shift_id),
     INDEX idx_transaction_cashier (cashier_id),
+    INDEX idx_transaction_voucher_code (voucher_code),
     INDEX idx_transaction_status (status),
     INDEX idx_transaction_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -300,37 +291,7 @@ CREATE TABLE IF NOT EXISTS TransactionItem (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
--- 16. PRODUCT PROMOTION JUNCTION TABLE (Many-to-Many)
--- =====================================================
-CREATE TABLE IF NOT EXISTS ProductPromotion (
-    product_promotion_id INT PRIMARY KEY AUTO_INCREMENT,
-    product_id INT NOT NULL,
-    promotion_id INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
-    FOREIGN KEY (promotion_id) REFERENCES Promotion(promotion_id) ON DELETE CASCADE,
-    UNIQUE KEY unique_product_promotion (product_id, promotion_id),
-    INDEX idx_product_promotion_product (product_id),
-    INDEX idx_product_promotion_promotion (promotion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 17. PRICING RULE PROMOTION JUNCTION TABLE (Many-to-Many)
--- =====================================================
-CREATE TABLE IF NOT EXISTS PricingRulePromotion (
-    pricing_rule_promotion_id INT PRIMARY KEY AUTO_INCREMENT,
-    rule_id INT NOT NULL,
-    promotion_id INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (rule_id) REFERENCES PricingRule(rule_id) ON DELETE CASCADE,
-    FOREIGN KEY (promotion_id) REFERENCES Promotion(promotion_id) ON DELETE CASCADE,
-    UNIQUE KEY unique_rule_promotion (rule_id, promotion_id),
-    INDEX idx_rule_promotion_rule (rule_id),
-    INDEX idx_rule_promotion_promotion (promotion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 18. SHIFT TEMPLATE TABLE (Ca làm việc định nghĩa sẵn)
+-- 16. SHIFT TEMPLATE TABLE (Ca làm việc định nghĩa sẵn)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftTemplate (
     shift_template_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -411,22 +372,7 @@ ALTER TABLE Transaction
 CREATE INDEX idx_transaction_shift ON Transaction(shift_id);
 
 -- =====================================================
--- 21. SHIFT CASH MOVEMENT TABLE (Giao dịch tiền mặt trong ca)
--- =====================================================
-CREATE TABLE IF NOT EXISTS ShiftCashMovement (
-    movement_id INT PRIMARY KEY AUTO_INCREMENT,
-    shift_id INT NOT NULL,
-    type ENUM('cash_in', 'cash_out') NOT NULL,
-    amount DECIMAL(14, 2) NOT NULL,
-    reason TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (shift_id) REFERENCES Shift(shift_id) ON DELETE CASCADE,
-    INDEX idx_scm_shift (shift_id),
-    INDEX idx_scm_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- 22. SHIFT CHANGE REQUEST TABLE (Yêu cầu đổi ca)
+-- 21. SHIFT CHANGE REQUEST TABLE (Yêu cầu đổi ca)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ShiftChangeRequest (
     request_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -470,7 +416,7 @@ CREATE TABLE IF NOT EXISTS StoreOrder (
     target_warehouse VARCHAR(255) NULL COMMENT 'Warehouse name for ToWarehouse orders',
     supplier_id INT NULL COMMENT 'Supplier ID for ToSupplier orders',
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-    status ENUM('pending', 'approved', 'rejected', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+    status ENUM('pending', 'approved', 'rejected', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     perishable BOOLEAN DEFAULT FALSE COMMENT 'For fresh goods',
     notes TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -493,6 +439,7 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
     sku VARCHAR(100) NULL COMMENT 'Product SKU',
     product_name VARCHAR(255) NOT NULL,
     quantity INT NOT NULL DEFAULT 1,
+    actual_quantity INT NULL COMMENT 'Số lượng thực tế sau khi điều chỉnh',
     unit_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     subtotal DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -500,7 +447,8 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
     FOREIGN KEY (store_order_id) REFERENCES StoreOrder(store_order_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE SET NULL,
     INDEX idx_store_order_item_order (store_order_id),
-    INDEX idx_store_order_item_product (product_id)
+    INDEX idx_store_order_item_product (product_id),
+    INDEX idx_store_order_item_actual_quantity (actual_quantity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS CustomerVoucher (
@@ -545,33 +493,3 @@ CREATE TABLE IF NOT EXISTS VoucherTemplate (
     INDEX idx_voucher_template_loyalty (required_loyalty_points),
     INDEX idx_voucher_template_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- NOTES AND RECOMMENDATIONS
--- =====================================================
--- 1. All tables use InnoDB engine for foreign key support
--- 2. All primary keys use INT AUTO_INCREMENT (can change to BIGINT if needed)
--- 3. Timestamps (created_at, updated_at) added for auditing
--- 4. ENUM types used for status fields to ensure data integrity
--- 5. Indexes added on foreign keys and frequently queried fields
--- 6. Junction tables created for many-to-many relationships
--- 7. TransactionItem table added to track individual items in sales transactions
--- 8. CASCADE deletes used where appropriate, SET NULL where relationships are optional
--- 9. Schedule management tables added:
---    - ShiftTemplate: Template định nghĩa các ca làm việc
---    - Schedule: Phân công nhân viên vào ca làm việc (user_id có thể NULL cho ca trống)
---    - ShiftChangeRequest: Yêu cầu đổi ca giữa nhân viên
---    - Shift: Ca làm việc thực tế của nhân viên (check-in/check-out)
---    - ShiftCashMovement: Giao dịch tiền mặt trong ca
--- 10. Payment table extended with:
---    - given_amount: Số tiền khách đưa (cho thanh toán tiền mặt)
---    - change_amount: Tiền thừa trả lại khách
---    - reference: Mã tham chiếu (cho chuyển khoản)
--- 11. Transaction table extended with:
---    - shift_id: Liên kết giao dịch với ca làm việc
--- 12. Schedule table extended with:
---    - attendance_status: Trạng thái điểm danh (not_checked_in, checked_in, checked_out, absent)
--- 13. Shift table includes:
---    - schedule_id: Liên kết với Schedule nếu được tạo từ schedule
---    - Unique constraint enforced in application: only one open shift per cashier per store
-
