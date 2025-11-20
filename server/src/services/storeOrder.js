@@ -277,7 +277,7 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
             FROM StoreOrder so
             LEFT JOIN User u ON so.created_by = u.user_id
             LEFT JOIN Store s ON so.store_id = s.store_id
-            ${whereClause}
+            ${whereClause} 
             ORDER BY so.created_at DESC
         `;
 
