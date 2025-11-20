@@ -177,6 +177,68 @@ const OrderUpdate = () => {
     navigate(`/warehouse/orders/${id}/shipment`);
   };
 
+  const getUnitLabel = (unit) => (unit?.symbol || unit?.name || '').trim();
+
+  const getBaseUnitLabel = (item) =>
+    item.product?.baseUnit?.symbol ||
+    item.product?.baseUnit?.name ||
+    getUnitLabel(item.unit) ||
+    'đơn vị';
+
+  const renderQuantityDetails = (item) => {
+    const baseUnitLabel = getBaseUnitLabel(item);
+    const requestedQty = item.quantity ?? 0;
+    const pkgQty = item.package_quantity;
+    const pkgLabel = getUnitLabel(item.packageUnit);
+    const actualQty = item.actual_quantity ?? item.quantity_in_base ?? requestedQty;
+
+    return (
+      <Box>
+        <Typography variant="body2" fontWeight={600}>
+          {requestedQty} {getUnitLabel(item.unit) || baseUnitLabel}
+        </Typography>
+        {pkgQty && pkgLabel && actualQty ? (
+          <Typography variant="body2" color="text.secondary">
+            Xuất: {pkgQty} {pkgLabel} ({actualQty.toLocaleString('vi-VN')} {baseUnitLabel})
+          </Typography>
+        ) : null}
+      </Box>
+    );
+  };
+
+  const getStockInfo = (item) => {
+    const baseUnitLabel = getBaseUnitLabel(item);
+    const baseStock = Number(item.inventory?.stock || 0);
+    const packageConversion = Number(item.package_unit_conversion || 0);
+    const pkgLabel = getUnitLabel(item.packageUnit);
+
+    let primaryLabel;
+    let compareValue;
+
+    if (packageConversion > 0 && pkgLabel) {
+      const stockInPackages = Math.floor(baseStock / packageConversion);
+      primaryLabel = `${stockInPackages.toLocaleString('vi-VN')} ${pkgLabel}`;
+      compareValue = stockInPackages;
+    } else {
+      const requestedConversion =
+        item.quantity && item.quantity_in_base
+          ? Number(item.quantity_in_base) / Number(item.quantity)
+          : 1;
+      const stockInRequestedUnit =
+        requestedConversion > 0 ? Math.floor(baseStock / requestedConversion) : baseStock;
+      primaryLabel = `${stockInRequestedUnit.toLocaleString('vi-VN')} ${getUnitLabel(item.unit) || ''}`.trim();
+      compareValue = stockInRequestedUnit;
+    }
+
+    const secondaryLabel = `≈ ${baseStock.toLocaleString('vi-VN')} ${baseUnitLabel}`;
+
+    return {
+      compareValue,
+      primaryLabel,
+      secondaryLabel
+    };
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -276,15 +338,17 @@ const OrderUpdate = () => {
                       <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Đơn vị</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">SL yêu cầu</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Quy đổi/Đóng gói</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (đơn vị yêu cầu)</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (đơn vị kho)</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Đơn giá</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Thành tiền</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {order.orderItems?.map((item, index) => {
-                      const stockAvailable = item.inventory?.stock ?? 0;
-                      const isLowStock = stockAvailable < item.quantity;
+                      const stockInfo = getStockInfo(item);
+                      const isLowStock = stockInfo.compareValue < (item.package_quantity || item.quantity || 0);
 
                       return (
                         <TableRow key={item.order_item_id} hover>
@@ -301,7 +365,7 @@ const OrderUpdate = () => {
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" color="text.secondary">
-                              {item.product?.unit || 'Thùng'}
+                              {getUnitLabel(item.unit) || getBaseUnitLabel(item)}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
@@ -309,17 +373,25 @@ const OrderUpdate = () => {
                               {item.quantity}
                             </Typography>
                           </TableCell>
+                          <TableCell>
+                            {renderQuantityDetails(item)}
+                          </TableCell>
                           <TableCell align="right">
                             <Chip
-                              label={stockAvailable}
+                              label={stockInfo.primaryLabel}
                               size="small"
                               sx={{
                                 bgcolor: isLowStock ? '#ff5252' : '#4caf50',
                                 color: 'white',
                                 fontWeight: 700,
-                                minWidth: 50
+                                minWidth: 90
                               }}
                             />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                              {stockInfo.secondaryLabel}
+                            </Typography>
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2">
@@ -335,7 +407,7 @@ const OrderUpdate = () => {
                       );
                     })}
                     <TableRow>
-                      <TableCell colSpan={7} align="right" sx={{ bgcolor: '#f5f5f5', fontWeight: 700 }}>
+                      <TableCell colSpan={9} align="right" sx={{ bgcolor: '#f5f5f5', fontWeight: 700 }}>
                         Tổng cộng:
                       </TableCell>
                       <TableCell align="right" sx={{ bgcolor: '#f5f5f5' }}>

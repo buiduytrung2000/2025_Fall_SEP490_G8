@@ -24,6 +24,18 @@ module.exports = (sequelize, DataTypes) => {
                 onDelete: 'SET NULL'
             });
 
+            Product.belongsTo(models.Unit, {
+                foreignKey: 'base_unit_id',
+                as: 'baseUnit',
+                onDelete: 'RESTRICT'
+            });
+
+            Product.hasMany(models.ProductUnit, {
+                foreignKey: 'product_id',
+                as: 'units',
+                onDelete: 'CASCADE'
+            });
+
             // Product has many PricingRules
             Product.hasMany(models.PricingRule, {
                 foreignKey: 'product_id',
@@ -82,6 +94,14 @@ module.exports = (sequelize, DataTypes) => {
             references: {
                 model: 'Supplier',
                 key: 'supplier_id'
+            }
+        },
+        base_unit_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'Unit',
+                key: 'unit_id'
             }
         },
         hq_price: {

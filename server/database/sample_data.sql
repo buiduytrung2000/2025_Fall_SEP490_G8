@@ -26,6 +26,16 @@
     ('Chăm sóc cá nhân', 2),          -- 6
     ('Vệ sinh nhà cửa', 2);           -- 7
 
+-- 2b. Units
+INSERT INTO Unit (name, symbol, level) VALUES
+('Kilogram', 'kg', 3),          -- 1
+('Liter', 'L', 3),              -- 2
+('Milliliter', 'ml', 4),        -- 3
+('Chai', 'chai', 3),            -- 4
+('Gói', 'goi', 3),              -- 5
+('Thùng', 'thung', 1),          -- 6
+('Bao', 'bao', 2);              -- 7
+
     -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
     INSERT INTO Supplier (name, contact, email, address) VALUES
     ('Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
@@ -43,14 +53,51 @@
     ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
     ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
-    -- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
-    INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
-    ('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 120000, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm'),
-    ('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 55000, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào'),
-    ('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 45000, 'Chai nước mắm cá cơm độ đạm cao, 750ml'),
-    ('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 90000, 'Thùng mì gói 30 gói, nhiều hương vị'),
-    ('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 28000, 'Túi đường trắng tinh luyện 1kg'),
-    ('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 85000, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ');
+-- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
+INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, description) VALUES
+('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 1, 120000, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm'),
+('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 2, 55000, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào'),
+('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 3, 45000, 'Chai nước mắm cá cơm độ đạm cao, 750ml'),
+('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 5, 90000, 'Thùng mì gói 30 gói, nhiều hương vị'),
+('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 1, 28000, 'Túi đường trắng tinh luyện 1kg'),
+('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 4, 85000, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ');
+
+-- 5b. Product units
+INSERT INTO ProductUnit (product_id, unit_id, conversion_to_base) VALUES
+(1, 1, 1),  -- kg
+(1, 7, 5),  -- bao 5kg
+(2, 2, 1),  -- lít
+(2, 4, 1),  -- chai
+(3, 3, 1),  -- ml
+(3, 4, 750),
+(4, 5, 1),  -- gói
+(4, 6, 30), -- thùng 30 gói
+(5, 1, 1),  -- kg
+(5, 7, 1),
+(6, 4, 1),  -- chai 500ml
+(6, 6, 24); -- thùng 24 chai
+
+-- 6. Insert Inventory (base_quantity = đơn vị cơ sở)
+INSERT INTO Inventory (store_id, product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point) VALUES
+(1, 1, 250, 0, 50, 100),
+(1, 2, 30, 0, 5, 15),
+(1, 3, 11250, 0, 2250, 7500),
+(1, 4, 3000, 0, 600, 1500),
+(1, 5, 80, 0, 15, 40),
+(1, 6, 4800, 0, 1200, 2400),
+(2, 1, 200, 0, 50, 100),
+(2, 2, 25, 0, 5, 15),
+(2, 4, 2400, 0, 600, 1500),
+(3, 6, 3600, 0, 1200, 2400);
+
+-- 6b. Warehouse inventory (base units)
+INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point, location, notes) VALUES
+(1, 2500, 0, 250, 1000, 'Kho chính - Kệ Gạo A1', 'Gạo Jasmine 5kg, mặt hàng bán chạy'),
+(2, 400, 0, 40, 160, 'Kho chính - Kệ Gia vị B1', 'Dầu ăn hướng dương 1L'),
+(3, 225000, 0, 22500, 90000, 'Kho chính - Kệ Gia vị B2', 'Nước mắm truyền thống 750ml'),
+(4, 24000, 0, 3000, 9000, 'Kho đồ khô - Kệ Mì C1', 'Mì gói thùng 30 gói'),
+(5, 600, 0, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
+(6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
     -- 6. Insert Inventory
     INSERT INTO Inventory (store_id, product_id, stock, min_stock_level, reorder_point) VALUES
