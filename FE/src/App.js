@@ -47,8 +47,8 @@ import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
-  // Chuyển hướng về trang login nếu chưa đăng nhập
-  if (!user) return <Navigate to="/login" replace />;
+  // Nếu chưa đăng nhập, hiển thị trang login
+  if (!user) return <Login />;
 
   return <MainLayout />;
 };
@@ -63,7 +63,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Main application layout for other roles */}
+          {/* Root route - shows login if not authenticated, otherwise shows main layout */}
           <Route path="/" element={<AuthenticatedRedirect />}>
             <Route
               path="/admin/permissions"

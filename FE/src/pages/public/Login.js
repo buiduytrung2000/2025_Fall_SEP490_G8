@@ -23,9 +23,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  
+  
   const [showPass, setShowPass] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -42,14 +41,13 @@ const Login = () => {
   const validationSchema = loginValidationSchema;
 
   const handleSubmit = async (values, { setSubmitting }) => {
-    setError("");
+    
     const response = await login(values.email, values.password);
     if (response.success) {
       toast.success("Đăng nhập thành công");
       navigate(roleToPath[response.user.role] || "/");
     } else {
       const msg = response.message || "Đăng nhập thất bại";
-      setError(msg);
       toast.error(msg);
     }
     setSubmitting(false);
@@ -103,7 +101,7 @@ const Login = () => {
                   label="Email"
                   type="email"
                   value={values.email}
-                  onChange={(e) => { handleChange(e); setEmail(e.target.value); }}
+                  onChange={handleChange}
                   margin="normal"
                   autoFocus
                   placeholder="Enter email"
@@ -122,7 +120,7 @@ const Login = () => {
                   label="Mật khẩu"
                   type={showPass ? "text" : "password"}
                   value={values.password}
-                  onChange={(e) => { handleChange(e); setPassword(e.target.value); }}
+                  onChange={handleChange}
                   margin="normal"
                   placeholder="Enter Password"
                   error={touched.password && Boolean(errors.password)}

@@ -91,15 +91,15 @@ export const loginService = async ({ email, password }) => {
             }
         }
 
-        // Comment out password validation for development
-        // const isPasswordValid = await bcrypt.compare(password, user.password)
+        // Validate password using bcrypt
+        const isPasswordValid = await bcrypt.compare(password, user.password)
 
-        // if (!isPasswordValid) {
-        //     return {
-        //         err: 1,
-        //         msg: 'Invalid password!'
-        //     }
-        // }
+        if (!isPasswordValid) {
+            return {
+                err: 1,
+                msg: 'Invalid password!'
+            }
+        }
 
         if (user.status !== 'active') {
             return {

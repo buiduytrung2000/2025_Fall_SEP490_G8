@@ -16,21 +16,21 @@
     ('Store North', '456 North Avenue, City B', '0987654321', 'active'),
     ('Store South', '789 South Road, City C', '0123987654', 'active');
 
-    -- 2. Insert Categories (with hierarchy)
+    -- 2. Insert Categories (with hierarchy) - mô phỏng siêu thị tổng hợp
     INSERT INTO Category (name, parent_id) VALUES
-    ('Electronics', NULL),
-    ('Clothing', NULL),
-    ('Food & Beverage', NULL),
-    ('Mobile Phones', 1),
-    ('Laptops', 1),
-    ('Men Clothing', 2),
-    ('Women Clothing', 2);
+    ('Thực phẩm khô', NULL),          -- 1
+    ('Hàng tiêu dùng', NULL),         -- 2
+    ('Đồ uống', NULL),                -- 3
+    ('Gạo & Ngũ cốc', 1),             -- 4
+    ('Gia vị & Nước chấm', 1),        -- 5
+    ('Chăm sóc cá nhân', 2),          -- 6
+    ('Vệ sinh nhà cửa', 2);           -- 7
 
-    -- 3. Insert Suppliers
+    -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
     INSERT INTO Supplier (name, contact, email, address) VALUES
-    ('Tech Supplier Co.', 'John Doe', 'john@techsupplier.com', '100 Supplier Street'),
-    ('Fashion Supplier Ltd.', 'Jane Smith', 'jane@fashionsupplier.com', '200 Fashion Avenue'),
-    ('Food Supplier Inc.', 'Bob Wilson', 'bob@foodsupplier.com', '300 Food Boulevard');
+    ('Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
+    ('Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
+    ('Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
 
     -- Note: includes phone column
     -- Passwords are hashed using bcrypt (password: '123')
@@ -43,14 +43,14 @@
     ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
     ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
-    -- 5. Insert Products
+    -- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
     INSERT INTO Product (name, sku, category_id, supplier_id, hq_price, description) VALUES
-    ('iPhone 15 Pro', 'IPHONE15PRO001', 4, 1, 12000000, 'Latest iPhone model with Pro features'),
-    ('Samsung Galaxy S24', 'SAMSUNGS24001', 4, 1, 15000000, 'Flagship Samsung smartphone'),
-    ('MacBook Pro 16"', 'MACBOOKPRO16001', 5, 1, 24000000, 'Professional laptop for creative work'),
-    ('T-Shirt Men XL', 'TSHIRTXL001', 6, 2, 234567, 'Comfortable cotton t-shirt'),
-    ('Jeans Women 30', 'JEANSW301', 7, 2, 12000000, 'Classic fit jeans'),
-    ('Coffee Beans 1kg', 'COFFEE1KG001', 3, 3, 100000, 'Premium arabica coffee beans');
+    ('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 120000, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm'),
+    ('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 55000, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào'),
+    ('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 45000, 'Chai nước mắm cá cơm độ đạm cao, 750ml'),
+    ('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 90000, 'Thùng mì gói 30 gói, nhiều hương vị'),
+    ('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 28000, 'Túi đường trắng tinh luyện 1kg'),
+    ('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 85000, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ');
 
     -- 6. Insert Inventory
     INSERT INTO Inventory (store_id, product_id, stock, min_stock_level, reorder_point) VALUES
@@ -64,6 +64,17 @@
     (2, 2, 25, 5, 15),
     (2, 4, 80, 20, 50),
     (3, 6, 150, 50, 100);
+
+    -- 6b. Insert Warehouse Inventory
+    --   Sử dụng các product_id đã có trong bảng Product (1–6)
+    --   Mỗi sản phẩm chỉ xuất hiện 1 lần do constraint UNIQUE (product_id)
+    INSERT INTO WarehouseInventory (product_id, stock, min_stock_level, reorder_point, location, notes) VALUES
+    (1, 500, 50, 200, 'Kho chính - Kệ Gạo A1', 'Gạo Jasmine 5kg, mặt hàng bán chạy'),
+    (2, 400, 40, 160, 'Kho chính - Kệ Gia vị B1', 'Dầu ăn hướng dương 1L'),
+    (3, 300, 30, 120, 'Kho chính - Kệ Gia vị B2', 'Nước mắm truyền thống 750ml'),
+    (4, 800, 100, 300, 'Kho đồ khô - Kệ Mì C1', 'Mì gói thùng 30 gói'),
+    (5, 600, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
+    (6, 1000, 150, 400, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
     -- 7. Insert Pricing Rules
     INSERT INTO PricingRule (product_id, store_id, type, value, start_date, end_date) VALUES
