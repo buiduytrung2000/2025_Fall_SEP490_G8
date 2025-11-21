@@ -1,5 +1,5 @@
-   // src/pages/Warehouse/IncomingOrders.js
-import React, { useEffect, useMemo, useState } from 'react';
+// src/pages/Warehouse/IncomingOrders.js
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -16,47 +16,95 @@ import {
   TextField,
   Stack
 } from '@mui/material';
-import { getStoreOrders, rejectStoreOrder, forwardStoreOrderToSupplier, approveAndSendToSupplier } from '../../api/mockApi';
+import { toast } from 'react-toastify';
+import { getAllWarehouseOrders, updateWarehouseOrderStatus } from '../../api/warehouseOrderApi';
 
-const columns = [
-  { key: 'id', label: 'Mã đơn' },
-  { key: 'createdBy', label: 'Tạo bởi' },
-  { key: 'date', label: 'Ngày' },
-  { key: 'items', label: 'Số dòng' },
-  { key: 'total', label: 'Tổng tiền' },
-  { key: 'status', label: 'Trạng thái' },
-  { key: 'actions', label: 'Thao tác' }
+const STATUS_OPTIONS = [
+  { value: 'All', label: 'Tất cả' },
+  { value: 'pending', label: 'Chờ duyệt' },
+  { value: 'confirmed', label: 'Đã duyệt' },
+  { value: 'preparing', label: 'Đang chuẩn bị' },
+  { value: 'shipped', label: 'Đã xuất kho' },
+  { value: 'delivered', label: 'Cửa hàng đã nhận' },
+  { value: 'cancelled', label: 'Đã hủy' }
 ];
 
+const STATUS_META = {
+  pending: { label: 'Chờ duyệt', color: 'warning' },
+  confirmed: { label: 'Đã duyệt', color: 'info' },
+  preparing: { label: 'Đang chuẩn bị', color: 'info' },
+  shipped: { label: 'Đã xuất kho', color: 'primary' },
+  delivered: { label: 'Cửa hàng đã nhận', color: 'success' },
+  cancelled: { label: 'Đã hủy', color: 'default' }
+};
+
+const STATUS_ACTIONS = {
+  pending: { label: 'Duyệt đơn', nextStatus: 'confirmed' },
+  confirmed: { label: 'Chuẩn bị hàng', nextStatus: 'preparing' },
+  preparing: { label: 'Xuất kho', nextStatus: 'shipped' }
+};
+
 const IncomingOrders = () => {
-  const [rows, setRows] = useState([]);
-  const [status, setStatus] = useState('Pending');
+  const [orders, setOrders] = useState([]);
+  const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(false);
+  const [updatingId, setUpdatingId] = useState(null);
 
-  const load = () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
-    getStoreOrders().then(data => setRows(data.filter(o => o.type === 'ToWarehouse'))).finally(() => setLoading(false));
-  };
+    try {
+      const response = await getAllWarehouseOrders({
+        status: status === 'All' ? undefined : status,
+        limit: 50,
+        page: 1
+      });
 
-  useEffect(() => { load(); }, []);
+      if (response.err === 0) {
+        setOrders(response.data?.orders || []);
+      } else {
+        toast.error(response.msg || 'Không thể tải danh sách đơn');
+        setOrders([]);
+      }
+    } catch (error) {
+      console.error('Error loading warehouse orders:', error);
+      toast.error('Lỗi kết nối máy chủ');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [status]);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const filtered = useMemo(() => {
-    if (status === 'All') return rows;
-    return rows.filter(r => r.status === status);
-  }, [rows, status]);
+    if (status === 'All') return orders;
+    return orders.filter(order => order.status === status);
+  }, [orders, status]);
 
-  const handleApprove = async (id) => {
-    const supplier = window.prompt('Nhập nhà cung cấp để gửi đơn:', 'Default Supplier');
-    if (!supplier) return;
-    await approveAndSendToSupplier(id, supplier);
-    load();
+  const handleUpdateStatus = async (orderId, nextStatus) => {
+    setUpdatingId(orderId);
+    try {
+      const response = await updateWarehouseOrderStatus(orderId, nextStatus);
+      if (response.err === 0) {
+        toast.success(response.msg || 'Cập nhật trạng thái thành công');
+        await fetchOrders();
+      } else {
+        toast.error(response.msg || 'Không thể cập nhật trạng thái');
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Lỗi kết nối máy chủ');
+    } finally {
+      setUpdatingId(null);
+    }
   };
-  const handleReject = async (id) => { await rejectStoreOrder(id); load(); };
-  const handleForward = async (order) => {
-    const supplier = window.prompt('Nhập nhà cung cấp giao thẳng cho cửa hàng:', order.supplier || 'Fresh Supplier');
-    if (!supplier) return;
-    await forwardStoreOrderToSupplier(order.id, supplier);
-    load();
+
+  const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN');
+  const formatDate = (value) => value ? new Date(value).toLocaleString('vi-VN') : 'N/A';
+
+  const renderStatusChip = (statusValue) => {
+    const meta = STATUS_META[statusValue?.toLowerCase()] || STATUS_META.pending;
+    return <Chip size="small" label={meta.label} color={meta.color} />;
   };
 
   return (
@@ -84,7 +132,11 @@ const IncomingOrders = () => {
           label="Lọc trạng thái" 
           sx={{ width: { xs: '100%', sm: 220 } }}
         >
-          {['All', 'Pending', 'Approved', 'Rejected'].map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+          {STATUS_OPTIONS.map(option => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
         </TextField>
       </Stack>
 
@@ -92,65 +144,55 @@ const IncomingOrders = () => {
         <Table sx={{ minWidth: 800 }}>
           <TableHead>
             <TableRow>
-              {columns.map(c => (
-                <TableCell 
-                  key={c.key} 
-                  sx={{ 
-                    fontWeight: 700,
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {c.label}
-                </TableCell>
-              ))}
+              <TableCell sx={{ fontWeight: 700 }}>Mã đơn</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Người tạo</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Ngày tạo</TableCell>
+              <TableCell sx={{ fontWeight: 700 }} align="right">Số dòng</TableCell>
+              <TableCell sx={{ fontWeight: 700 }} align="right">Tổng tiền</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Thao tác</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map(r => {
-              const isPending = r.status === 'Pending';
-              const color = r.status === 'Approved' ? 'success' : (r.status === 'Rejected' ? 'error' : 'warning');
+              const statusKey = r.status?.toLowerCase();
+              const action = STATUS_ACTIONS[statusKey];
+              const canCancel = ['pending', 'confirmed', 'preparing'].includes(statusKey);
+              const items = r.orderItems || r.storeOrderItems || [];
               return (
-                <TableRow key={r.id} hover>
-                  <TableCell>{r.id}</TableCell>
-                  <TableCell>{r.createdBy}</TableCell>
-                  <TableCell>{r.date}</TableCell>
-                  <TableCell>{r.items}</TableCell>
-                  <TableCell>{Number(r.total).toLocaleString('vi-VN')}</TableCell>
-                  <TableCell><Chip size="small" color={color} label={r.status} /></TableCell>
+                <TableRow key={r.store_order_id} hover>
+                  <TableCell>{r.store_order_id}</TableCell>
+                  <TableCell>{r.store?.name || 'N/A'}</TableCell>
+                  <TableCell>{r.creator?.username || r.creator?.email || 'N/A'}</TableCell>
+                  <TableCell>{formatDate(r.created_at)}</TableCell>
+                  <TableCell align="right">{items.length}</TableCell>
+                  <TableCell align="right">{formatCurrency(r.totalAmount || r.total_amount)} đ</TableCell>
+                  <TableCell>{renderStatusChip(r.status)}</TableCell>
                   <TableCell>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { xs: 200, sm: 'auto' } }}>
-                      <Button 
-                        disabled={!isPending || loading} 
-                        variant="contained" 
-                        color="success" 
-                        onClick={() => handleApprove(r.id)}
-                        size="small"
-                        fullWidth={{ xs: true, sm: false }}
-                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
-                      >
-                        Approve
-                      </Button>
-                      <Button 
-                        disabled={!isPending || loading} 
-                        variant="outlined" 
-                        color="error" 
-                        onClick={() => handleReject(r.id)}
-                        size="small"
-                        fullWidth={{ xs: true, sm: false }}
-                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
-                      >
-                        Reject
-                      </Button>
-                      {r.perishable && isPending && (
+                      {action && (
                         <Button 
-                          variant="outlined" 
-                          onClick={() => handleForward(r)}
+                          disabled={updatingId === r.store_order_id}
+                          variant="contained"
+                          color="primary"
                           size="small"
-                          fullWidth={{ xs: true, sm: false }}
-                          sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                          onClick={() => handleUpdateStatus(r.store_order_id, action.nextStatus)}
+                          sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
                         >
-                          Forward to Supplier
+                          {action.label}
+                        </Button>
+                      )}
+                      {canCancel && (
+                        <Button 
+                          disabled={updatingId === r.store_order_id}
+                          variant="outlined" 
+                          color="error"
+                          size="small"
+                          onClick={() => handleUpdateStatus(r.store_order_id, 'cancelled')}
+                          sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                        >
+                          Hủy đơn
                         </Button>
                       )}
                     </Stack>
@@ -160,7 +202,7 @@ const IncomingOrders = () => {
             })}
             {!filtered.length && (
               <TableRow>
-                <TableCell colSpan={columns.length} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                   {loading ? 'Đang tải...' : 'Không có dữ liệu'}
                 </TableCell>
               </TableRow>

@@ -114,7 +114,7 @@ module.exports = (sequelize, DataTypes) => {
         package_quantity: {
             type: DataTypes.INTEGER,
             allowNull: true,
-            comment: 'Số lượng đóng gói (ví dụ số thùng)'
+            comment: 'Số lượng đóng gói (ví dụ số thùng được xuất)'
         }
     }, {
         sequelize,

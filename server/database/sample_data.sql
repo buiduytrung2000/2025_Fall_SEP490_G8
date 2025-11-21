@@ -26,7 +26,13 @@
     ('Chăm sóc cá nhân', 2),          -- 6
     ('Vệ sinh nhà cửa', 2);           -- 7
 
--- 2b. Units
+    -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
+    INSERT INTO Supplier (name, contact, email, address) VALUES
+    ('Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
+    ('Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
+    ('Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
+
+-- 4. Insert Units & Product Units for multi-level conversion
 INSERT INTO Unit (name, symbol, level) VALUES
 ('Kilogram', 'kg', 3),          -- 1
 ('Liter', 'L', 3),              -- 2
@@ -35,12 +41,6 @@ INSERT INTO Unit (name, symbol, level) VALUES
 ('Gói', 'goi', 3),              -- 5
 ('Thùng', 'thung', 1),          -- 6
 ('Bao', 'bao', 2);              -- 7
-
-    -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
-    INSERT INTO Supplier (name, contact, email, address) VALUES
-    ('Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
-    ('Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
-    ('Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
 
     -- Note: includes phone column
     -- Passwords are hashed using bcrypt (password: '123')
@@ -62,22 +62,22 @@ INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price
 ('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 1, 28000, 'Túi đường trắng tinh luyện 1kg'),
 ('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 4, 85000, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ');
 
--- 5b. Product units
+-- 5b. Insert Product Units & conversion ratios
 INSERT INTO ProductUnit (product_id, unit_id, conversion_to_base) VALUES
-(1, 1, 1),  -- kg
-(1, 7, 5),  -- bao 5kg
-(2, 2, 1),  -- lít
-(2, 4, 1),  -- chai
-(3, 3, 1),  -- ml
-(3, 4, 750),
-(4, 5, 1),  -- gói
-(4, 6, 30), -- thùng 30 gói
-(5, 1, 1),  -- kg
-(5, 7, 1),
-(6, 4, 1),  -- chai 500ml
-(6, 6, 24); -- thùng 24 chai
+(1, 1, 1),  -- Kilogram (base)
+(1, 7, 5),  -- Bao 5kg
+(2, 2, 1),  -- Liter (base)
+(2, 4, 1),  -- Chai 1L
+(3, 3, 1),  -- Milliliter (base)
+(3, 4, 750),-- Chai 750ml
+(4, 5, 1),  -- Gói (base)
+(4, 6, 30), -- Thùng 30 gói
+(5, 1, 1),  -- Kilogram (base)
+(5, 7, 1),  -- Bao 1kg
+(6, 4, 1),  -- Chai 500ml (base)
+(6, 6, 24); -- Thùng 24 chai
 
--- 6. Insert Inventory (base_quantity = đơn vị cơ sở)
+-- 6. Insert Inventory (base_quantity = đơn vị cơ sở, reserved_quantity = 0)
 INSERT INTO Inventory (store_id, product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point) VALUES
 (1, 1, 250, 0, 50, 100),
 (1, 2, 30, 0, 5, 15),
@@ -90,7 +90,9 @@ INSERT INTO Inventory (store_id, product_id, base_quantity, reserved_quantity, m
 (2, 4, 2400, 0, 600, 1500),
 (3, 6, 3600, 0, 1200, 2400);
 
--- 6b. Warehouse inventory (base units)
+    -- 6b. Insert Warehouse Inventory
+    --   Sử dụng các product_id đã có trong bảng Product (1–6)
+    --   Mỗi sản phẩm chỉ xuất hiện 1 lần do constraint UNIQUE (product_id)
 INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point, location, notes) VALUES
 (1, 2500, 0, 250, 1000, 'Kho chính - Kệ Gạo A1', 'Gạo Jasmine 5kg, mặt hàng bán chạy'),
 (2, 400, 0, 40, 160, 'Kho chính - Kệ Gia vị B1', 'Dầu ăn hướng dương 1L'),
@@ -98,30 +100,6 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
 (4, 24000, 0, 3000, 9000, 'Kho đồ khô - Kệ Mì C1', 'Mì gói thùng 30 gói'),
 (5, 600, 0, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
 (6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
-
-    -- 6. Insert Inventory
-    INSERT INTO Inventory (store_id, product_id, stock, min_stock_level, reorder_point) VALUES
-    (1, 1, 50, 10, 20),
-    (1, 2, 30, 5, 15),
-    (1, 3, 15, 3, 10),
-    (1, 4, 100, 20, 50),
-    (1, 5, 80, 15, 40),
-    (1, 6, 200, 50, 100),
-    (2, 1, 40, 10, 20),
-    (2, 2, 25, 5, 15),
-    (2, 4, 80, 20, 50),
-    (3, 6, 150, 50, 100);
-
-    -- 6b. Insert Warehouse Inventory
-    --   Sử dụng các product_id đã có trong bảng Product (1–6)
-    --   Mỗi sản phẩm chỉ xuất hiện 1 lần do constraint UNIQUE (product_id)
-    INSERT INTO WarehouseInventory (product_id, stock, min_stock_level, reorder_point, location, notes) VALUES
-    (1, 500, 50, 200, 'Kho chính - Kệ Gạo A1', 'Gạo Jasmine 5kg, mặt hàng bán chạy'),
-    (2, 400, 40, 160, 'Kho chính - Kệ Gia vị B1', 'Dầu ăn hướng dương 1L'),
-    (3, 300, 30, 120, 'Kho chính - Kệ Gia vị B2', 'Nước mắm truyền thống 750ml'),
-    (4, 800, 100, 300, 'Kho đồ khô - Kệ Mì C1', 'Mì gói thùng 30 gói'),
-    (5, 600, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
-    (6, 1000, 150, 400, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
     -- 7. Insert Pricing Rules
     INSERT INTO PricingRule (product_id, store_id, type, value, start_date, end_date) VALUES
@@ -143,12 +121,12 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
     (1, 3, 2, 'delivered', '2024-12-15 09:00:00');
 
     -- 9. Insert Order Items
-    INSERT INTO OrderItem (order_id, product_id, quantity, unit_price, subtotal) VALUES
-    (1, 1, 10, 999.99, 9999.90),
-    (1, 2, 5, 899.99, 4499.95),
-    (2, 4, 50, 19.99, 999.50),
-    (2, 5, 30, 49.99, 1499.70),
-    (3, 6, 100, 12.99, 1299.00);
+INSERT INTO OrderItem (order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base) VALUES
+(1, 1, 10, 999.99, 9999.90, 7, 50),
+(1, 2, 5, 899.99, 4499.95, 4, 5),
+(2, 4, 50, 19.99, 999.50, 6, 1500),
+(2, 5, 30, 49.99, 1499.70, 7, 30),
+(3, 6, 100, 12.99, 1299.00, 6, 2400);
 
     -- 10. Insert Payments
     INSERT INTO Payment (method, amount, status, paid_at) VALUES
@@ -165,12 +143,12 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
     (NULL, 3, 4, 1, 129.90, 'completed');
 
     -- 12. Insert Transaction Items
-    INSERT INTO TransactionItem (transaction_id, product_id, quantity, unit_price, subtotal) VALUES
-    (1, 1, 1, 1099.98, 1099.98),
-    (2, 2, 1, 599.97, 599.97),
-    (3, 3, 1, 2499.99, 2499.99),
-    (4, 4, 5, 25.98, 129.90),
-    (4, 5, 1, 49.99, 49.99);
+INSERT INTO TransactionItem (transaction_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base) VALUES
+(1, 1, 1, 1099.98, 1099.98, 7, 5),
+(2, 2, 1, 599.97, 599.97, 4, 1),
+(3, 3, 1, 2499.99, 2499.99, 4, 750),
+(4, 4, 5, 25.98, 129.90, 5, 5),
+(4, 5, 1, 49.99, 49.99, 7, 1);
 
     -- =====================================================
     -- SCHEDULE MANAGEMENT DATA
