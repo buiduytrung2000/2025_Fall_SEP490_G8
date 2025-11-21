@@ -23,6 +23,18 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'product',
                 onDelete: 'SET NULL'
             });
+
+            StoreOrderItem.belongsTo(models.Unit, {
+                foreignKey: 'unit_id',
+                as: 'unit',
+                onDelete: 'SET NULL'
+            });
+
+            StoreOrderItem.belongsTo(models.Unit, {
+                foreignKey: 'package_unit_id',
+                as: 'packageUnit',
+                onDelete: 'SET NULL'
+            });
         }
     }
     StoreOrderItem.init({
@@ -76,6 +88,33 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: false,
             defaultValue: 0.00
+        },
+        unit_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Unit',
+                key: 'unit_id'
+            }
+        },
+        quantity_in_base: {
+            type: DataTypes.DECIMAL(18, 6),
+            allowNull: true,
+            comment: 'Số lượng quy đổi về đơn vị cơ sở'
+        },
+        package_unit_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Unit',
+                key: 'unit_id'
+            },
+            comment: 'Đơn vị đóng gói khi warehouse xuất kho'
+        },
+        package_quantity: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            comment: 'Số lượng đóng gói (ví dụ số thùng được xuất)'
         }
     }, {
         sequelize,

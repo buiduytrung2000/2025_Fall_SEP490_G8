@@ -50,9 +50,17 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         stock: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.BIGINT,
             allowNull: false,
-            defaultValue: 0
+            defaultValue: 0,
+            field: 'base_quantity',
+            comment: 'Số lượng theo đơn vị cơ sở'
+        },
+        reserved_quantity: {
+            type: DataTypes.BIGINT,
+            allowNull: false,
+            defaultValue: 0,
+            comment: 'Số lượng đã đặt nhưng chưa nhập kho'
         },
         min_stock_level: {
             type: DataTypes.INTEGER,
@@ -96,7 +104,7 @@ module.exports = (sequelize, DataTypes) => {
             },
             {
                 name: 'idx_inventory_stock',
-                fields: ['stock']
+                fields: ['base_quantity']
             }
         ]
     });

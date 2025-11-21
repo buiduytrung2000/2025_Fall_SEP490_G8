@@ -1,5 +1,5 @@
 // src/pages/Store_Manager/PurchaseOrders.js
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -31,6 +31,28 @@ import { toast } from 'react-toastify';
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
 
+const STATUS_OPTIONS = [
+  { label: 'Tất cả', value: 'All' },
+  { label: 'Đang chờ duyệt', value: 'pending' },
+  { label: 'Đã duyệt', value: 'confirmed' },
+  { label: 'Đang chuẩn bị', value: 'preparing' },
+  { label: 'Đang giao', value: 'shipped' },
+  { label: 'Đã nhận', value: 'delivered' },
+  { label: 'Đã hủy', value: 'cancelled' },
+  { label: 'Từ chối', value: 'rejected' }
+];
+
+const STATUS_META = {
+  pending: { label: 'Đang chờ duyệt', color: 'warning' },
+  confirmed: { label: 'Đã duyệt', color: 'info' },
+  approved: { label: 'Đã duyệt', color: 'info' },
+  preparing: { label: 'Đang chuẩn bị', color: 'info' },
+  shipped: { label: 'Đang giao', color: 'primary' },
+  delivered: { label: 'Đã nhận', color: 'success' },
+  cancelled: { label: 'Đã hủy', color: 'default' },
+  rejected: { label: 'Từ chối', color: 'error' }
+};
+
 const PurchaseOrders = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -46,6 +68,13 @@ const PurchaseOrders = () => {
   const [openModal, setOpenModal] = useState(false);
   const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  const getStatusMeta = useCallback((status) => {
+    if (!status) return STATUS_META.pending;
+    const key = status.toLowerCase();
+    return STATUS_META[key] || STATUS_META.pending;
+  }, []);
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
 
@@ -167,11 +196,7 @@ const PurchaseOrders = () => {
         setSupplier('Coca-Cola');
         // Đóng modal tạo đơn
         setOpenCreateOrderModal(false);
-        // Refresh danh sách đơn
-        getStoreOrders({
-          status: statusFilter,
-          order_type: typeFilter
-        }).then(setOrders);
+        await fetchOrders();
       } else {
         toast.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
       }
@@ -183,12 +208,25 @@ const PurchaseOrders = () => {
     }
   };
 
-  useEffect(() => {
-    getStoreOrders({
-      status: statusFilter,
-      order_type: typeFilter
-    }).then(setOrders);
+  const fetchOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    try {
+      const data = await getStoreOrders({
+        status: statusFilter,
+        order_type: typeFilter
+      });
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading store orders:', error);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
   }, [statusFilter, typeFilter]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleConfirmReceived = async () => {
     if (!selectedOrder) return;
@@ -202,11 +240,7 @@ const PurchaseOrders = () => {
       const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered');
       if (response.err === 0) {
         toast.success('Xác nhận đã nhận hàng thành công!');
-        // Reload orders
-        getStoreOrders({
-          status: statusFilter,
-          order_type: typeFilter
-        }).then(setOrders);
+        await fetchOrders();
         // Update selected order
         setSelectedOrder({ ...selectedOrder, status: 'delivered' });
       } else {
@@ -221,10 +255,21 @@ const PurchaseOrders = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-        <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
-      </Box>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        justifyContent="space-between"
+        spacing={2}
+        sx={{ mb: 2 }}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
+        </Box>
+        <Button variant="contained" onClick={() => setOpenCreateOrderModal(true)}>
+          Tạo đơn nhập
+        </Button>
+      </Stack>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -246,7 +291,11 @@ const PurchaseOrders = () => {
             onChange={(e) => setStatusFilter(e.target.value)} 
             sx={{ width: { xs: '100%', sm: 220 } }}
           >
-            {['All','Pending','Approved','Rejected'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
+            {STATUS_OPTIONS.map(option => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
           </TextField>
         </Stack>
       </Paper>
@@ -265,7 +314,9 @@ const PurchaseOrders = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {orders.map(o => (
+            {orders.map(o => {
+              const statusMeta = getStatusMeta(o.status);
+              return (
               <TableRow 
                 key={o.store_order_id} 
                 hover 
@@ -285,19 +336,20 @@ const PurchaseOrders = () => {
                 <TableCell>
                   <Chip 
                     size="small" 
-                    label={o.status || 'pending'} 
-                    color={
-                      o.status === 'approved' ? 'success' :
-                      o.status === 'rejected' ? 'error' :
-                      o.status === 'shipped' ? 'info' :
-                      o.status === 'delivered' ? 'success' :
-                      'warning'
-                    }
+                    label={statusMeta.label}
+                    color={statusMeta.color}
                   />
                 </TableCell>
               </TableRow>
-            ))}
-            {!orders.length && (
+            )})}
+            {loadingOrders && (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  Đang tải dữ liệu...
+                </TableCell>
+              </TableRow>
+            )}
+            {!loadingOrders && !orders.length && (
               <TableRow>
                 <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                   Chưa có đơn nào
@@ -482,18 +534,17 @@ const PurchaseOrders = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">Trạng thái</Typography>
-                  <Chip 
-                    size="small" 
-                    label={selectedOrder.status || 'pending'} 
-                    color={
-                      selectedOrder.status === 'approved' ? 'success' :
-                      selectedOrder.status === 'rejected' ? 'error' :
-                      selectedOrder.status === 'shipped' ? 'info' :
-                      selectedOrder.status === 'delivered' ? 'success' :
-                      'warning'
-                    }
-                    sx={{ mt: 0.5 }}
-                  />
+                  {(() => {
+                    const statusMeta = getStatusMeta(selectedOrder.status);
+                    return (
+                      <Chip 
+                        size="small" 
+                        label={statusMeta.label}
+                        color={statusMeta.color}
+                        sx={{ mt: 0.5 }}
+                      />
+                    );
+                  })()}
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">Hàng tươi sống</Typography>
@@ -575,7 +626,7 @@ const PurchaseOrders = () => {
           )}
         </DialogContent>
         <DialogActions>
-          {selectedOrder?.status === 'shipped' && (
+          {selectedOrder?.status?.toLowerCase() === 'shipped' && (
             <Button 
               onClick={handleConfirmReceived} 
               variant="contained" 

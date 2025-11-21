@@ -45,6 +45,16 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
                         model: db.Product,
                         as: 'product',
                         attributes: ['product_id', 'name', 'sku']
+                    },
+                    {
+                        model: db.Unit,
+                        as: 'unit',
+                        attributes: ['unit_id', 'name', 'symbol']
+                    },
+                    {
+                        model: db.Unit,
+                        as: 'packageUnit',
+                        attributes: ['unit_id', 'name', 'symbol']
                     }
                 ]
             }
@@ -63,15 +73,33 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
             const orderData = order.toJSON();
 
             for (let item of orderData.storeOrderItems) {
-                const inventory = await db.Inventory.findOne({
+                const productId = await resolveProductId(item);
+                if (!productId) {
+                    item.inventory = { store: null, warehouse: null };
+                    continue;
+                }
+
+                if (!item.product_id) {
+                    item.product_id = productId;
+                }
+
+                const storeInventory = await db.Inventory.findOne({
                     where: {
                         store_id: order.store_id,
-                        product_id: item.product_id
+                        product_id: productId
                     },
-                    attributes: ['stock']
+                    attributes: ['base_quantity']
                 });
 
-                item.inventory = inventory ? { stock: inventory.stock } : { stock: 0 };
+                const warehouseInventory = await db.WarehouseInventory.findOne({
+                    where: { product_id: productId },
+                    attributes: ['base_quantity']
+                });
+
+                item.inventory = {
+                    store: storeInventory ? { base_quantity: Number(storeInventory.get('base_quantity')) || 0 } : null,
+                    warehouse: warehouseInventory ? { base_quantity: Number(warehouseInventory.get('base_quantity')) || 0 } : null
+                };
                 item.order_item_id = item.store_order_item_id; // Map for frontend compatibility
             }
 
@@ -103,6 +131,53 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
     } catch (error) {
         throw error;
     }
+};
+
+const packageUnitCache = new Map();
+
+const resolveProductId = async (item) => {
+    if (item.product_id) return item.product_id;
+    if (item.sku) {
+        const product = await db.Product.findOne({
+            where: { sku: item.sku },
+            attributes: ['product_id']
+        });
+        return product?.product_id || null;
+    }
+    return null;
+};
+
+const getPreferredPackageUnit = async (productId) => {
+    if (packageUnitCache.has(productId)) return packageUnitCache.get(productId);
+
+    const productUnit = await db.ProductUnit.findOne({
+        where: { product_id: productId },
+        include: [
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        order: [['conversion_to_base', 'DESC']]
+    });
+
+    if (!productUnit) {
+        packageUnitCache.set(productId, null);
+        return null;
+    }
+
+    const meta = {
+        conversion_to_base: Number(productUnit.conversion_to_base),
+        unit: productUnit.unit ? {
+            unit_id: productUnit.unit.unit_id,
+            name: productUnit.unit.name,
+            symbol: productUnit.unit.symbol
+        } : null
+    };
+
+    packageUnitCache.set(productId, meta);
+    return meta;
 };
 
 /**
@@ -143,6 +218,16 @@ export const getOrderDetailService = async (orderId) => {
                                     attributes: ['category_id', 'name']
                                 }
                             ]
+                        },
+                        {
+                            model: db.Unit,
+                            as: 'unit',
+                            attributes: ['unit_id', 'name', 'symbol']
+                        },
+                        {
+                            model: db.Unit,
+                            as: 'packageUnit',
+                            attributes: ['unit_id', 'name', 'symbol']
                         }
                     ]
                 }
@@ -156,23 +241,75 @@ export const getOrderDetailService = async (orderId) => {
         const orderData = order.toJSON();
 
         for (let item of orderData.storeOrderItems) {
-            const inventory = await db.Inventory.findOne({
+            const productId = await resolveProductId(item);
+            if (!productId) {
+                item.inventory = null;
+                item.order_item_id = item.store_order_item_id;
+                continue;
+            }
+
+            if (!item.product_id) {
+                item.product_id = productId;
+            }
+
+            const storeInventory = await db.Inventory.findOne({
                 where: {
                     store_id: order.store_id,
-                    product_id: item.product_id
+                    product_id: productId
                 },
-                attributes: ['stock', 'min_stock_level', 'reorder_point']
+                attributes: ['base_quantity', 'min_stock_level', 'reorder_point']
             });
 
-            item.inventory = inventory ? {
-                stock: inventory.stock,
-                min_stock_level: inventory.min_stock_level,
-                reorder_point: inventory.reorder_point
-            } : {
-                stock: 0,
-                min_stock_level: 0,
-                reorder_point: 0
-            };
+            const warehouseInventory = await db.WarehouseInventory.findOne({
+                where: { product_id: productId },
+                attributes: ['base_quantity']
+            });
+
+            const inventoryInfo = {};
+
+            if (storeInventory) {
+                const rawStore = storeInventory.get({ plain: true });
+                inventoryInfo.store = {
+                    base_quantity: Number(rawStore.base_quantity) || 0,
+                    min_stock_level: rawStore.min_stock_level,
+                    reorder_point: rawStore.reorder_point
+                };
+            }
+
+            let preferredPackageMeta = null;
+            if (item.packageUnit) {
+                preferredPackageMeta = {
+                    conversion_to_base: item.package_quantity && item.actual_quantity
+                        ? Number(item.actual_quantity) / Number(item.package_quantity)
+                        : null,
+                    unit: {
+                        unit_id: item.packageUnit.unit_id,
+                        name: item.packageUnit.name,
+                        symbol: item.packageUnit.symbol
+                    }
+                };
+            } else {
+                preferredPackageMeta = await getPreferredPackageUnit(item.product_id);
+            }
+
+            if (warehouseInventory) {
+                const rawWarehouse = warehouseInventory.get({ plain: true });
+                const baseQty = Number(rawWarehouse.base_quantity) || 0;
+                const pkgConversion = (rawWarehouse.package_conversion && rawWarehouse.package_conversion > 1)
+                    ? rawWarehouse.package_conversion
+                    : (preferredPackageMeta?.conversion_to_base && preferredPackageMeta.conversion_to_base > 1
+                        ? preferredPackageMeta.conversion_to_base
+                        : null);
+
+                inventoryInfo.warehouse = {
+                    base_quantity: baseQty,
+                    package_conversion: pkgConversion,
+                    package_quantity: pkgConversion ? Math.floor(baseQty / pkgConversion) : null,
+                    package_unit: rawWarehouse.package_unit || preferredPackageMeta?.unit || null
+                };
+            }
+
+            item.inventory = Object.keys(inventoryInfo).length ? inventoryInfo : null;
             item.order_item_id = item.store_order_item_id; // Map for frontend compatibility
         }
 
@@ -575,12 +712,17 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
 
         // 1. TRỪ TỒN KHO KHI GIAO HÀNG
         if (currentStatus === 'preparing' && status === 'shipped') {
-            await deductInventory(orderId, transaction);
+            await shipInventoryFromWarehouse(orderId, transaction);
         }
 
-        // 2. HOÀN LẠI TỒN KHO KHI HỦY GIAO HÀNG
+        // 2. HOÀN LẠI TỒN KHO KHI HỦY
         if (currentStatus === 'shipped' && (status === 'preparing' || status === 'cancelled')) {
-            await restoreInventory(orderId, transaction);
+            await returnInventoryToWarehouse(orderId, transaction);
+        }
+
+        // 3. CỘNG TỒN KHO TẠI CỬA HÀNG KHI NHẬN HÀNG
+        if (currentStatus === 'shipped' && status === 'delivered') {
+            await receiveInventoryAtStore(orderId, transaction);
         }
 
         await order.update({
@@ -687,85 +829,199 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
 // HELPER FUNCTIONS - Inventory Management
 // =====================================================
 
-/**
- * TRỪ actual_quantity từ inventory khi confirmed
- */
-const deductInventory = async (orderId, transaction) => {
-    try {
-        const order = await db.StoreOrder.findOne({
-            where: { store_order_id: orderId },
-            include: [
-                {
-                    model: db.StoreOrderItem,
-                    as: 'storeOrderItems',
-                    include: [{ model: db.Product, as: 'product' }]
-                }
-            ],
-            transaction
-        });
+const fetchOrderWithItems = async (orderId, transaction) => {
+    return db.StoreOrder.findOne({
+        where: { store_order_id: orderId },
+        include: [
+            {
+                model: db.StoreOrderItem,
+                as: 'storeOrderItems',
+                include: [{ model: db.Product, as: 'product' }]
+            }
+        ],
+        transaction,
+        lock: transaction?.LOCK?.UPDATE
+    });
+};
 
+const getBaseQuantity = (item) => {
+    const candidates = [
+        item.actual_quantity,
+        item.quantity_in_base,
+        item.quantity
+    ];
+    for (const candidate of candidates) {
+        const value = Number(candidate || 0);
+        if (value > 0) return value;
+    }
+    return 0;
+};
+
+const calculateShipmentQuantity = async (productId, requestedBaseQty, transaction) => {
+    if (!requestedBaseQty || requestedBaseQty <= 0) {
+        return {
+            shipmentBaseQty: 0,
+            packageUnitId: null,
+            packageQuantity: null
+        };
+    }
+
+    const packageUnit = await db.ProductUnit.findOne({
+        where: { product_id: productId },
+        order: [['conversion_to_base', 'DESC']],
+        transaction,
+        lock: transaction?.LOCK?.SHARE
+    });
+
+    if (!packageUnit) {
+        return {
+            shipmentBaseQty: requestedBaseQty,
+            packageUnitId: null,
+            packageQuantity: null
+        };
+    }
+
+    const conversion = Number(packageUnit.conversion_to_base);
+    if (!conversion || conversion <= 1) {
+        return {
+            shipmentBaseQty: requestedBaseQty,
+            packageUnitId: null,
+            packageQuantity: null
+        };
+    }
+
+    const packages = Math.ceil(requestedBaseQty / conversion);
+    return {
+        shipmentBaseQty: packages * conversion,
+        packageUnitId: packageUnit.unit_id,
+        packageQuantity: packages
+    };
+};
+
+/**
+ * TRỪ hàng khỏi WarehouseInventory khi xuất kho
+ */
+const shipInventoryFromWarehouse = async (orderId, transaction) => {
+    try {
+        const order = await fetchOrderWithItems(orderId, transaction);
         if (!order) return;
 
         for (const item of order.storeOrderItems) {
-            const qty = item.actual_quantity || item.quantity;
+            if (!item.product_id) {
+                throw new Error(`Sản phẩm "${item.product_name}" chưa được liên kết với sản phẩm trong hệ thống`);
+            }
 
-            const inventory = await db.Inventory.findOne({
-                where: {
-                    store_id: order.store_id,
-                    product_id: item.product_id
-                },
-                transaction
+            const requestedBaseQty = getBaseQuantity(item);
+            if (requestedBaseQty <= 0) {
+                console.warn(`⚠️ Quantity not set for item ${item.store_order_item_id}, skipped`);
+                continue;
+            }
+
+            const {
+                shipmentBaseQty,
+                packageUnitId,
+                packageQuantity
+            } = await calculateShipmentQuantity(item.product_id, requestedBaseQty, transaction);
+
+            const warehouseInventory = await db.WarehouseInventory.findOne({
+                where: { product_id: item.product_id },
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
             });
 
-            if (!inventory) {
-                throw new Error(`Sản phẩm "${item.product.name}" không tồn tại trong kho`);
+            if (!warehouseInventory) {
+                throw new Error(`Không tìm thấy tồn kho kho tổng cho sản phẩm "${item.product?.name || item.product_name}"`);
             }
 
-            if (inventory.stock < qty) {
-                throw new Error(`Sản phẩm "${item.product.name}" không đủ số lượng. Tồn kho: ${inventory.stock}, Yêu cầu: ${qty}`);
+            if (warehouseInventory.stock < shipmentBaseQty) {
+                throw new Error(`Kho không đủ hàng cho "${item.product?.name || item.product_name}". Hiện có ${warehouseInventory.stock}, yêu cầu ${shipmentBaseQty}`);
             }
 
-            await inventory.update({
-                stock: inventory.stock - qty,
+            await warehouseInventory.update({
+                stock: warehouseInventory.stock - shipmentBaseQty,
                 updated_at: new Date()
             }, { transaction });
 
-            console.log(`✅ Deducted ${qty} (actual_quantity) of "${item.product.name}" from inventory`);
+            await item.update({
+                actual_quantity: shipmentBaseQty,
+                package_unit_id: packageUnitId,
+                package_quantity: packageQuantity,
+                updated_at: new Date()
+            }, { transaction });
         }
     } catch (error) {
-        console.error('❌ Error deducting inventory:', error);
+        console.error('❌ Error shipping inventory from warehouse:', error);
         throw error;
     }
 };
 
 /**
- * HOÀN LẠI actual_quantity vào inventory
+ * CỘNG hàng trở lại WarehouseInventory khi hoàn kho
  */
-const restoreInventory = async (orderId, transaction) => {
+const returnInventoryToWarehouse = async (orderId, transaction) => {
     try {
-        const order = await db.StoreOrder.findOne({
-            where: { store_order_id: orderId },
-            include: [
-                {
-                    model: db.StoreOrderItem,
-                    as: 'storeOrderItems',
-                    include: [{ model: db.Product, as: 'product' }]
-                }
-            ],
-            transaction
-        });
-
+        const order = await fetchOrderWithItems(orderId, transaction);
         if (!order) return;
 
         for (const item of order.storeOrderItems) {
-            const qty = item.actual_quantity || item.quantity;
+            if (!item.product_id) {
+                console.warn(`⚠️ Item ${item.store_order_item_id} không có product_id, bỏ qua hoàn kho`);
+                continue;
+            }
+
+            const qty = getBaseQuantity(item);
+            if (qty <= 0) continue;
+
+            const warehouseInventory = await db.WarehouseInventory.findOne({
+                where: { product_id: item.product_id },
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
+            });
+
+            if (warehouseInventory) {
+                await warehouseInventory.update({
+                    stock: warehouseInventory.stock + qty,
+                    updated_at: new Date()
+                }, { transaction });
+            } else {
+                await db.WarehouseInventory.create({
+                    product_id: item.product_id,
+                    stock: qty,
+                    min_stock_level: 0,
+                    reorder_point: 0
+                }, { transaction });
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error returning inventory to warehouse:', error);
+        throw error;
+    }
+};
+
+/**
+ * CỘNG hàng vào tồn kho chi nhánh khi cửa hàng xác nhận đã nhận
+ */
+const receiveInventoryAtStore = async (orderId, transaction) => {
+    try {
+        const order = await fetchOrderWithItems(orderId, transaction);
+        if (!order) return;
+
+        for (const item of order.storeOrderItems) {
+            if (!item.product_id) {
+                console.warn(`⚠️ Item ${item.store_order_item_id} không có product_id, bỏ qua nhập kho cửa hàng`);
+                continue;
+            }
+
+            const qty = getBaseQuantity(item);
+            if (qty <= 0) continue;
 
             const inventory = await db.Inventory.findOne({
                 where: {
                     store_id: order.store_id,
                     product_id: item.product_id
                 },
-                transaction
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
             });
 
             if (inventory) {
@@ -773,22 +1029,18 @@ const restoreInventory = async (orderId, transaction) => {
                     stock: inventory.stock + qty,
                     updated_at: new Date()
                 }, { transaction });
-
-                console.log(`✅ Restored ${qty} (actual_quantity) of "${item.product.name}" to inventory`);
             } else {
                 await db.Inventory.create({
                     store_id: order.store_id,
                     product_id: item.product_id,
                     stock: qty,
-                    min_stock_level: 10,
-                    reorder_point: 20
+                    min_stock_level: 0,
+                    reorder_point: 0
                 }, { transaction });
-
-                console.log(`✅ Created inventory for "${item.product.name}" with ${qty} items`);
             }
         }
     } catch (error) {
-        console.error('❌ Error restoring inventory:', error);
+        console.error('❌ Error receiving inventory at store:', error);
         throw error;
     }
 };

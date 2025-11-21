@@ -55,6 +55,11 @@ const statusLabels = {
 };
 
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
+const formatQty = (n) =>
+  Number(n ?? 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0
+  });
 const formatDate = (dateString) => {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -177,6 +182,73 @@ const OrderUpdate = () => {
     navigate(`/warehouse/orders/${id}/shipment`);
   };
 
+  const getUnitLabel = (unit) => {
+    if (!unit) return '';
+    return unit.name || '';
+  };
+
+  const renderQuantityDetails = (item) => {
+    const unitLabel = getUnitLabel(item.unit) || 'đơn vị';
+    const requestedQty = item.quantity ?? 0;
+    const baseQty = item.quantity_in_base ?? requestedQty;
+    const actualQty = item.actual_quantity ?? baseQty;
+    const pkgQty = item.package_quantity;
+    const pkgLabel = getUnitLabel(item.packageUnit);
+    const warehousePkgQty = item.inventory?.warehouse?.package_quantity;
+    const warehousePkgUnit = item.inventory?.warehouse?.package_unit;
+
+    const showBaseLine = pkgQty && pkgLabel
+      ? (
+          <Typography variant="body2" color="text.secondary">
+            ≈ {formatQty(pkgQty)} {pkgLabel}
+            {actualQty ? ` (${formatQty(actualQty)} ${unitLabel})` : ''}
+          </Typography>
+        )
+      : baseQty && Math.abs(baseQty - requestedQty) > 0.0001 ? (
+          <Typography variant="body2" color="text.secondary">
+            ≈ {formatQty(baseQty)} {unitLabel}
+          </Typography>
+        ) : null;
+
+    return (
+      <Box>
+        <Typography variant="body2" fontWeight={600}>
+          {formatQty(requestedQty)} {unitLabel}
+        </Typography>
+        {showBaseLine}
+        {warehousePkgQty && warehousePkgUnit && (
+          <Typography variant="body2" color="text.secondary">
+            (Tồn kho: ~{formatQty(warehousePkgQty)} {warehousePkgUnit.symbol || warehousePkgUnit.name || ''})
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
+  const renderWarehouseStock = (item) => {
+    const warehouse = item.inventory?.warehouse;
+    if (!warehouse) {
+      return { label: '0', baseQuantity: 0 };
+    }
+
+    const baseQuantity = warehouse.base_quantity ?? 0;
+    const pkgQty = warehouse.package_quantity;
+    const pkgUnit = warehouse.package_unit;
+
+    if (pkgQty && pkgUnit) {
+      const unitLabel = pkgUnit.symbol || pkgUnit.name || '';
+      return {
+        label: `${formatQty(pkgQty)} ${unitLabel}`,
+        baseQuantity
+      };
+    }
+
+    return {
+      label: `${formatQty(baseQuantity)} ${getUnitLabel(item.unit) || ''}`,
+      baseQuantity
+    };
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -276,6 +348,7 @@ const OrderUpdate = () => {
                       <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Đơn vị</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">SL yêu cầu</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Quy đổi/Đóng gói</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Đơn giá</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Thành tiền</TableCell>
@@ -283,8 +356,9 @@ const OrderUpdate = () => {
                   </TableHead>
                   <TableBody>
                     {order.orderItems?.map((item, index) => {
-                      const stockAvailable = item.inventory?.stock ?? 0;
-                      const isLowStock = stockAvailable < item.quantity;
+                      const warehouseStock = renderWarehouseStock(item);
+                      const requestedBase = item.quantity_in_base ?? item.quantity ?? 0;
+                      const isLowStock = warehouseStock.baseQuantity < requestedBase;
 
                       return (
                         <TableRow key={item.order_item_id} hover>
@@ -301,7 +375,7 @@ const OrderUpdate = () => {
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" color="text.secondary">
-                              {item.product?.unit || 'Thùng'}
+                              {getUnitLabel(item.unit) || '—'}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
@@ -309,15 +383,18 @@ const OrderUpdate = () => {
                               {item.quantity}
                             </Typography>
                           </TableCell>
+                          <TableCell>
+                            {renderQuantityDetails(item)}
+                          </TableCell>
                           <TableCell align="right">
                             <Chip
-                              label={stockAvailable}
+                              label={warehouseStock.label}
                               size="small"
                               sx={{
                                 bgcolor: isLowStock ? '#ff5252' : '#4caf50',
                                 color: 'white',
                                 fontWeight: 700,
-                                minWidth: 50
+                                minWidth: 70
                               }}
                             />
                           </TableCell>
@@ -335,7 +412,7 @@ const OrderUpdate = () => {
                       );
                     })}
                     <TableRow>
-                      <TableCell colSpan={7} align="right" sx={{ bgcolor: '#f5f5f5', fontWeight: 700 }}>
+                      <TableCell colSpan={8} align="right" sx={{ bgcolor: '#f5f5f5', fontWeight: 700 }}>
                         Tổng cộng:
                       </TableCell>
                       <TableCell align="right" sx={{ bgcolor: '#f5f5f5' }}>

@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS Category (
     INDEX idx_category_parent (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS Unit (
+    unit_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    level TINYINT NOT NULL COMMENT '1 = đơn vị lớn nhất',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_unit_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS Supplier (
     supplier_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -59,22 +69,39 @@ CREATE TABLE IF NOT EXISTS Product (
     sku VARCHAR(100) NOT NULL UNIQUE,
     category_id INT NULL,
     supplier_id INT NULL,
+    base_unit_id INT NOT NULL,
     hq_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES Category(category_id) ON DELETE SET NULL,
     FOREIGN KEY (supplier_id) REFERENCES Supplier(supplier_id) ON DELETE SET NULL,
+    FOREIGN KEY (base_unit_id) REFERENCES Unit(unit_id),
     INDEX idx_product_category (category_id),
     INDEX idx_product_supplier (supplier_id),
     INDEX idx_product_sku (sku)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ProductUnit (
+    product_unit_id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT NOT NULL,
+    unit_id INT NOT NULL,
+    conversion_to_base DECIMAL(18, 6) NOT NULL COMMENT 'Số đơn vị cơ sở trong 1 đơn vị này',
+    barcode VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_product_unit (product_id, unit_id),
+    FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
+    FOREIGN KEY (unit_id) REFERENCES Unit(unit_id),
+    CHECK (conversion_to_base > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS Inventory (
     inventory_id INT PRIMARY KEY AUTO_INCREMENT,
     store_id INT NOT NULL,
     product_id INT NOT NULL,
-    stock INT NOT NULL DEFAULT 0,
+    base_quantity BIGINT NOT NULL DEFAULT 0,
+    reserved_quantity BIGINT NOT NULL DEFAULT 0,
     min_stock_level INT NOT NULL DEFAULT 0,
     reorder_point INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -84,13 +111,14 @@ CREATE TABLE IF NOT EXISTS Inventory (
     UNIQUE KEY unique_store_product (store_id, product_id),
     INDEX idx_inventory_store (store_id),
     INDEX idx_inventory_product (product_id),
-    INDEX idx_inventory_stock (stock)
+    INDEX idx_inventory_stock (base_quantity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS WarehouseInventory (
     warehouse_inventory_id INT PRIMARY KEY AUTO_INCREMENT,
     product_id INT NOT NULL,
-    stock INT NOT NULL DEFAULT 0,
+    base_quantity BIGINT NOT NULL DEFAULT 0,
+    reserved_quantity BIGINT NOT NULL DEFAULT 0,
     min_stock_level INT NOT NULL DEFAULT 0,
     reorder_point INT NOT NULL DEFAULT 0,
     location VARCHAR(255) NULL COMMENT 'Vị trí trong kho (ví dụ: Kho chính, Kho lạnh, Kho đồ khô)',
@@ -100,7 +128,7 @@ CREATE TABLE IF NOT EXISTS WarehouseInventory (
     FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
     UNIQUE KEY unique_warehouse_product (product_id),
     INDEX idx_warehouse_inventory_product (product_id),
-    INDEX idx_warehouse_inventory_stock (stock),
+    INDEX idx_warehouse_inventory_stock (base_quantity),
     INDEX idx_warehouse_inventory_location (location)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -148,10 +176,13 @@ CREATE TABLE IF NOT EXISTS OrderItem (
     quantity INT NOT NULL DEFAULT 1,
     unit_price DECIMAL(10, 2) NOT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
+    unit_id INT NOT NULL,
+    quantity_in_base DECIMAL(18, 6) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES `Order`(order_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
+    FOREIGN KEY (unit_id) REFERENCES Unit(unit_id),
     INDEX idx_order_item_order (order_id),
     INDEX idx_order_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -319,10 +350,16 @@ CREATE TABLE IF NOT EXISTS StoreOrderItem (
     actual_quantity INT NULL COMMENT 'Số lượng thực tế sau khi điều chỉnh',
     unit_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     subtotal DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    unit_id INT NULL,
+    quantity_in_base DECIMAL(18, 6) NULL,
+    package_unit_id INT NULL COMMENT 'Đơn vị đóng gói khi xuất kho',
+    package_quantity INT NULL COMMENT 'Số lượng đóng gói (ví dụ: số thùng)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (store_order_id) REFERENCES StoreOrder(store_order_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE SET NULL,
+    FOREIGN KEY (unit_id) REFERENCES Unit(unit_id),
+    FOREIGN KEY (package_unit_id) REFERENCES Unit(unit_id),
     INDEX idx_store_order_item_order (store_order_id),
     INDEX idx_store_order_item_product (product_id),
     INDEX idx_store_order_item_actual_quantity (actual_quantity)
@@ -409,9 +446,12 @@ CREATE TABLE IF NOT EXISTS TransactionItem (
     quantity INT NOT NULL DEFAULT 1,
     unit_price DECIMAL(10, 2) NOT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
+    unit_id INT NOT NULL,
+    quantity_in_base DECIMAL(18, 6) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (transaction_id) REFERENCES Transaction(transaction_id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
+    FOREIGN KEY (unit_id) REFERENCES Unit(unit_id),
     INDEX idx_transaction_item_transaction (transaction_id),
     INDEX idx_transaction_item_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

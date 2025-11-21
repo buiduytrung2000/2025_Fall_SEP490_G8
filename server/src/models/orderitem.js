@@ -59,6 +59,19 @@ module.exports = (sequelize, DataTypes) => {
     subtotal: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
+    },
+    unit_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Unit',
+        key: 'unit_id'
+      }
+    },
+    quantity_in_base: {
+      type: DataTypes.DECIMAL(18, 6),
+      allowNull: true,
+      comment: 'Số lượng quy đổi về đơn vị cơ sở'
     }
   }, {
     sequelize,
