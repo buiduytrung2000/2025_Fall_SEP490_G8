@@ -263,6 +263,13 @@ const InventoryManagement = () => {
         }).format(value || 0);
     };
 
+    const formatQuantity = (value) => {
+        return Number(value || 0).toLocaleString('vi-VN', {
+            maximumFractionDigits: 2,
+            minimumFractionDigits: 0
+        });
+    };
+
     return (
         <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
             {/* Header */}
@@ -406,6 +413,7 @@ const InventoryManagement = () => {
                             <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>Vị trí</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">Tồn tối thiểu</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">Điểm đặt hàng</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
@@ -415,13 +423,13 @@ const InventoryManagement = () => {
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                                <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                                     <CircularProgress />
                                 </TableCell>
                             </TableRow>
                         ) : items.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={9} align="center" sx={{ py: 8, color: 'text.secondary' }}>
+                                <TableCell colSpan={10} align="center" sx={{ py: 8, color: 'text.secondary' }}>
                                     Không có dữ liệu
                                 </TableCell>
                             </TableRow>
@@ -454,6 +462,24 @@ const InventoryManagement = () => {
                                             <Typography variant="body2" fontWeight={600}>
                                                 {item.stock || 0}
                                             </Typography>
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            {item.stock_in_packages ? (
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight={600}>
+                                                        ~{formatQuantity(item.stock_in_packages)} {item.package_unit_label || 'thùng'}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {item.package_conversion
+                                                            ? `${formatQuantity(item.package_conversion)} đơn vị/thùng`
+                                                            : ''}
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                <Typography variant="body2" color="text.secondary">
+                                                    —
+                                                </Typography>
+                                            )}
                                         </TableCell>
                                         <TableCell align="right">
                                             <Typography variant="body2">
