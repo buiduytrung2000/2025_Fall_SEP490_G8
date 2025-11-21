@@ -97,6 +97,11 @@ module.exports = (sequelize, DataTypes) => {
     notes: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    expected_delivery: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Expected delivery date for the order'
     }
   }, {
     sequelize,

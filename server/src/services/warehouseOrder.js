@@ -276,35 +276,54 @@ export const getOrderDetailService = async (orderId) => {
                 };
             }
 
+            // Lấy package unit info: ưu tiên từ item, nếu không có thì từ ProductUnit
             let preferredPackageMeta = null;
             if (item.packageUnit) {
+                // Nếu có packageUnit trong item, thử lấy conversion từ đó
+                const conversionFromItem = item.package_quantity && item.actual_quantity
+                    ? Number(item.actual_quantity) / Number(item.package_quantity)
+                    : null;
+                
                 preferredPackageMeta = {
-                    conversion_to_base: item.package_quantity && item.actual_quantity
-                        ? Number(item.actual_quantity) / Number(item.package_quantity)
-                        : null,
+                    conversion_to_base: conversionFromItem,
                     unit: {
                         unit_id: item.packageUnit.unit_id,
                         name: item.packageUnit.name,
                         symbol: item.packageUnit.symbol
                     }
                 };
-            } else {
-                preferredPackageMeta = await getPreferredPackageUnit(item.product_id);
+            }
+            
+            // Nếu chưa có conversion, lấy từ ProductUnit
+            if (!preferredPackageMeta?.conversion_to_base || preferredPackageMeta.conversion_to_base <= 1) {
+                const productUnitMeta = await getPreferredPackageUnit(item.product_id);
+                if (productUnitMeta) {
+                    preferredPackageMeta = productUnitMeta;
+                }
             }
 
             if (warehouseInventory) {
                 const rawWarehouse = warehouseInventory.get({ plain: true });
                 const baseQty = Number(rawWarehouse.base_quantity) || 0;
-                const pkgConversion = (rawWarehouse.package_conversion && rawWarehouse.package_conversion > 1)
-                    ? rawWarehouse.package_conversion
-                    : (preferredPackageMeta?.conversion_to_base && preferredPackageMeta.conversion_to_base > 1
-                        ? preferredPackageMeta.conversion_to_base
-                        : null);
+                
+                // Lấy package_conversion: ưu tiên từ rawWarehouse, nếu không có thì từ preferredPackageMeta
+                let pkgConversion = null;
+                if (rawWarehouse.package_conversion && rawWarehouse.package_conversion > 1) {
+                    pkgConversion = Number(rawWarehouse.package_conversion);
+                } else if (preferredPackageMeta?.conversion_to_base && preferredPackageMeta.conversion_to_base > 1) {
+                    pkgConversion = Number(preferredPackageMeta.conversion_to_base);
+                }
+                
+                // Tính package_quantity: nếu có conversion thì tính, giữ 2 chữ số thập phân
+                let packageQty = null;
+                if (pkgConversion && pkgConversion > 1 && baseQty > 0) {
+                    packageQty = parseFloat((baseQty / pkgConversion).toFixed(2));
+                }
 
                 inventoryInfo.warehouse = {
                     base_quantity: baseQty,
                     package_conversion: pkgConversion,
-                    package_quantity: pkgConversion ? Math.floor(baseQty / pkgConversion) : null,
+                    package_quantity: packageQty,
                     package_unit: rawWarehouse.package_unit || preferredPackageMeta?.unit || null
                 };
             }
