@@ -168,7 +168,12 @@ const OrderUpdate = () => {
 
     setUpdating(true);
     try {
-      const response = await updateExpectedDelivery(id, newDeliveryDate);
+      // Format date: YYYY-MM-DDTHH:mm -> YYYY-MM-DD HH:mm:00
+      const formattedDate = newDeliveryDate.includes('T') 
+        ? newDeliveryDate.replace('T', ' ').substring(0, 16) + ':00'
+        : `${newDeliveryDate} 00:00:00`;
+      
+      const response = await updateExpectedDelivery(id, formattedDate);
       if (response.err === 0) {
         toast.success('Cập nhật ngày giao hàng thành công!');
         setDeliveryDialog(false);
@@ -183,8 +188,32 @@ const OrderUpdate = () => {
     }
   };
 
-  const handleGoToShipment = () => {
-    navigate(`/warehouse/orders/${id}/shipment`);
+  const handleGoToShipment = async () => {
+    // Nếu có ngày giao dự kiến mới, lưu trước khi chuyển
+    if (newDeliveryDate) {
+      setUpdating(true);
+      try {
+        // Format date: YYYY-MM-DDTHH:mm -> YYYY-MM-DD HH:mm:00
+        const formattedDate = newDeliveryDate.includes('T') 
+          ? newDeliveryDate.replace('T', ' ').substring(0, 16) + ':00'
+          : `${newDeliveryDate} 00:00:00`;
+        
+        const response = await updateExpectedDelivery(id, formattedDate);
+        if (response.err === 0) {
+          toast.success('Đã lưu ngày giao dự kiến');
+          // Reload order để có dữ liệu mới nhất
+          await loadOrderDetail();
+        } else {
+          toast.warning('Không thể lưu ngày giao dự kiến: ' + (response.msg || ''));
+        }
+      } catch (error) {
+        toast.warning('Lỗi khi lưu ngày giao dự kiến: ' + error.message);
+      } finally {
+        setUpdating(false);
+      }
+    }
+    
+    navigate(`/warehouse/order-shipment/${id}`);
   };
 
   const getUnitLabel = (unit) => {
@@ -529,18 +558,18 @@ const OrderUpdate = () => {
                   )}
 
                   {canShip && (
-                    <Link to={`/warehouse/order-shipment/${id}`}>
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        color="primary"
-                        size="large"
-                        startIcon={<ShippingIcon />}
-                        sx={{ py: 1.5, fontWeight: 600 }}
-                      >
-                        Chuyển sang xuất hàng
-                      </Button>
-                    </Link>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={<ShippingIcon />}
+                      onClick={handleGoToShipment}
+                      disabled={updating}
+                      sx={{ py: 1.5, fontWeight: 600 }}
+                    >
+                      {updating ? 'Đang lưu...' : 'Chuyển sang xuất hàng'}
+                    </Button>
                   )}
 
                   {!isPending && !canShip && (

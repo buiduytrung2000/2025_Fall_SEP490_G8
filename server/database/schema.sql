@@ -327,6 +327,7 @@ CREATE TABLE IF NOT EXISTS StoreOrder (
     status ENUM('pending', 'approved', 'rejected', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     perishable BOOLEAN DEFAULT FALSE COMMENT 'For fresh goods',
     notes TEXT NULL,
+    expected_delivery DATETIME NULL COMMENT 'Expected delivery date for the order',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
