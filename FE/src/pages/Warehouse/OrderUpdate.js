@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Box,
@@ -115,6 +115,11 @@ const OrderUpdate = () => {
   }, [id]);
 
   const handleConfirmOrder = async () => {
+    if (!newDeliveryDate) {
+      toast.error('Vui lòng chọn ngày giao dự kiến trước khi xác nhận');
+      return;
+    }
+
     setUpdating(true);
     try {
       const response = await updateWarehouseOrderStatus(id, 'confirmed');
@@ -187,43 +192,64 @@ const OrderUpdate = () => {
     return unit.name || '';
   };
 
-  const renderQuantityDetails = (item) => {
+  const buildPackagingInfo = (item) => {
     const unitLabel = getUnitLabel(item.unit) || 'đơn vị';
     const requestedQty = item.quantity ?? 0;
     const baseQty = item.quantity_in_base ?? requestedQty;
-    const actualQty = item.actual_quantity ?? baseQty;
-    const pkgQty = item.package_quantity;
+    const actualBaseQty = item.actual_quantity ?? baseQty;
+    const warehouseInfo = item.inventory?.warehouse;
+
     const pkgLabel = getUnitLabel(item.packageUnit);
-    const warehousePkgQty = item.inventory?.warehouse?.package_quantity;
-    const warehousePkgUnit = item.inventory?.warehouse?.package_unit;
+    const warehousePkgUnitLabel =
+      warehouseInfo?.package_unit?.symbol || warehouseInfo?.package_unit?.name || '';
+    const resolvedPkgLabel = pkgLabel || warehousePkgUnitLabel;
 
-    const showBaseLine = pkgQty && pkgLabel
-      ? (
-          <Typography variant="body2" color="text.secondary">
-            ≈ {formatQty(pkgQty)} {pkgLabel}
-            {actualQty ? ` (${formatQty(actualQty)} ${unitLabel})` : ''}
-          </Typography>
-        )
-      : baseQty && Math.abs(baseQty - requestedQty) > 0.0001 ? (
-          <Typography variant="body2" color="text.secondary">
-            ≈ {formatQty(baseQty)} {unitLabel}
-          </Typography>
-        ) : null;
+    const warehouseConversion = warehouseInfo?.package_conversion;
+    const pkgFromActual =
+      item.package_quantity && item.package_quantity > 0
+        ? item.package_quantity
+        : null;
 
-    return (
-      <Box>
-        <Typography variant="body2" fontWeight={600}>
-          {formatQty(requestedQty)} {unitLabel}
-        </Typography>
-        {showBaseLine}
-        {warehousePkgQty && warehousePkgUnit && (
-          <Typography variant="body2" color="text.secondary">
-            (Tồn kho: ~{formatQty(warehousePkgQty)} {warehousePkgUnit.symbol || warehousePkgUnit.name || ''})
-          </Typography>
-        )}
-      </Box>
-    );
+    const conversionFromActual =
+      pkgFromActual && actualBaseQty
+        ? actualBaseQty / pkgFromActual
+        : null;
+
+    const conversion = warehouseConversion || conversionFromActual || null;
+
+    let pkgQty = pkgFromActual;
+    if (!pkgQty && conversion && actualBaseQty) {
+      pkgQty = Math.ceil(actualBaseQty / conversion);
+    }
+
+    const effectiveBaseQty =
+      pkgQty && conversion ? pkgQty * conversion : actualBaseQty;
+
+    return {
+      unitLabel,
+      requestedQty,
+      baseQty,
+      actualBaseQty,
+      pkgQty,
+      resolvedPkgLabel,
+      warehousePkgQty: warehouseInfo?.package_quantity,
+      warehousePkgUnit: warehouseInfo?.package_unit,
+      conversion,
+      effectiveBaseQty,
+      displayUnitLabel: resolvedPkgLabel || unitLabel,
+      displayQty: pkgQty ?? requestedQty
+    };
   };
+
+  const derivedTotalAmount = useMemo(() => {
+    if (!order?.orderItems) return 0;
+    return order.orderItems.reduce((sum, item) => {
+      const packagingInfo = buildPackagingInfo(item);
+      const displayQty = packagingInfo.displayQty ?? item.quantity ?? 0;
+      const itemTotal = displayQty * (item.unit_price || 0);
+      return sum + itemTotal;
+    }, 0);
+  }, [order]);
 
   const renderWarehouseStock = (item) => {
     const warehouse = item.inventory?.warehouse;
@@ -232,19 +258,23 @@ const OrderUpdate = () => {
     }
 
     const baseQuantity = warehouse.base_quantity ?? 0;
-    const pkgQty = warehouse.package_quantity;
-    const pkgUnit = warehouse.package_unit;
+    const packagingInfo = buildPackagingInfo(item);
+    const pkgConversion = warehouse.package_conversion || packagingInfo.conversion;
+    const pkgUnit =
+      warehouse.package_unit?.symbol ||
+      warehouse.package_unit?.name ||
+      packagingInfo.resolvedPkgLabel;
 
-    if (pkgQty && pkgUnit) {
-      const unitLabel = pkgUnit.symbol || pkgUnit.name || '';
+    if (pkgConversion && pkgUnit && pkgConversion > 0) {
+      const pkgQty = baseQuantity / pkgConversion;
       return {
-        label: `${formatQty(pkgQty)} ${unitLabel}`,
+        label: `${formatQty(pkgQty)} ${pkgUnit}`,
         baseQuantity
       };
     }
 
     return {
-      label: `${formatQty(baseQuantity)} ${getUnitLabel(item.unit) || ''}`,
+      label: `${formatQty(baseQuantity)} ${packagingInfo.unitLabel}`,
       baseQuantity
     };
   };
@@ -316,7 +346,7 @@ const OrderUpdate = () => {
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
-                    <strong>Người đặt:</strong> {order.store?.contact || 'N/A'}
+                    <strong>Người đặt:</strong> {order.creator?.username || order.store?.contact || 'N/A'}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
@@ -348,7 +378,6 @@ const OrderUpdate = () => {
                       <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Đơn vị</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">SL yêu cầu</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Quy đổi/Đóng gói</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Đơn giá</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Thành tiền</TableCell>
@@ -358,7 +387,12 @@ const OrderUpdate = () => {
                     {order.orderItems?.map((item, index) => {
                       const warehouseStock = renderWarehouseStock(item);
                       const requestedBase = item.quantity_in_base ?? item.quantity ?? 0;
+                      const packagingInfo = buildPackagingInfo(item);
+                      const effectiveBaseQty = packagingInfo.effectiveBaseQty ?? requestedBase;
                       const isLowStock = warehouseStock.baseQuantity < requestedBase;
+                      const unitPriceDisplay = formatVnd(item.unit_price);
+                      const displayQty = packagingInfo.displayQty ?? item.quantity ?? 0;
+                      const totalPriceDisplay = formatVnd(displayQty * item.unit_price);
 
                       return (
                         <TableRow key={item.order_item_id} hover>
@@ -375,16 +409,13 @@ const OrderUpdate = () => {
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" color="text.secondary">
-                              {getUnitLabel(item.unit) || '—'}
+                              {packagingInfo.displayUnitLabel || '—'}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" fontWeight={600}>
-                              {item.quantity}
+                              {formatQty(packagingInfo.displayQty)}
                             </Typography>
-                          </TableCell>
-                          <TableCell>
-                            {renderQuantityDetails(item)}
                           </TableCell>
                           <TableCell align="right">
                             <Chip
@@ -400,12 +431,12 @@ const OrderUpdate = () => {
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2">
-                              {formatVnd(item.unit_price)}
+                              {unitPriceDisplay}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" fontWeight={700}>
-                              {formatVnd(item.quantity * item.unit_price)}
+                              {totalPriceDisplay}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -417,7 +448,7 @@ const OrderUpdate = () => {
                       </TableCell>
                       <TableCell align="right" sx={{ bgcolor: '#f5f5f5' }}>
                         <Typography variant="h6" fontWeight={700} color="primary">
-                          {formatVnd(order.totalAmount)}
+                          {formatVnd(derivedTotalAmount)}
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -479,6 +510,7 @@ const OrderUpdate = () => {
                         startIcon={<CheckIcon />}
                         onClick={() => setConfirmDialog(true)}
                         sx={{ py: 1.5, fontWeight: 600 }}
+                    disabled={!newDeliveryDate}
                       >
                         Xác nhận đơn hàng
                       </Button>
@@ -540,6 +572,11 @@ const OrderUpdate = () => {
           <Typography variant="body2" color="text.secondary">
             Sau khi xác nhận, đơn hàng sẽ chuyển sang trạng thái "Đã xác nhận" và bắt đầu quá trình chuẩn bị hàng.
           </Typography>
+          {!newDeliveryDate && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              ⚠️ Vui lòng chọn ngày giao dự kiến trước khi xác nhận đơn hàng.
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setConfirmDialog(false)} disabled={updating}>
@@ -564,6 +601,19 @@ const OrderUpdate = () => {
           <Alert severity="error" sx={{ mb: 2 }}>
             ❌ Bạn đang từ chối đơn hàng <strong>#ORD{String(order.order_id).padStart(3, '0')}</strong>
           </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Vui lòng nhập lý do từ chối để thông báo cho chi nhánh.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Lý do từ chối"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            disabled={updating}
+            multiline
+            minRows={3}
+            placeholder="Ví dụ: Sản phẩm hết hàng, cần điều chỉnh số lượng..."
+          />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setRejectDialog(false)} disabled={updating}>

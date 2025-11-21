@@ -1,6 +1,43 @@
 import db from '../models';
 import { Op } from 'sequelize';
 
+const buildPackageMetaMap = async (productIds = []) => {
+    if (!productIds.length) return {};
+
+    const productUnits = await db.ProductUnit.findAll({
+        where: { product_id: productIds },
+        include: [
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        order: [['conversion_to_base', 'DESC']]
+    });
+
+    const metaMap = {};
+    productUnits.forEach((pu) => {
+        const plain = pu.get ? pu.get({ plain: true }) : JSON.parse(JSON.stringify(pu));
+        const conversion = Number(plain.conversion_to_base) || 0;
+        if (!plain.product_id) return;
+        if (!metaMap[plain.product_id] || conversion > metaMap[plain.product_id].conversion_to_base) {
+            metaMap[plain.product_id] = {
+                conversion_to_base: conversion,
+                unit: plain.unit
+                    ? {
+                        unit_id: plain.unit.unit_id,
+                        name: plain.unit.name,
+                        symbol: plain.unit.symbol
+                    }
+                    : null
+            };
+        }
+    });
+
+    return metaMap;
+};
+
 // Get inventory by store_id (for store manager)
 export const getInventoryByStore = (storeId) => new Promise(async (resolve, reject) => {
     try {
@@ -31,6 +68,8 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
         });
 
         const now = new Date();
+        const productIds = inventories.map(inv => inv.product_id).filter(Boolean);
+        const packageMetaMap = await buildPackageMetaMap(productIds);
         
         // Get all active pricing rules for this store
         const activeRules = await db.PricingRule.findAll({
@@ -75,6 +114,13 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 }
             }
 
+            const packageMeta = product.product_id ? packageMetaMap[product.product_id] : null;
+            const packageConversion = packageMeta?.conversion_to_base || null;
+            const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+            const packagePrice = packageConversion && packageConversion > 0
+                ? Math.round(currentPrice * packageConversion)
+                : Math.round(currentPrice);
+
             return {
                 inventory_id: invPlain.inventory_id,
                 store_id: invPlain.store_id,
@@ -87,6 +133,9 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 category: category ? category.name : '',
                 unit: 'Cái', // Default unit, can be added to Product table later
                 price: Math.round(currentPrice),
+                package_conversion: packageConversion,
+                package_unit: packageUnitLabel,
+                package_price: packagePrice,
                 status: invPlain.stock <= invPlain.min_stock_level ? 'Thiếu hàng' : 'Ổn định'
             };
         });

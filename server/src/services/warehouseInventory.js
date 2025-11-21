@@ -1,6 +1,43 @@
 import db from '../models';
 import { Op } from 'sequelize';
 
+const buildPackageMetaMap = async (productIds = []) => {
+    if (!productIds.length) return {};
+
+    const productUnits = await db.ProductUnit.findAll({
+        where: { product_id: productIds },
+        include: [
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        order: [['conversion_to_base', 'DESC']]
+    });
+
+    const metaMap = {};
+    productUnits.forEach((pu) => {
+        const plain = pu.get ? pu.get({ plain: true }) : JSON.parse(JSON.stringify(pu));
+        const conversion = Number(plain.conversion_to_base) || 0;
+        if (!plain.product_id) return;
+        if (!metaMap[plain.product_id] || conversion > metaMap[plain.product_id].conversion_to_base) {
+            metaMap[plain.product_id] = {
+                conversion_to_base: conversion,
+                unit: plain.unit
+                    ? {
+                        unit_id: plain.unit.unit_id,
+                        name: plain.unit.name,
+                        symbol: plain.unit.symbol
+                    }
+                    : null
+            };
+        }
+    });
+
+    return metaMap;
+};
+
 /**
  * Get all warehouse inventory with filters
  */
@@ -48,6 +85,9 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
             distinct: true
         });
 
+        const productIds = rows.map(item => item.product_id).filter(Boolean);
+        const packageMetaMap = await buildPackageMetaMap(productIds);
+
         const inventoryWithStatus = rows.map(item => {
             const itemData = item.toJSON();
             
@@ -60,10 +100,22 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                 stockStatus = 'low';
             }
 
+            const packageMeta = itemData.product?.product_id
+                ? packageMetaMap[itemData.product.product_id]
+                : null;
+            const packageConversion = packageMeta?.conversion_to_base || null;
+            const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+            const stockInPackages = packageConversion
+                ? Number((itemData.stock / packageConversion).toFixed(2))
+                : null;
+
             return {
                 ...itemData,
                 stockStatus,
-                stockValue: itemData.stock * (itemData.product?.hq_price || 0)
+                stockValue: itemData.stock * (itemData.product?.hq_price || 0),
+                package_conversion: packageConversion,
+                package_unit_label: packageUnitLabel,
+                stock_in_packages: stockInPackages
             };
         });
 
@@ -125,6 +177,17 @@ export const getWarehouseInventoryDetailService = async (inventoryId) => {
         }
 
         const itemData = inventory.toJSON();
+        const packageMetaMap = await buildPackageMetaMap(
+            itemData.product?.product_id ? [itemData.product.product_id] : []
+        );
+        const packageMeta = itemData.product?.product_id
+            ? packageMetaMap[itemData.product.product_id]
+            : null;
+        const packageConversion = packageMeta?.conversion_to_base || null;
+        const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+        const stockInPackages = packageConversion
+            ? Number((itemData.stock / packageConversion).toFixed(2))
+            : null;
 
         let stockStatus = 'normal';
         if (itemData.stock === 0) {
@@ -141,7 +204,10 @@ export const getWarehouseInventoryDetailService = async (inventoryId) => {
             data: {
                 ...itemData,
                 stockStatus,
-                stockValue: itemData.stock * (itemData.product?.hq_price || 0)
+                stockValue: itemData.stock * (itemData.product?.hq_price || 0),
+                package_conversion: packageConversion,
+                package_unit_label: packageUnitLabel,
+                stock_in_packages: stockInPackages
             }
         };
     } catch (error) {

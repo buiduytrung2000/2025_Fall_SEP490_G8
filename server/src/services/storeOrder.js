@@ -2,6 +2,44 @@ import db from '../models';
 import { Op } from 'sequelize';
 import { updateOrderStatusService as updateWarehouseOrderStatus } from './warehouseOrder';
 
+const packageUnitCache = new Map();
+
+const getPreferredPackageUnit = async (productId) => {
+    if (!productId) return null;
+    if (packageUnitCache.has(productId)) return packageUnitCache.get(productId);
+
+    const productUnit = await db.ProductUnit.findOne({
+        where: { product_id: productId },
+        include: [
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        order: [['conversion_to_base', 'DESC']]
+    });
+
+    if (!productUnit) {
+        packageUnitCache.set(productId, null);
+        return null;
+    }
+
+    const meta = {
+        conversion_to_base: Number(productUnit.conversion_to_base) || null,
+        unit: productUnit.unit
+            ? {
+                unit_id: productUnit.unit.unit_id,
+                name: productUnit.unit.name,
+                symbol: productUnit.unit.symbol
+            }
+            : null
+    };
+
+    packageUnitCache.set(productId, meta);
+    return meta;
+};
+
 // Create store order to warehouse
 export const createStoreOrder = (orderData) => new Promise(async (resolve, reject) => {
     const transaction = await db.sequelize.transaction();
@@ -82,8 +120,15 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
             const quantity = parseFloat(item.quantity || 0);
             const unitPrice = parseFloat(item.unit_price || 0);
             const subtotal = quantity * unitPrice;
-            const quantityInBase = item.quantity_in_base ?? quantity;
+            const productId = product?.product_id || null;
+            const packageMeta = await getPreferredPackageUnit(productId);
+            const conversionToBase = packageMeta?.conversion_to_base;
+            const quantityInBase = item.quantity_in_base ?? (
+                conversionToBase ? quantity * conversionToBase : quantity
+            );
             const unitId = item.unit_id || product?.base_unit_id || null;
+            const packageUnitId = packageMeta?.unit?.unit_id || null;
+            const packageQuantity = quantity ? Math.ceil(quantity) : null;
 
             await db.StoreOrderItem.create({
                 store_order_id: order.store_order_id,
@@ -95,7 +140,9 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
                 unit_price: unitPrice,
                 subtotal,
                 unit_id: unitId,
-                quantity_in_base: quantityInBase
+                quantity_in_base: quantityInBase,
+                package_unit_id: packageUnitId,
+                package_quantity: packageQuantity
             }, { transaction });
         }
 

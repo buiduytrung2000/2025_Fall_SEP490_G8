@@ -74,29 +74,73 @@ export const updateShiftTemplate = (id, data) => new Promise(async (resolve, rej
 // SCHEDULE SERVICES
 // =====================================================
 
-// Tự động đánh dấu vắng mặt cho các schedule quá ngày mà chưa điểm danh
+// Tự động đánh dấu vắng mặt cho các schedule quá thời gian ca mà chưa điểm danh
 export const markAbsentSchedules = () => new Promise(async (resolve, reject) => {
     try {
-        const today = new Date();
+        const now = new Date();
+        const today = new Date(now);
         today.setHours(0, 0, 0, 0);
         
-        const [updated] = await db.Schedule.update(
-            { attendance_status: 'absent' },
-            {
-                where: {
-                    work_date: { [Op.lt]: today },
-                    attendance_status: 'not_checked_in',
-                    status: 'confirmed'
+        // Lấy tất cả schedules hôm nay và các ngày trước chưa check-in
+        const schedules = await db.Schedule.findAll({
+            where: {
+                work_date: { [Op.lte]: today },
+                attendance_status: 'not_checked_in',
+                status: 'confirmed'
+            },
+            include: [
+                {
+                    model: db.ShiftTemplate,
+                    as: 'shiftTemplate',
+                    attributes: ['shift_template_id', 'start_time', 'end_time'],
+                    required: true
                 }
+            ],
+            raw: false
+        });
+        
+        let updatedCount = 0;
+        
+        for (const schedule of schedules) {
+            const workDate = new Date(schedule.work_date);
+            const shiftTemplate = schedule.shiftTemplate;
+            
+            if (!shiftTemplate) continue;
+            
+            // Parse thời gian bắt đầu ca
+            const [startHour, startMinute] = shiftTemplate.start_time.split(':').map(Number);
+            const shiftStartTime = new Date(workDate);
+            shiftStartTime.setHours(startHour, startMinute, 0, 0);
+            
+            // Parse thời gian kết thúc ca
+            const [endHour, endMinute] = shiftTemplate.end_time.split(':').map(Number);
+            const shiftEndTime = new Date(workDate);
+            shiftEndTime.setHours(endHour, endMinute, 0, 0);
+            
+            // Xử lý ca qua đêm (end_time < start_time)
+            if (shiftEndTime < shiftStartTime) {
+                shiftEndTime.setDate(shiftEndTime.getDate() + 1);
             }
-        );
+            
+            // Đánh vắng nếu:
+            // 1. Quá ngày làm việc (work_date < today)
+            // 2. Hoặc trong ngày hôm nay nhưng đã quá thời gian kết thúc ca
+            const isPastWorkDate = workDate < today;
+            const isPastShiftEnd = now > shiftEndTime;
+            
+            if (isPastWorkDate || isPastShiftEnd) {
+                await schedule.update({ attendance_status: 'absent' });
+                updatedCount++;
+            }
+        }
         
         resolve({
             err: 0,
             msg: 'OK',
-            data: { updated_count: updated }
+            data: { updated_count: updatedCount }
         });
     } catch (error) {
+        console.error('Error marking absent schedules:', error);
         reject(error);
     }
 });

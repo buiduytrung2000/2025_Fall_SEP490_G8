@@ -63,6 +63,11 @@ const statusIcons = {
 };
 
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
+const formatQty = (value) =>
+  Number(value ?? 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0
+  });
 
 // =====================================================
 // COMPONENT
@@ -79,7 +84,8 @@ const InventoryList = () => {
   const [totalItems, setTotalItems] = useState(0);
 
   // Filters
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [storeFilter, setStoreFilter] = useState('');
 
@@ -95,7 +101,7 @@ const InventoryList = () => {
         limit: rowsPerPage,
         status: statusFilter,
         storeId: storeFilter,
-        search
+        search: debouncedSearch
       });
 
       if (response.err === 0) {
@@ -113,15 +119,24 @@ const InventoryList = () => {
 
   useEffect(() => {
     loadInventory();
-  }, [page, rowsPerPage, statusFilter, storeFilter]);
+  }, [page, rowsPerPage, statusFilter, storeFilter, debouncedSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(0);
+      setDebouncedSearch(searchInput.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const handleSearch = () => {
     setPage(0);
-    loadInventory();
+    setDebouncedSearch(searchInput.trim());
   };
 
   const handleRefresh = () => {
-    setSearch('');
+    setSearchInput('');
+    setDebouncedSearch('');
     setStatusFilter('');
     setStoreFilter('');
     setPage(0);
@@ -141,7 +156,7 @@ const InventoryList = () => {
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       {/* Header */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" sx={{ mb: 3 }} spacing={2}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             <InventoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -151,44 +166,43 @@ const InventoryList = () => {
             Theo dõi và quản lý tồn kho của tất cả chi nhánh
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={handleRefresh}
-        >
-          Làm mới
-        </Button>
+       
       </Stack>
 
       {/* Filters - FIX: Tăng chiều rộng các cột */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          {/* Search box - tăng từ 4 lên 5 */}
-          <Grid item xs={12} md={5}>
-            <TextField
-              fullWidth
-              placeholder="Tìm theo tên hoặc SKU..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                )
-              }}
-            />
-          </Grid>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          alignItems={{ xs: 'stretch', md: 'center' }}
+        >
+          <TextField
+            fullWidth
+            placeholder="Tìm theo tên hoặc SKU..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              )
+            }}
+            sx={{ flex: 1 }}
+          />
 
-          {/* Status filter - tăng từ 3 lên 3.5 */}
-          <Grid item xs={12} sm={6} md={3.5}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: { xs: '100%', md: 'auto' } }}>
             <TextField
               select
-              fullWidth
+              size="small"
               label="Trạng thái"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 180 }}
             >
               <MenuItem value="">Tất cả</MenuItem>
               <MenuItem value="normal">Đủ hàng</MenuItem>
@@ -196,36 +210,26 @@ const InventoryList = () => {
               <MenuItem value="critical">Gần hết</MenuItem>
               <MenuItem value="out_of_stock">Hết hàng</MenuItem>
             </TextField>
-          </Grid>
 
-          {/* Store filter - giữ nguyên hoặc giảm xuống 2 */}
-          <Grid item xs={12} sm={6} md={2}>
             <TextField
               select
-              fullWidth
+              size="small"
               label="Chi nhánh"
               value={storeFilter}
-              onChange={(e) => setStoreFilter(e.target.value)}
+              onChange={(e) => {
+                setStoreFilter(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 180 }}
             >
               <MenuItem value="">Tất cả</MenuItem>
               <MenuItem value="1">Store Central</MenuItem>
               <MenuItem value="2">Store North</MenuItem>
               <MenuItem value="3">Store South</MenuItem>
             </TextField>
-          </Grid>
 
-          {/* Search button - giảm từ 2 xuống 1.5 */}
-          <Grid item xs={12} md={1.5}>
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={handleSearch}
-              startIcon={<SearchIcon />}
-            >
-              Tìm
-            </Button>
-          </Grid>
-        </Grid>
+          </Stack>
+        </Stack>
       </Paper>
 
       {/* Inventory Table */}
@@ -238,23 +242,24 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
                 {/* <TableCell sx={{ fontWeight: 700 }}>Chi nhánh</TableCell> */}
-                <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Min/Reorder</TableCell>
                 {/* <TableCell sx={{ fontWeight: 700 }} align="right">Giá trị</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell>
+                {/* <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell> */}
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : inventory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
                     <Alert severity="info">Không có dữ liệu</Alert>
                   </TableCell>
                 </TableRow>
@@ -290,8 +295,20 @@ const InventoryList = () => {
                     </TableCell> */}
                     <TableCell align="right">
                       <Typography variant="h6" fontWeight={700}>
-                        {item.stock}
+                        {formatQty(item.stock)} {item.product?.base_unit_label || ''}
                       </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      {item.stock_in_packages ? (
+                          <Typography variant="h6" fontWeight={700}>
+                            {formatQty(item.stock_in_packages)} 
+                          </Typography>
+                      
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          —
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" color="text.secondary">
@@ -310,27 +327,6 @@ const InventoryList = () => {
                         label={statusLabels[item.stockStatus]}
                         color={statusColors[item.stockStatus]}
                       />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
-                        {/* FIX: Sử dụng onClick thay vì href */}
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={(e) => handleViewDetail(e, item.inventory_id)}
-                          title="Xem chi tiết"
-                        >
-                          <ViewIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="secondary"
-                          onClick={(e) => handleViewDetail(e, item.inventory_id)}
-                          title="Chỉnh sửa"
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))

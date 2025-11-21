@@ -23,7 +23,8 @@ import {
   DialogContent,
   DialogActions,
   Stack,
-  MenuItem
+  MenuItem,
+  InputAdornment
 } from '@mui/material';
 import { Download, Refresh, Edit, Add, Delete } from '@mui/icons-material';
 import { toast } from 'react-toastify';
@@ -36,8 +37,8 @@ const columns = [
   { key: 'sku', label: 'Mã SKU' },
   { key: 'name', label: 'Tên hàng' },
   { key: 'category', label: 'Danh mục' },
-  { key: 'unit', label: 'ĐVT' },
-  { key: 'price', label: 'Giá bán' },
+  { key: 'price', label: 'Giá nhập/thùng' },
+  { key: 'unitPrice', label: 'Giá lẻ/đơn vị' },
   { key: 'stock', label: 'Tồn kho' },
   { key: 'minStock', label: 'Tồn tối thiểu' },
   { key: 'status', label: 'Trạng thái' }
@@ -202,16 +203,18 @@ const InventoryManagement = () => {
           
           const sku = row.sku || '';
           const name = row.name || '';
-          const price = Number(row.cost_price || row.price || 0) || 0;
+          const price = Number(row.package_price || row.cost_price || row.price || 0) || 0;
           const idx = filteredLines.findIndex(l => l.sku === sku);
           if (idx >= 0) {
             const updated = [...filteredLines];
-            updated[idx] = { ...updated[idx], qty: Number(updated[idx].qty || 0) + quantity };
-            // Thêm lại một dòng trống ở cuối
-            return [...updated, emptyLine()];
+            updated[idx] = {
+              ...updated[idx],
+              qty: Number(updated[idx].qty || 0) + quantity,
+              price: price || updated[idx].price
+            };
+            return updated;
           }
-          // Thêm sản phẩm mới và một dòng trống ở cuối
-          return [...filteredLines, { sku, name, qty: quantity, price }, emptyLine()];
+          return [...filteredLines, { sku, name, qty: quantity, price }];
         });
         // Không mở modal ngay, chỉ thông báo đã thêm
         toast.info(`Đã thêm ${row.name} (SL gợi ý: ${quantity}) vào đơn nháp`);
@@ -222,8 +225,7 @@ const InventoryManagement = () => {
   // Order management functions
   const addLine = () => {
     setLines(prev => {
-      // Xóa các dòng trống trước khi thêm dòng mới
-      const filtered = prev.filter(l => !(l.sku === '' && l.name === ''));
+      const filtered = prev.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== ''));
       return [...filtered, emptyLine()];
     });
   };
@@ -252,9 +254,7 @@ const InventoryManagement = () => {
             // Giữ dòng nếu có dữ liệu (có SKU hoặc tên hàng)
             return (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '');
           });
-          // Luôn giữ ít nhất một dòng trống ở cuối để thêm sản phẩm mới
-          const hasEmptyLine = filtered.some(l => l.sku === '' && l.name === '');
-          return hasEmptyLine ? filtered : [...filtered, emptyLine()];
+          return filtered;
         }
       }
       return updated;
@@ -269,10 +269,10 @@ const InventoryManagement = () => {
   }, [lines]);
 
   const handleCreateOrder = async () => {
-    if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
-      toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
-      return;
-    }
+      if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
+        toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+        return;
+      }
     if (!target || target.trim() === '') {
       toast.error('Vui lòng nhập tên kho nhận hàng');
       return;
@@ -294,12 +294,12 @@ const InventoryManagement = () => {
       }
       const qty = parseInt(l.qty);
       if (isNaN(qty) || qty <= 0) {
-        toast.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
+        toast.error(`Dòng ${i + 1}: Số lượng thùng phải lớn hơn 0`);
         return;
       }
       const price = parseFloat(l.price);
       if (isNaN(price) || price <= 0) {
-        toast.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
+        toast.error(`Dòng ${i + 1}: Đơn giá mỗi thùng phải lớn hơn 0`);
         return;
       }
       validItems.push({
@@ -331,7 +331,7 @@ const InventoryManagement = () => {
       if (result.err === 0) {
         toast.success('Tạo đơn hàng thành công!');
         // Reset đơn nhập
-        setLines([emptyLine()]);
+        setLines([]);
         setPerishable(false);
         setTarget('Main Warehouse');
         setSupplier('Coca-Cola');
@@ -379,7 +379,10 @@ const InventoryManagement = () => {
                 color="primary"
                 size={isMobile ? 'small' : 'medium'}
                 onClick={() => {
-                // Có thể xem đơn nhập hàng ngay cả khi chưa chọn checkbox
+                if (selected.size === 0 && orderItemsCount === 0) {
+                  toast.warn('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
+                  return;
+                }
                 setOpenCreateOrderModal(true);
               }}
               >
@@ -463,8 +466,8 @@ const InventoryManagement = () => {
                   <TableCell>{row.sku || ''}</TableCell>
                   <TableCell>{row.name || ''}</TableCell>
                   <TableCell>{row.category || ''}</TableCell>
-                  <TableCell>{row.unit || 'Cái'}</TableCell>
-                  <TableCell>{formatVnd(row.price || 0)} đ</TableCell>
+                  <TableCell>{formatVnd(row.package_price || row.price || 0)}đ</TableCell>
+                  <TableCell>{formatVnd(row.price || 0)}đ</TableCell>
                   <TableCell sx={{ fontWeight: isLow ? 700 : 400, color: isLow ? '#dc2626' : 'inherit' }}>{row.stock || 0}</TableCell>
                   <TableCell>{minStock}</TableCell>
                   <TableCell>
@@ -530,15 +533,18 @@ const InventoryManagement = () => {
             </Stack>
           </Paper>
 
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Chi tiết sản phẩm</Typography>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>Chi tiết sản phẩm</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Nhập số lượng thùng và đơn giá của <strong>1 thùng</strong> cho từng sản phẩm.
+          </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: { xs: '50vh', md: '60vh' }, overflowX: 'auto' }}>
             <Table sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>SKU</TableCell>
                   <TableCell sx={{ minWidth: { xs: 150, sm: 200 } }}>Tên hàng</TableCell>
-                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng</TableCell>
-                  <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng (thùng)</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá / thùng</TableCell>
                   <TableCell width={64}></TableCell>
                 </TableRow>
               </TableHead>
@@ -569,6 +575,8 @@ const InventoryManagement = () => {
                         value={l.qty} 
                         onChange={(e) => updateLine(idx, 'qty', e.target.value)} 
                         sx={{ width: { xs: 80, sm: 120 } }} 
+                        inputProps={{ min: 0, step: 1 }}
+                        placeholder="Thùng"
                       />
                     </TableCell>
                     <TableCell>
@@ -578,6 +586,11 @@ const InventoryManagement = () => {
                         value={l.price} 
                         onChange={(e) => updateLine(idx, 'price', e.target.value)} 
                         sx={{ width: { xs: 100, sm: 160 } }} 
+                        placeholder="Giá 1 thùng"
+                        InputProps={{
+                          inputProps: { min: 0, step: 1000 },
+                          endAdornment: <InputAdornment position="end">đ/thùng</InputAdornment>
+                        }}
                       />
                     </TableCell>
                     <TableCell align="right">
@@ -619,7 +632,18 @@ function exportCsv(rows) {
   const header = columns.filter(c => c.key !== 'actions').map(c => c.label).join(',');
   const lines = rows.map(r => {
     const minStock = r.min_stock_level || r.minStock || 0;
-    return [r.sku || '', r.name || '', r.category || '', r.unit || 'Cái', r.price || 0, r.stock || 0, minStock, r.stock <= minStock ? 'Thiếu hàng' : 'Ổn định'].join(',');
+    const perThung = r.package_price || r.price || 0;
+    const perUnit = r.price || 0;
+    return [
+      r.sku || '',
+      r.name || '',
+      r.category || '',
+      perThung,
+      perUnit,
+      r.stock || 0,
+      minStock,
+      r.stock <= minStock ? 'Thiếu hàng' : 'Ổn định'
+    ].join(',');
   });
   const csv = ['\uFEFF' + header, ...lines].join('\n'); // Add BOM for UTF-8
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

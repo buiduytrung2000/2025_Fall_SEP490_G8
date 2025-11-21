@@ -1,4 +1,5 @@
 import db from '../models'
+import { Op } from 'sequelize'
 
 export const getOpenShiftByCashier = async ({ cashier_id, store_id }) => {
   const shift = await db.Shift.findOne({ 
@@ -14,6 +15,54 @@ export const getOpenShiftByCashier = async ({ cashier_id, store_id }) => {
       }
     ]
   })
+  
+    // Tính lại tổng doanh thu từ tất cả transaction trong shift này (lấy từ database)
+  if (shift) {
+    // Tính tổng doanh thu tiền mặt từ tất cả transaction cash
+    const cashTransactions = await db.Transaction.findAll({
+      where: { 
+        shift_id: shift.shift_id,
+        status: 'completed'
+      },
+      include: [{ 
+        model: db.Payment, 
+        as: 'payment', 
+        where: { 
+          method: 'cash',
+          status: 'completed' 
+        },
+        required: true
+      }]
+    })
+    const cashSalesTotal = cashTransactions.reduce((acc, tr) => acc + parseFloat(tr.total_amount || 0), 0)
+    
+    // Tính tổng doanh thu từ chuyển khoản (bank_transfer, qr)
+    const bankTransferTransactions = await db.Transaction.findAll({
+      where: { 
+        shift_id: shift.shift_id,
+        status: 'completed'
+      },
+      include: [{ 
+        model: db.Payment, 
+        as: 'payment', 
+        where: { 
+          method: { [Op.in]: ['bank_transfer', 'qr'] },
+          status: 'completed' 
+        },
+        required: true
+      }]
+    })
+    const bankTransferTotal = bankTransferTransactions.reduce((acc, tr) => acc + parseFloat(tr.total_amount || 0), 0)
+    
+    // Thêm vào shift object để frontend có thể sử dụng
+    const shiftData = shift.toJSON()
+    shiftData.cash_sales_total = cashSalesTotal // Cập nhật giá trị tính từ database
+    shiftData.bank_transfer_total = bankTransferTotal
+    shiftData.total_sales = cashSalesTotal + bankTransferTotal
+    console.log(`getOpenShiftByCashier - shift_id: ${shift.shift_id}, cash_sales_total (from DB): ${cashSalesTotal}, bank_transfer_total (from DB): ${bankTransferTotal}, total_sales: ${shiftData.total_sales}`)
+    return shiftData
+  }
+  
   return shift
 }
 
@@ -190,11 +239,45 @@ export const getShiftReport = async (query) => {
   const where = { status: 'closed' } // Chỉ lấy ca đã đóng
   if (store_id) where.store_id = store_id
   if (cashier_id) where.cashier_id = cashier_id
+  
+  // Filter theo closed_at (ưu tiên) hoặc opened_at nếu closed_at null
   if (date_from || date_to) {
-    where.opened_at = {}
-    if (date_from) where.opened_at[db.Sequelize.Op.gte] = new Date(date_from)
-    if (date_to) where.opened_at[db.Sequelize.Op.lte] = new Date(date_to)
+    const dateConditions = []
+    
+    if (date_from) {
+      const fromDate = new Date(date_from)
+      fromDate.setHours(0, 0, 0, 0)
+      dateConditions.push({
+        [Op.or]: [
+          { closed_at: { [Op.gte]: fromDate } },
+          { 
+            closed_at: null,
+            opened_at: { [Op.gte]: fromDate }
+          }
+        ]
+      })
+    }
+    
+    if (date_to) {
+      const toDate = new Date(date_to)
+      toDate.setHours(23, 59, 59, 999) // End of day
+      dateConditions.push({
+        [Op.or]: [
+          { closed_at: { [Op.lte]: toDate } },
+          { 
+            closed_at: null,
+            opened_at: { [Op.lte]: toDate }
+          }
+        ]
+      })
+    }
+    
+    if (dateConditions.length > 0) {
+      where[Op.and] = dateConditions
+    }
   }
+  
+  console.log('Shift report query:', JSON.stringify(where, null, 2))
 
   const shifts = await db.Shift.findAll({
     where,
@@ -204,9 +287,50 @@ export const getShiftReport = async (query) => {
     ],
     order: [['opened_at', 'DESC']]
   })
+  
+  console.log(`Found ${shifts.length} closed shifts for store_id=${store_id}, date_from=${date_from}, date_to=${date_to}`)
+
+  // Tính bank_transfer_total và total_sales cho mỗi shift, và số lượng transaction
+  const shiftsWithDetails = await Promise.all(shifts.map(async (shift) => {
+    // Tính tổng doanh thu từ chuyển khoản
+    const bankTransferTransactions = await db.Transaction.findAll({
+      where: { 
+        shift_id: shift.shift_id,
+        status: 'completed'
+      },
+      include: [{ 
+        model: db.Payment, 
+        as: 'payment', 
+        where: { 
+          method: { [Op.in]: ['bank_transfer', 'qr'] },
+          status: 'completed' 
+        },
+        required: true
+      }]
+    })
+    const bankTransferTotal = bankTransferTransactions.reduce((acc, tr) => acc + parseFloat(tr.total_amount || 0), 0)
+    
+    // Đếm số lượng transaction
+    const transactionCount = await db.Transaction.count({
+      where: { 
+        shift_id: shift.shift_id,
+        status: 'completed'
+      }
+    })
+
+    const cashSalesTotal = parseFloat(shift.cash_sales_total || 0)
+    const totalSales = cashSalesTotal + bankTransferTotal
+
+    const shiftData = shift.toJSON()
+    shiftData.bank_transfer_total = bankTransferTotal
+    shiftData.total_sales = totalSales
+    shiftData.transaction_count = transactionCount
+
+    return shiftData
+  }))
 
   // Tính toán thống kê
-  const stats = shifts.reduce((acc, shift) => {
+  const stats = shiftsWithDetails.reduce((acc, shift) => {
     const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0)
     const actualCash = parseFloat(shift.closing_cash || 0)
     const discrepancy = actualCash - expectedCash
@@ -214,6 +338,9 @@ export const getShiftReport = async (query) => {
     acc.total_shifts += 1
     acc.total_opening_cash += parseFloat(shift.opening_cash || 0)
     acc.total_cash_sales += parseFloat(shift.cash_sales_total || 0)
+    acc.total_bank_transfer += parseFloat(shift.bank_transfer_total || 0)
+    acc.total_sales += parseFloat(shift.total_sales || 0)
+    acc.total_transactions += shift.transaction_count || 0
     acc.total_closing_cash += actualCash
     acc.total_discrepancy += discrepancy
     if (discrepancy !== 0) acc.shifts_with_discrepancy += 1
@@ -223,6 +350,9 @@ export const getShiftReport = async (query) => {
     total_shifts: 0,
     total_opening_cash: 0,
     total_cash_sales: 0,
+    total_bank_transfer: 0,
+    total_sales: 0,
+    total_transactions: 0,
     total_closing_cash: 0,
     total_discrepancy: 0,
     shifts_with_discrepancy: 0
@@ -231,10 +361,11 @@ export const getShiftReport = async (query) => {
   return {
     err: 0,
     data: {
-      shifts,
+      shifts: shiftsWithDetails,
       summary: {
         ...stats,
-        average_discrepancy: stats.total_shifts > 0 ? stats.total_discrepancy / stats.total_shifts : 0
+        average_discrepancy: stats.total_shifts > 0 ? stats.total_discrepancy / stats.total_shifts : 0,
+        average_transactions_per_shift: stats.total_shifts > 0 ? stats.total_transactions / stats.total_shifts : 0
       }
     }
   }

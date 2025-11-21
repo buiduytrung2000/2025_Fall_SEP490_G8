@@ -180,10 +180,14 @@ const ManagerDashboard = () => {
     loadDashboardData();
   }, []);
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+  };
+
   const stats = [
     {
       label: "Doanh thu hôm nay",
-      value: loading ? '...' : (kpis ? `${((kpis.todayRevenue || 0) / 1000000).toFixed(1)}M ₫` : '0.0M ₫'),
+      value: loading ? '...' : (kpis ? formatCurrency(kpis.todayRevenue || 0) : formatCurrency(0)),
       icon: <AttachMoney />,
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
     },
@@ -205,9 +209,9 @@ const ManagerDashboard = () => {
     labels: revenueData.length > 0 ? revenueData.map(r => r.name) : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
     datasets: [
       {
-        label: "Doanh thu (triệu VND)",
+        label: "Doanh thu (VND)",
         data: revenueData.length > 0 
-          ? revenueData.map(r => (r.DoanhThu || 0) / 1000000)
+          ? revenueData.map(r => r.DoanhThu || 0)
           : [0, 0, 0, 0, 0, 0, 0],
         backgroundColor: 'rgba(102, 126, 234, 0.8)',
         borderColor: '#667eea',
@@ -223,13 +227,26 @@ const ManagerDashboard = () => {
     plugins: {
       legend: { display: false },
       title: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return formatCurrency(context.parsed.y);
+          }
+        }
+      }
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: {
           callback: function(value) {
-            return value + 'M';
+            // Format số lớn: nếu >= 1 triệu thì hiển thị triệu, ngược lại hiển thị nghìn
+            if (value >= 1000000) {
+              return (value / 1000000).toFixed(1) + 'M';
+            } else if (value >= 1000) {
+              return (value / 1000).toFixed(0) + 'K';
+            }
+            return value;
           }
         },
       },
