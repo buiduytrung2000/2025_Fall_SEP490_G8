@@ -502,18 +502,18 @@ const OrderUpdate = () => {
                   {/* Single Update Button */}
                   {isPending && (
                     <>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="success"
-                    size="large"
-                    startIcon={<CheckIcon />}
-                    onClick={() => setConfirmDialog(true)}
-                    sx={{ py: 1.5, fontWeight: 600 }}
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        size="large"
+                        startIcon={<CheckIcon />}
+                        onClick={() => setConfirmDialog(true)}
+                        sx={{ py: 1.5, fontWeight: 600 }}
                     disabled={!newDeliveryDate}
-                  >
-                    Xác nhận đơn hàng
-                  </Button>
+                      >
+                        Xác nhận đơn hàng
+                      </Button>
                       <Button
                         fullWidth
                         variant="outlined"

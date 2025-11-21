@@ -59,8 +59,11 @@ const POS = () => {
     // Shift states
     const [isShiftActive, setIsShiftActive] = useState(false);
     const [shiftId, setShiftId] = useState(null);
-    const [openingCash, setOpeningCash] = useState('');
+    const [openingCash, setOpeningCash] = useState(''); // Số tiền đầu ca hiển thị trên header
+    const [openingCashInput, setOpeningCashInput] = useState(''); // Input trong modal check-in
     const [cashSalesTotal, setCashSalesTotal] = useState(0); // tổng bán bằng tiền mặt trong ca
+    const [bankTransferTotal, setBankTransferTotal] = useState(0); // tổng bán bằng chuyển khoản trong ca
+    const [totalSales, setTotalSales] = useState(0); // tổng doanh thu (tiền mặt + chuyển khoản)
     const [showCheckinModal, setShowCheckinModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [closingCashInput, setClosingCashInput] = useState('');
@@ -81,6 +84,8 @@ const POS = () => {
                 setShiftId(resp.data.shift_id);
                 setOpeningCash(String(resp.data.opening_cash || 0));
                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+                setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
+                setTotalSales(Number(resp.data.total_sales || 0));
                 // Lưu attendance_status từ schedule nếu có
                 if (resp.data.schedule && resp.data.schedule.attendance_status) {
                     setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
@@ -92,6 +97,8 @@ const POS = () => {
                 setIsShiftActive(false);
                 setShiftId(null);
                 setCashSalesTotal(0);
+                setBankTransferTotal(0);
+                setTotalSales(0);
                 // Check schedule của ngày hôm nay để xem đã checkout chưa
                 const today = new Date().toISOString().split('T')[0];
                 try {
@@ -131,10 +138,17 @@ const POS = () => {
         })();
         const resp = await getMyOpenShift(storedStoreId);
         if (resp && resp.err === 0 && resp.data) {
+            console.log('Refresh shift data:', {
+                cash_sales_total: resp.data.cash_sales_total,
+                bank_transfer_total: resp.data.bank_transfer_total,
+                total_sales: resp.data.total_sales
+            });
             setIsShiftActive(true);
             setShiftId(resp.data.shift_id);
             setOpeningCash(String(resp.data.opening_cash || 0));
             setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+            setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
+            setTotalSales(Number(resp.data.total_sales || 0));
             // Lưu attendance_status từ schedule nếu có
             if (resp.data.schedule && resp.data.schedule.attendance_status) {
                 setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
@@ -146,6 +160,8 @@ const POS = () => {
             setIsShiftActive(false);
             setShiftId(null);
             setCashSalesTotal(0);
+            setBankTransferTotal(0);
+            setTotalSales(0);
             setOpeningCash('');
             // Check schedule của ngày hôm nay để xem đã checkout chưa
             const today = new Date().toISOString().split('T')[0];
@@ -448,6 +464,12 @@ const POS = () => {
 
     // Xử lý thanh toán
     const handleCheckout = async () => {
+        // Kiểm tra ca làm việc
+        if (!isShiftActive) {
+            toast.error('Vui lòng bắt đầu ca làm việc trước khi thanh toán');
+            return;
+        }
+
         if (cart.length === 0) {
             toast.warning('Giỏ hàng trống');
             return;
@@ -529,6 +551,10 @@ const POS = () => {
     // Xử lý khi thanh toán QR thành công
     const handleQRPaymentSuccess = async (transactionId) => {
         toast.success('Thanh toán QR thành công!');
+
+        // Refresh shift data to update sales totals (wait a bit for backend to commit)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await refreshOpenShift();
 
         // Reload customer data and vouchers (loyalty points already updated by webhook)
         if (selectedCustomer) {
@@ -628,6 +654,10 @@ const POS = () => {
                     payment_id: res.data?.payment_id
                 }));
 
+                // Refresh shift data to update sales totals (wait a bit for backend to commit)
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await refreshOpenShift();
+
                 // Reload customer data if customer is selected
                 if (selectedCustomer) {
                     await loadCustomerVouchers(selectedCustomer.customer_id);
@@ -673,7 +703,7 @@ const POS = () => {
                         {isShiftActive ? (
                             <>
                                 <div className="me-2 small">
-                                    Đang trong ca • Tiền đầu ca: <strong>{formatCurrency(Number(openingCash || 0))}</strong> • Tiền mặt bán được: <strong>{formatCurrency(cashSalesTotal)}</strong>
+                                    Đang trong ca • Tiền đầu ca: <strong>{formatCurrency(Number(openingCash || 0))}</strong> • Số tiền đã bán được: <strong>{formatCurrency(totalSales)}</strong> (Tiền mặt: {formatCurrency(cashSalesTotal)}, Chuyển khoản: {formatCurrency(bankTransferTotal)})
                                 </div>
                                 <Button variant="warning" size="sm" onClick={() => { setClosingCashInput(''); setShowCheckoutModal(true); }}>
                                     <FaSignOutAlt className="me-1" /> Kết ca
@@ -688,7 +718,10 @@ const POS = () => {
                                 Không có lịch làm việc hôm nay
                             </div>
                         ) : (
-                            <Button variant="success" size="sm" onClick={() => setShowCheckinModal(true)}>
+                            <Button variant="success" size="sm" onClick={() => {
+                                setOpeningCashInput('');
+                                setShowCheckinModal(true);
+                            }}>
                                 <FaSignInAlt className="me-1" /> Bắt đầu ca (Check-in)
                             </Button>
                         )}
@@ -1128,6 +1161,7 @@ const POS = () => {
                                     variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline-primary'}
                                     className="flex-fill"
                                     size="sm"
+                                    disabled={!isShiftActive}
                                     onClick={() => handleSelectPaymentMethod('cash')}
                                 >
                                     <FaMoneyBillWave className="me-1" size={14} />
@@ -1137,6 +1171,7 @@ const POS = () => {
                                     variant={selectedPaymentMethod === 'qr' ? 'primary' : 'outline-primary'}
                                     className="flex-fill"
                                     size="sm"
+                                    disabled={!isShiftActive}
                                     onClick={() => handleSelectPaymentMethod('qr')}
                                 >
                                     <FaCreditCard className="me-1" size={14} />
@@ -1150,7 +1185,7 @@ const POS = () => {
                         variant="success"
                         size="lg"
                         className="w-100 mt-2"
-                        disabled={cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
+                        disabled={!isShiftActive || cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
                     >
                         {isProcessingPayment ? (
@@ -1163,7 +1198,10 @@ const POS = () => {
                         )}
                     </Button>
                     {!isShiftActive && (
-                        <div className="text-danger small mt-2">Chưa bắt đầu ca. Hãy Check-in để bán hàng.</div>
+                        <div className="text-danger small mt-2 text-center">
+                            <strong>⚠️ Chưa bắt đầu ca làm việc.</strong><br />
+                            Vui lòng bắt đầu ca (Check-in) trước khi thanh toán.
+                        </div>
                     )}
                     {checkoutMessage && <div className="text-success small mt-2">{checkoutMessage}</div>}
                 </div>
@@ -1183,7 +1221,10 @@ const POS = () => {
             />
 
             {/* Check-in Modal */}
-            <Modal show={showCheckinModal} onHide={() => setShowCheckinModal(false)} centered>
+            <Modal show={showCheckinModal} onHide={() => {
+                setShowCheckinModal(false);
+                setOpeningCashInput('');
+            }} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>Bắt đầu ca làm việc</Modal.Title>
                 </Modal.Header>
@@ -1194,8 +1235,8 @@ const POS = () => {
                             type="number"
                             min={0}
                             placeholder="Nhập số tiền trong két trước ca"
-                            value={openingCash}
-                            onChange={(e) => setOpeningCash(e.target.value)}
+                            value={openingCashInput}
+                            onChange={(e) => setOpeningCashInput(e.target.value)}
                             autoFocus
                         />
                     </Form.Group>
@@ -1204,20 +1245,23 @@ const POS = () => {
                     </div>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowCheckinModal(false)}>Hủy</Button>
+                    <Button variant="secondary" onClick={() => {
+                        setShowCheckinModal(false);
+                        setOpeningCashInput('');
+                    }}>Hủy</Button>
                     <Button
                         variant="success"
                         onClick={async () => {
                             // Kiểm tra lại có lịch làm việc hôm nay không
                             if (!hasTodaySchedule) {
-                                alert('Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.');
+                                toast.error('Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.');
                                 setShowCheckinModal(false);
                                 return;
                             }
                             
-                            const open = Number(openingCash);
+                            const open = Number(openingCashInput);
                             if (isNaN(open) || open < 0) {
-                                alert('Vui lòng nhập số tiền hợp lệ');
+                                toast.error('Vui lòng nhập số tiền hợp lệ');
                                 return;
                             }
                             const storedStoreId = (() => {
@@ -1227,19 +1271,22 @@ const POS = () => {
                             })();
                             const resp = await checkinShift({ store_id: storedStoreId, opening_cash: open });
                             if (resp && resp.err === 0 && resp.data) {
-                                // Cập nhật ngay lập tức từ response
+                                // Cập nhật ngay lập tức từ response để hiển thị trên header
                                 setIsShiftActive(true);
                                 setShiftId(resp.data.shift_id);
                                 setOpeningCash(String(resp.data.opening_cash || open));
                                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
+                                setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
+                                setTotalSales(Number(resp.data.total_sales || 0));
                                 
                                 // Refresh lại để đảm bảo có data mới nhất
                                 await refreshOpenShift();
                                 
                                 setShowCheckinModal(false);
-                                setOpeningCash('');
+                                setOpeningCashInput(''); // Reset input cho lần mở modal sau
+                                toast.success('Bắt đầu ca thành công!');
                             } else {
-                                alert(resp?.msg || 'Không thể bắt đầu ca');
+                                toast.error(resp?.msg || 'Không thể bắt đầu ca');
                             }
                         }}
                     >
@@ -1260,13 +1307,24 @@ const POS = () => {
                             <strong>{formatCurrency(Number(openingCash || 0))}</strong>
                         </div>
                         <div className="d-flex justify-content-between">
-                            <span>Tổng bán tiền mặt:</span>
-                            <strong>{formatCurrency(cashSalesTotal)}</strong>
+                            <span>Tổng số tiền đã bán trong ca (Tiền mặt + chuyển khoản):</span>
+                            <strong>{formatCurrency(totalSales)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between text-muted small ms-3">
+                            <span>• Tiền mặt:</span>
+                            <span>{formatCurrency(cashSalesTotal)}</span>
+                        </div>
+                        <div className="d-flex justify-content-between text-muted small ms-3">
+                            <span>• Chuyển khoản:</span>
+                            <span>{formatCurrency(bankTransferTotal)}</span>
                         </div>
                         <hr />
                         <div className="d-flex justify-content-between">
                             <span>Tiền mặt dự kiến trong két:</span>
                             <strong>{formatCurrency(expectedCashAtClose)}</strong>
+                        </div>
+                        <div className="text-muted small ms-3">
+                            (Tiền đầu ca + Tổng bán tiền mặt)
                         </div>
                     </div>
                     <Form.Group>
@@ -1298,11 +1356,11 @@ const POS = () => {
                         onClick={async () => {
                             const actual = Number(closingCashInput);
                             if (isNaN(actual) || actual < 0) {
-                                alert('Vui lòng nhập số tiền hợp lệ');
+                                toast.error('Vui lòng nhập số tiền hợp lệ');
                                 return;
                             }
                             if (!shiftId) {
-                                alert('Không tìm thấy ca làm việc');
+                                toast.error('Không tìm thấy ca làm việc');
                                 return;
                             }
                             const resp = await checkoutShift({ shift_id: shiftId, closing_cash: actual });
@@ -1310,6 +1368,8 @@ const POS = () => {
                                 setIsShiftActive(false);
                                 setShiftId(null);
                                 setCashSalesTotal(0);
+                                setBankTransferTotal(0);
+                                setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
                                 setPaymentGiven('');
@@ -1317,9 +1377,9 @@ const POS = () => {
                                 // Đánh dấu đã checkout để không hiển thị nút check-in nữa
                                 setScheduleAttendanceStatus('checked_out');
                                 setShowCheckoutModal(false);
-                                alert('Kết ca thành công!');
+                                toast.success('Kết ca thành công!');
                             } else {
-                                alert(resp?.msg || 'Không thể kết ca');
+                                toast.error(resp?.msg || 'Không thể kết ca');
                             }
                         }}
                     >

@@ -68,6 +68,22 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             }
         }
 
+        // Find open shift for cashier and store
+        let shiftId = null;
+        if (cashier_id && store_id) {
+            const shift = await db.Shift.findOne({
+                where: {
+                    cashier_id: cashier_id,
+                    store_id: store_id,
+                    status: 'opened'
+                },
+                transaction
+            });
+            if (shift) {
+                shiftId = shift.shift_id;
+            }
+        }
+
         // Create payment record
         const payment = await db.Payment.create({
             method: 'cash',
@@ -84,6 +100,7 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             payment_id: payment.payment_id,
             store_id: store_id,
             cashier_id: cashier_id,
+            shift_id: shiftId,
             total_amount: total_amount,
             subtotal: subtotal || total_amount,
             tax_amount: tax_amount || 0,
@@ -94,12 +111,39 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
 
         // Create transaction items
         for (const item of cart_items) {
+            // Get product to get base_unit_id
+            const product = await db.Product.findByPk(item.product_id, { transaction });
+            if (!product) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: `Product with id ${item.product_id} not found`
+                });
+            }
+
+            // Get unit_id from item or fallback to product's base_unit_id
+            const unitId = item.unit_id || product.base_unit_id;
+            if (!unitId) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: `Missing unit_id for product ${item.product_id}`
+                });
+            }
+
+            // Calculate quantity_in_base (use from item if provided, otherwise use quantity)
+            const quantityInBase = item.quantity_in_base !== undefined 
+                ? item.quantity_in_base 
+                : item.quantity;
+
             await db.TransactionItem.create({
                 transaction_id: transactionRecord.transaction_id,
                 product_id: item.product_id,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
-                subtotal: item.quantity * item.unit_price
+                subtotal: item.quantity * item.unit_price,
+                unit_id: unitId,
+                quantity_in_base: quantityInBase
             }, { transaction });
 
             // Update inventory (only if store_id is provided)
@@ -117,6 +161,21 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
                     }, { transaction });
                 }
             }
+        }
+
+        // Update shift cash_sales_total if shift exists
+        if (shiftId) {
+            const shift = await db.Shift.findByPk(shiftId, { transaction });
+            if (shift) {
+                const currentCashSales = parseFloat(shift.cash_sales_total || 0);
+                const newCashSales = currentCashSales + total_amount;
+                console.log(`Updating shift ${shiftId} cash_sales_total: ${currentCashSales} + ${total_amount} = ${newCashSales}`);
+                await shift.update({
+                    cash_sales_total: newCashSales
+                }, { transaction });
+            }
+        } else {
+            console.log(`No open shift found for cashier_id: ${cashier_id}, store_id: ${store_id}`);
         }
 
         // Mark voucher as used if applicable
@@ -281,6 +340,21 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
 
         console.log('Generated VietQR URL:', vietQRUrl);
 
+        // Find open shift for cashier and store
+        let shiftId = null;
+        if (cashier_id && store_id) {
+            const shift = await db.Shift.findOne({
+                where: {
+                    cashier_id: cashier_id,
+                    store_id: store_id,
+                    status: 'opened'
+                }
+            });
+            if (shift) {
+                shiftId = shift.shift_id;
+            }
+        }
+
         // Create pending payment record
         const payment = await db.Payment.create({
             method: 'bank_transfer',
@@ -296,6 +370,7 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
             payment_id: payment.payment_id,
             store_id: store_id,
             cashier_id: cashier_id,
+            shift_id: shiftId,
             total_amount: total_amount,
             subtotal: subtotal || total_amount,
             tax_amount: tax_amount || 0,
@@ -306,12 +381,37 @@ export const createQRPayment = (paymentData) => new Promise(async (resolve, reje
 
         // Create transaction items
         for (const item of cart_items) {
+            // Get product to get base_unit_id
+            const product = await db.Product.findByPk(item.product_id);
+            if (!product) {
+                return resolve({
+                    err: 1,
+                    msg: `Product with id ${item.product_id} not found`
+                });
+            }
+
+            // Get unit_id from item or fallback to product's base_unit_id
+            const unitId = item.unit_id || product.base_unit_id;
+            if (!unitId) {
+                return resolve({
+                    err: 1,
+                    msg: `Missing unit_id for product ${item.product_id}`
+                });
+            }
+
+            // Calculate quantity_in_base (use from item if provided, otherwise use quantity)
+            const quantityInBase = item.quantity_in_base !== undefined 
+                ? item.quantity_in_base 
+                : item.quantity;
+
             await db.TransactionItem.create({
                 transaction_id: transactionRecord.transaction_id,
                 product_id: item.product_id,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
-                subtotal: item.quantity * item.unit_price
+                subtotal: item.quantity * item.unit_price,
+                unit_id: unitId,
+                quantity_in_base: quantityInBase
             });
         }
 

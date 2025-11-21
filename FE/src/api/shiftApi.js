@@ -60,3 +60,21 @@ export async function createCashMovement({ shift_id, type, amount, reason }) {
   }
 }
 
+export async function getShiftReport({ store_id, cashier_id, date_from, date_to }) {
+  try {
+    const params = new URLSearchParams()
+    if (store_id) params.append('store_id', store_id)
+    if (cashier_id) params.append('cashier_id', cashier_id)
+    if (date_from) params.append('date_from', date_from)
+    if (date_to) params.append('date_to', date_to)
+    
+    const res = await fetch(`${API_BASE}/shifts/report?${params.toString()}`, {
+      method: 'GET',
+      headers: headers()
+    })
+    return await res.json()
+  } catch (e) {
+    return { err: -1, msg: e.message }
+  }
+}
+

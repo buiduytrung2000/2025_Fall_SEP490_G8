@@ -54,11 +54,31 @@ export const checkout = (payload, options = {}) => new Promise(async (resolve, r
         }
         const paymentRecord = await db.Payment.create(paymentData, { transaction: t })
 
-        // Optional: validate and attach shift if provided
+        // Find shift: use provided shift_id or auto-find open shift for cashier
         let shiftId = payload.shift_id || null
         let shift = null
-        if (shiftId) {
-            shift = await db.Shift.findOne({ where: { shift_id: shiftId, store_id, status: 'opened' }, transaction: t, lock: t.LOCK.UPDATE })
+        
+        // If shift_id not provided, try to find open shift for cashier
+        if (!shiftId && payload.cashier_id && store_id) {
+            shift = await db.Shift.findOne({ 
+                where: { 
+                    cashier_id: payload.cashier_id, 
+                    store_id, 
+                    status: 'opened' 
+                }, 
+                transaction: t, 
+                lock: t.LOCK.UPDATE 
+            })
+            if (shift) {
+                shiftId = shift.shift_id
+            }
+        } else if (shiftId) {
+            // Validate provided shift_id
+            shift = await db.Shift.findOne({ 
+                where: { shift_id: shiftId, store_id, status: 'opened' }, 
+                transaction: t, 
+                lock: t.LOCK.UPDATE 
+            })
             if (!shift) {
                 await t.rollback()
                 return resolve({ err: 1, msg: 'Shift không hợp lệ hoặc đã đóng' })
@@ -82,12 +102,39 @@ export const checkout = (payload, options = {}) => new Promise(async (resolve, r
             const unit = parseFloat(it.unit_price)
             const subtotal = qty * unit
 
+            // Get product to get base_unit_id
+            const product = await db.Product.findByPk(it.product_id, { transaction: t });
+            if (!product) {
+                await t.rollback();
+                return resolve({
+                    err: 1,
+                    msg: `Product with id ${it.product_id} not found`
+                });
+            }
+
+            // Get unit_id from item or fallback to product's base_unit_id
+            const unitId = it.unit_id || product.base_unit_id;
+            if (!unitId) {
+                await t.rollback();
+                return resolve({
+                    err: 1,
+                    msg: `Missing unit_id for product ${it.product_id}`
+                });
+            }
+
+            // Calculate quantity_in_base (use from item if provided, otherwise use quantity)
+            const quantityInBase = it.quantity_in_base !== undefined 
+                ? it.quantity_in_base 
+                : qty;
+
             await db.TransactionItem.create({
                 transaction_id: transactionRecord.transaction_id,
                 product_id: it.product_id,
                 quantity: qty,
                 unit_price: unit,
-                subtotal
+                subtotal,
+                unit_id: unitId,
+                quantity_in_base: quantityInBase
             }, { transaction: t })
 
             // decrement inventory (update explicitly)
