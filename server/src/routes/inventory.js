@@ -12,6 +12,9 @@ router.get('/store/:store_id', verifyToken, inventoryController.getInventoryBySt
 // Update inventory stock (for Store Manager)
 router.put('/:inventory_id', verifyToken, inventoryController.updateInventoryStock);
 
+// Get inventory by product_id (for Product Detail page)
+router.get('/product/:productId', verifyToken, checkRole('Warehouse', 'Manager', 'CEO'), inventoryController.getInventoryByProduct);
+
 
 // Get inventory statistics (MUST BE BEFORE other routes)
 router.get('/warehouse/statistics', verifyToken, checkRole('Warehouse', 'CEO'), inventoryController.getInventoryStatistics);

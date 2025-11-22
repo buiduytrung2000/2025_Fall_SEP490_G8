@@ -25,15 +25,15 @@ const getHeaders = () => {
 
 export async function getStoreInventory(storeId = null) {
     try {
-        const url = storeId 
+        const url = storeId
             ? `${API_BASE}/inventory/store/${storeId}`
             : `${API_BASE}/inventory/store`;
-        
+
         const res = await fetch(url, {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         // Check if response is actually JSON
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
@@ -41,13 +41,13 @@ export async function getStoreInventory(storeId = null) {
             console.error('Non-JSON response received:', text);
             return [];
         }
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             console.error('Error fetching inventory:', errorData);
             return [];
         }
-        
+
         const data = await res.json();
         // Return data in the format expected by the component
         if (data.err === 0 && data.data) {
@@ -74,12 +74,12 @@ export async function updateInventoryStock(inventoryId, stock, minStockLevel, re
                 reorder_point: reorderPoint
             })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {
@@ -104,12 +104,12 @@ export async function getAllStoreInventory({ page = 1, limit = 10, storeId, cate
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching store inventory:', error);
@@ -127,12 +127,12 @@ export async function getInventoryDetail(inventoryId) {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching inventory detail:', error);
@@ -153,12 +153,12 @@ export async function getInventoryStatistics(storeId) {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching statistics:', error);
@@ -179,12 +179,12 @@ export async function getLowStockItems({ storeId, page = 1, limit = 10 } = {}) {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching low stock items:', error);
@@ -203,12 +203,12 @@ export async function updateInventorySettings(inventoryId, { min_stock_level, re
             headers: getHeaders(),
             body: JSON.stringify({ min_stock_level, reorder_point })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error updating inventory settings:', error);
@@ -227,12 +227,12 @@ export async function adjustStock(inventoryId, { adjustment, reason }) {
             headers: getHeaders(),
             body: JSON.stringify({ adjustment, reason })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error adjusting stock:', error);
@@ -259,12 +259,12 @@ export async function getAllWarehouseInventory({ page = 1, limit = 10, categoryI
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching warehouse inventory:', error);
@@ -282,12 +282,12 @@ export async function getWarehouseInventoryDetail(inventoryId) {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching warehouse inventory detail:', error);
@@ -305,12 +305,12 @@ export async function getWarehouseInventoryStatistics() {
             method: 'GET',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error fetching warehouse inventory statistics:', error);
@@ -329,12 +329,12 @@ export async function updateWarehouseInventorySettings(inventoryId, { min_stock_
             headers: getHeaders(),
             body: JSON.stringify({ min_stock_level, reorder_point, location, notes })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error updating warehouse inventory settings:', error);
@@ -353,12 +353,12 @@ export async function adjustWarehouseStock(inventoryId, { adjustment, reason }) 
             headers: getHeaders(),
             body: JSON.stringify({ adjustment, reason })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error adjusting warehouse stock:', error);
@@ -377,15 +377,41 @@ export async function createWarehouseInventory({ product_id, stock, min_stock_le
             headers: getHeaders(),
             body: JSON.stringify({ product_id, stock, min_stock_level, reorder_point, location, notes })
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         return await res.json();
     } catch (error) {
         console.error('Error creating warehouse inventory:', error);
         return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Get all inventory locations for a specific product
+ * For Product Detail page
+ */
+export async function getInventoryByProduct(productId) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: [] };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/inventory/product/${productId}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return { ...errorData, data: [] };
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error(`Error fetching inventory for product ${productId}:`, error);
+        return { err: -1, msg: 'Network error: ' + error.message, data: [] };
     }
 }

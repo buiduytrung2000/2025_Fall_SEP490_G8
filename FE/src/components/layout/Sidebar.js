@@ -12,7 +12,7 @@ import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
     FaBars, FaUserClock, FaCashRegister, FaChartPie, FaExchangeAlt,
-    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift
+    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift, FaBuilding
 } from 'react-icons/fa';
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
@@ -39,12 +39,13 @@ const navLinks = {
         // - Quản lý tồn kho tổng
         { to: "/warehouse/inventory", icon: <FaBoxes />, text: "Quản lý Tồn kho" },
         // Đơn hàng
-        { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },      
+        { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },
         // Sản phẩm & Giá
         { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
         { to: "/warehouse/pricing", icon: <FaTags />, text: "Quản lý giá SP" },
+        { to: "/warehouse/suppliers", icon: <FaBuilding />, text: "Quản lý nhà cung cấp" },
     ],
-    
+
     Supplier: [
         { to: "/supplier/portal", icon: <FaTruck />, text: "Đơn đặt hàng" }
     ],
@@ -124,10 +125,10 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
                         <span className="user-role">{user.role}</span>
                     </div>
                 )}
-                <Button 
-                    variant="secondary" 
-                    className="w-100 btn-logout" 
-                    onClick={requestLogout} 
+                <Button
+                    variant="secondary"
+                    className="w-100 btn-logout"
+                    onClick={requestLogout}
                     title="Đăng xuất"
                 >
                     <FaSignOutAlt className="logout-icon" />
