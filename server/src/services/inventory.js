@@ -31,7 +31,7 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
         });
 
         const now = new Date();
-        
+
         // Get all active pricing rules for this store
         const activeRules = await db.PricingRule.findAll({
             where: {
@@ -54,7 +54,7 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
         const data = inventories.map(inv => {
             const invPlain = inv.get ? inv.get({ plain: true }) : JSON.parse(JSON.stringify(inv));
             const product = invPlain.product || {};
-            
+
             const category = product.category ? {
                 category_id: product.category.category_id,
                 name: product.category.name
@@ -105,7 +105,7 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
 export const getAllInventoryService = async ({ page, limit, storeId, categoryId, status, search }) => {
     try {
         const offset = (page - 1) * limit;
-        
+
         const whereConditions = {};
         if (storeId) whereConditions.store_id = storeId;
 
@@ -157,7 +157,7 @@ export const getAllInventoryService = async ({ page, limit, storeId, categoryId,
 
         const inventoryWithStatus = rows.map(item => {
             const itemData = item.toJSON();
-            
+
             let stockStatus = 'normal';
             if (itemData.stock === 0) {
                 stockStatus = 'out_of_stock';
@@ -297,7 +297,7 @@ export const getInventoryStatisticsService = async ({ storeId }) => {
         inventoryItems.forEach(item => {
             const stock = item.stock;
             const value = stock * (item.product?.hq_price || 0);
-            
+
             totalItems += stock;
             totalValue += value;
 
@@ -350,14 +350,14 @@ export const getInventoryStatisticsService = async ({ storeId }) => {
 export const getLowStockItemsService = async ({ storeId, page, limit }) => {
     try {
         const offset = (page - 1) * limit;
-        
+
         const whereConditions = {
             [Op.or]: [
                 { stock: { [Op.lte]: db.sequelize.col('reorder_point') } },
                 { stock: 0 }
             ]
         };
-        
+
         if (storeId) whereConditions.store_id = storeId;
 
         const { count, rows } = await db.Inventory.findAndCountAll({
@@ -389,7 +389,7 @@ export const getLowStockItemsService = async ({ storeId, page, limit }) => {
         const itemsWithStatus = rows.map(item => {
             const itemData = item.toJSON();
             let stockStatus = 'low';
-            
+
             if (itemData.stock === 0) {
                 stockStatus = 'out_of_stock';
             } else if (itemData.stock <= itemData.min_stock_level) {
@@ -522,7 +522,7 @@ export const updateInventoryService = async ({ inventoryId, min_stock_level, reo
  */
 export const adjustStockService = async ({ inventoryId, adjustment, reason, adjustedBy }) => {
     const transaction = await db.sequelize.transaction();
-    
+
     try {
         const inventory = await db.Inventory.findByPk(inventoryId, { transaction });
 
@@ -561,3 +561,62 @@ export const adjustStockService = async ({ inventoryId, adjustment, reason, adju
         throw error;
     }
 };
+
+
+// Get inventory by product_id
+export const getInventoryByProduct = (productId) => new Promise(async (resolve, reject) => {
+    try {
+        // 1. Get inventory from all stores
+        const storeInventories = await db.Inventory.findAll({
+            where: { product_id: productId },
+            include: [
+                {
+                    model: db.Store,
+                    as: 'store',
+                    attributes: ['name']
+                }
+            ],
+            raw: true,
+            nest: true
+        });
+
+        // 2. Get inventory from the main warehouse
+        const warehouseInventory = await db.WarehouseInventory.findOne({
+            where: { product_id: productId },
+            raw: true
+        });
+
+        const formattedResponse = [];
+
+        // Format store inventories
+        storeInventories.forEach(item => {
+            formattedResponse.push({
+                location_type: 'Store',
+                location_name: item.store.name,
+                stock: item.stock,
+                min_stock_level: item.min_stock_level,
+                reorder_point: item.reorder_point
+            });
+        });
+
+        // Format warehouse inventory
+        if (warehouseInventory) {
+            formattedResponse.push({
+                location_type: 'Warehouse',
+                location_name: 'Kho tổng',
+                stock: warehouseInventory.stock,
+                min_stock_level: warehouseInventory.min_stock_level,
+                reorder_point: warehouseInventory.reorder_point
+            });
+        }
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: formattedResponse
+        });
+
+    } catch (error) {
+        reject(error);
+    }
+});

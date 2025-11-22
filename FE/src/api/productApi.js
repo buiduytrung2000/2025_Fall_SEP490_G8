@@ -99,12 +99,12 @@ export async function createProduct(productData) {
             headers: getHeaders(),
             body: JSON.stringify(productData)
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {
@@ -123,12 +123,12 @@ export async function updateProduct(productId, productData) {
             headers: getHeaders(),
             body: JSON.stringify(productData)
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {
@@ -146,12 +146,12 @@ export async function deleteProduct(productId) {
             method: 'DELETE',
             headers: getHeaders()
         });
-        
+
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {
@@ -264,13 +264,13 @@ export async function createPricingRule(pricingRuleData) {
             headers: getHeaders(),
             body: JSON.stringify(pricingRuleData)
         });
-        
+
         // Check if response is ok
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
             return errorData;
         }
-        
+
         const data = await res.json();
         return data;
     } catch (error) {

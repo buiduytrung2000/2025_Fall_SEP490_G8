@@ -5,10 +5,10 @@ import db from '../models';
 export const getInventoryByStore = async (req, res) => {
     try {
         console.log('Inventory route hit:', req.path, req.params, req.query);
-        
+
         // Get store_id from query param or from user's store_id
         let storeId = req.query.store_id || req.params.store_id;
-        
+
         // If not provided, try to get from user's store_id
         if (!storeId && req.user) {
             console.log('Getting store_id from user:', req.user.user_id);
@@ -74,13 +74,13 @@ export const updateInventoryStock = async (req, res) => {
  */
 export const getAllInventory = async (req, res) => {
     try {
-        const { 
-            page = 1, 
-            limit = 10, 
-            storeId, 
-            categoryId, 
+        const {
+            page = 1,
+            limit = 10,
+            storeId,
+            categoryId,
             status,
-            search 
+            search
         } = req.query;
 
         const response = await inventoryService.getAllInventoryService({
@@ -233,6 +233,27 @@ export const adjustStock = async (req, res) => {
         return res.status(500).json({
             err: -1,
             msg: 'Fail at inventory controller: ' + error.message
+        });
+    }
+};
+
+
+// Get inventory by product_id
+export const getInventoryByProduct = async (req, res) => {
+    try {
+        const { productId } = req.params;
+        if (!productId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing productId'
+            });
+        }
+        const response = await inventoryService.getInventoryByProduct(productId);
+        return res.status(response.err === 0 ? 200 : 404).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at inventory controller: ' + error.message
         });
     }
 };

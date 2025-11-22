@@ -4,6 +4,7 @@ import { Alert } from 'react-bootstrap';
 import { getAllProducts, createProduct, updateProduct, deleteProduct, getAllCategories, getAllSuppliers } from '../../api/productApi';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
+import { useNavigate } from 'react-router-dom';
 import { Box, IconButton, Button } from '@mui/material';
 import { Edit, Delete } from '@mui/icons-material';
 import Dialog from '@mui/material/Dialog';
@@ -18,21 +19,22 @@ import InputLabel from '@mui/material/InputLabel';
 import AddIcon from '@mui/icons-material/Add';
 
 // Hàm helper format tiền
-const formatCurrency = (number) => 
+const formatCurrency = (number) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
 
 const ProductManagement = () => {
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
-    const [editData, setEditData] = useState({ 
-        product_id: null, 
-        sku: '', 
-        name: '', 
-        hq_price: '', 
+    const [editData, setEditData] = useState({
+        product_id: null,
+        sku: '',
+        name: '',
+        hq_price: '',
         category_id: '',
         supplier_id: '',
         description: ''
@@ -80,10 +82,10 @@ const ProductManagement = () => {
 
     const confirmDelete = async () => {
         if (!selectedProduct) return;
-        
+
         setError(null);
         setSuccess(null);
-        
+
         try {
             const result = await deleteProduct(selectedProduct.product_id);
             if (result.err === 0) {
@@ -95,17 +97,17 @@ const ProductManagement = () => {
         } catch (err) {
             setError('Lỗi khi xóa sản phẩm: ' + err.message);
         }
-        
+
         setShowModal(false);
         setSelectedProduct(null);
     };
 
     const handleOpenAdd = () => {
-        setEditData({ 
-            product_id: null, 
-            sku: '', 
-            name: '', 
-            hq_price: '', 
+        setEditData({
+            product_id: null,
+            sku: '',
+            name: '',
+            hq_price: '',
             category_id: '',
             supplier_id: '',
             description: ''
@@ -117,11 +119,11 @@ const ProductManagement = () => {
     };
 
     const handleOpenEdit = (prod) => {
-        setEditData({ 
+        setEditData({
             product_id: prod.product_id,
-            sku: prod.sku || '', 
-            name: prod.name || '', 
-            hq_price: prod.hq_price || '', 
+            sku: prod.sku || '',
+            name: prod.name || '',
+            hq_price: prod.hq_price || '',
             category_id: prod.category_id || '',
             supplier_id: prod.supplier_id || '',
             description: prod.description || ''
@@ -260,6 +262,16 @@ const ProductManagement = () => {
                 columns={columns}
                 data={products}
                 enableRowActions
+                muiTableBodyRowProps={({ row }) => ({
+                    onClick: (event) => {
+                        // Prevent navigation when clicking on action buttons
+                        if (event.target.closest('button')) return;
+                        navigate(`/warehouse/products/${row.original.product_id}`);
+                    },
+                    sx: {
+                        cursor: 'pointer', // Change cursor on hover
+                    },
+                })}
                 // Nút "Thêm sản phẩm" ở trên đầu bảng
                 renderTopToolbarCustomActions={() => (
                     <Button
@@ -302,35 +314,35 @@ const ProductManagement = () => {
                                 {success}
                             </Alert>
                         )}
-                        <TextField 
-                            label="Mã SKU" 
-                            name="sku" 
-                            value={editData.sku} 
-                            required 
-                            onChange={handleEditField} 
-                            fullWidth 
+                        <TextField
+                            label="Mã SKU"
+                            name="sku"
+                            value={editData.sku}
+                            required
+                            onChange={handleEditField}
+                            fullWidth
                             margin="normal"
                             disabled={isEditMode}
                             helperText={isEditMode ? "Không thể thay đổi mã SKU" : ""}
                         />
-                        <TextField 
-                            label="Tên sản phẩm" 
-                            name="name" 
-                            value={editData.name} 
-                            required 
-                            onChange={handleEditField} 
-                            fullWidth 
-                            margin="normal" 
+                        <TextField
+                            label="Tên sản phẩm"
+                            name="name"
+                            value={editData.name}
+                            required
+                            onChange={handleEditField}
+                            fullWidth
+                            margin="normal"
                         />
-                        <TextField 
-                            label="Giá HQ (VND)" 
-                            name="hq_price" 
-                            type="number" 
-                            value={editData.hq_price} 
-                            required 
-                            inputProps={{ min: 0, step: 1000 }} 
-                            onChange={handleEditField} 
-                            fullWidth 
+                        <TextField
+                            label="Giá HQ (VND)"
+                            name="hq_price"
+                            type="number"
+                            value={editData.hq_price}
+                            required
+                            inputProps={{ min: 0, step: 1000 }}
+                            onChange={handleEditField}
+                            fullWidth
                             margin="normal"
                             helperText="Giá tại trụ sở chính"
                         />
@@ -370,12 +382,12 @@ const ProductManagement = () => {
                                 ))}
                             </Select>
                         </FormControl>
-                        <TextField 
-                            label="Mô tả" 
-                            name="description" 
-                            value={editData.description} 
-                            onChange={handleEditField} 
-                            fullWidth 
+                        <TextField
+                            label="Mô tả"
+                            name="description"
+                            value={editData.description}
+                            onChange={handleEditField}
+                            fullWidth
                             margin="normal"
                             multiline
                             rows={3}
