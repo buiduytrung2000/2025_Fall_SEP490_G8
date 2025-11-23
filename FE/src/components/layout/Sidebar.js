@@ -31,6 +31,7 @@ const navLinks = {
     Cashier: [
         { to: "/cashier/pos", icon: <FaCashRegister />, text: "Bán hàng (POS)" },
         { to: "/cashier/payment-history", icon: <FaHistory />, text: "Lịch sử thanh toán" },
+        { to: "/cashier/shift-reports", icon: <FaChartPie />, text: "Tổng kết ca" },
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" },
         { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" }
     ],
@@ -42,7 +43,6 @@ const navLinks = {
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },
         // Sản phẩm & Giá
         { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
-        { to: "/warehouse/pricing", icon: <FaTags />, text: "Quản lý giá SP" },
         { to: "/warehouse/suppliers", icon: <FaBuilding />, text: "Quản lý nhà cung cấp" },
     ],
 

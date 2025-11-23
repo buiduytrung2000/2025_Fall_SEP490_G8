@@ -1,13 +1,10 @@
-// src/pages/Store_Manager/ShiftReports.js
+// src/pages/Cashier/MyShiftReports.js
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
-  Chip, Stack, CircularProgress, Alert,
-  Select, MenuItem, FormControl, InputLabel
+  Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Chip, Stack, CircularProgress, Alert
 } from '@mui/material';
-import { MaterialReactTable } from 'material-react-table';
 import { getShiftReport } from '../../api/shiftApi';
-import { fetchEmployees } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const formatCurrency = (amount) => {
@@ -35,15 +32,12 @@ const KpiCard = ({ title, value, color }) => (
   </Card>
 );
 
-const ShiftReports = () => {
+const MyShiftReports = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [shifts, setShifts] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [cashierId, setCashierId] = useState('');
-  const [cashiers, setCashiers] = useState([]);
-  const [loadingCashiers, setLoadingCashiers] = useState(false);
   const [from, setFrom] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() - 7); // 7 ngày trước
@@ -53,35 +47,16 @@ const ShiftReports = () => {
     return new Date().toISOString().split('T')[0];
   });
 
-  // Load danh sách thu ngân
-  const loadCashiers = useCallback(async () => {
-    if (!user?.store_id) return;
-    setLoadingCashiers(true);
-    try {
-      const resp = await fetchEmployees({
-        store_id: user.store_id,
-        role: 'Cashier',
-        status: 'active',
-        limit: 100 // Lấy tất cả thu ngân
-      });
-      if (resp && resp.err === 0 && resp.data) {
-        setCashiers(resp.data || []);
-      }
-    } catch (e) {
-      console.error('Lỗi khi tải danh sách thu ngân:', e);
-    } finally {
-      setLoadingCashiers(false);
-    }
-  }, [user]);
-
   const load = useCallback(async () => {
+    if (!user?.user_id) return;
+    
     setLoading(true);
     setError(null);
     try {
       const storeId = user?.store_id || null;
       const resp = await getShiftReport({ 
         store_id: storeId,
-        cashier_id: cashierId || null,
+        cashier_id: user.user_id, // Chỉ lấy ca của chính nhân viên này
         date_from: from,
         date_to: to
       });
@@ -101,11 +76,7 @@ const ShiftReports = () => {
     } finally {
       setLoading(false);
     }
-  }, [from, to, cashierId, user]);
-
-  useEffect(() => { 
-    loadCashiers();
-  }, [loadCashiers]);
+  }, [from, to, user]);
 
   useEffect(() => { 
     load(); 
@@ -125,106 +96,10 @@ const ShiftReports = () => {
     };
   }, [summary]);
 
-  // Định nghĩa cột cho bảng shift reports
-  const columns = useMemo(() => [
-    {
-      accessorKey: 'index',
-      header: 'STT',
-      size: 60,
-      Cell: ({ row }) => row.index + 1,
-    },
-    {
-      accessorKey: 'shift_id',
-      header: 'Mã ca',
-      size: 100,
-      Cell: ({ cell }) => `#${cell.getValue()}`,
-    },
-    {
-      accessorKey: 'opened_at',
-      header: 'Ngày giờ',
-      size: 150,
-      Cell: ({ cell }) => formatDate(cell.getValue()),
-    },
-    {
-      accessorKey: 'cashier.username',
-      header: 'Thu ngân',
-      size: 120,
-      Cell: ({ row }) => row.original.cashier?.username || '—',
-    },
-    {
-      accessorKey: 'transaction_count',
-      header: 'Số GD',
-      size: 100,
-      Cell: ({ cell }) => cell.getValue() || 0,
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'cash_sales_total',
-      header: 'Tiền mặt',
-      size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'bank_transfer_total',
-      header: 'Chuyển khoản',
-      size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'total_sales',
-      header: 'Tổng doanh thu',
-      size: 140,
-      Cell: ({ cell }) => (
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {formatCurrency(cell.getValue() || 0)}
-        </Typography>
-      ),
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'opening_cash',
-      header: 'Tiền đầu ca',
-      size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'closing_cash',
-      header: 'Tiền cuối ca',
-      size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-      enableColumnFilter: false,
-    },
-    {
-      accessorKey: 'discrepancy',
-      header: 'Chênh lệch',
-      size: 130,
-      Cell: ({ row }) => {
-        const shift = row.original;
-        const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
-        const actualCash = parseFloat(shift.closing_cash || 0);
-        const discrepancy = actualCash - expectedCash;
-        return (
-          <Typography
-            variant="body2"
-            sx={{
-              fontWeight: 600,
-              color: discrepancy === 0 ? 'success.main' : discrepancy > 0 ? 'info.main' : 'error.main'
-            }}
-          >
-            {formatCurrency(discrepancy)}
-          </Typography>
-        );
-      },
-    },
-  ], []);
-
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Báo cáo & Tổng kết ca</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>Theo dõi hiệu quả theo từng ca làm việc</Typography>
+      <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Tổng kết ca làm việc</Typography>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>Xem tổng kết các ca làm việc của bạn</Typography>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -324,26 +199,6 @@ const ShiftReports = () => {
             InputLabelProps={{ shrink: true }}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           />
-          <FormControl size="small" sx={{ width: { xs: '100%', sm: 200 } }}>
-            <InputLabel id="cashier-select-label">Thu ngân</InputLabel>
-            <Select
-              labelId="cashier-select-label"
-              id="cashier-select"
-              value={cashierId}
-              label="Thu ngân"
-              onChange={(e) => setCashierId(e.target.value)}
-              disabled={loadingCashiers}
-            >
-              <MenuItem value="">
-                <em>Tất cả thu ngân</em>
-              </MenuItem>
-              {cashiers.map((cashier) => (
-                <MenuItem key={cashier.user_id} value={cashier.user_id}>
-                  {cashier.username} {cashier.name ? `(${cashier.name})` : ''}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
           <Box flexGrow={1} sx={{ display: { xs: 'none', md: 'block' } }} />
           {summary && (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
@@ -358,37 +213,66 @@ const ShiftReports = () => {
         </Stack>
       </Paper>
 
-      <MaterialReactTable
-        columns={columns}
-        data={shifts}
-        enableColumnActions={false}
-        enableColumnFilters={false}
-        enableSorting={true}
-        enableTopToolbar={false}
-        enableBottomToolbar={true}
-        enablePagination={true}
-        muiTableContainerProps={{
-          sx: { maxHeight: { xs: '70vh', md: 'none' } }
-        }}
-        muiTablePaperProps={{
-          elevation: 0,
-          sx: { boxShadow: 'none' }
-        }}
-        muiTableHeadCellProps={{
-          sx: {
-            fontWeight: 700,
-            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-          }
-        }}
-        localization={{
-          noRecordsToDisplay: 'Không có dữ liệu'
-        }}
-        initialState={{
-          pagination: { pageSize: 10, pageIndex: 0 },
-        }}
-      />
+      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
+        <Table sx={{ minWidth: 1000 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã ca</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ngày giờ</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Số GD</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền mặt</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Chuyển khoản</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tổng doanh thu</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền đầu ca</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền cuối ca</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Chênh lệch</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {shifts.map(shift => {
+              const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
+              const actualCash = parseFloat(shift.closing_cash || 0);
+              const discrepancy = actualCash - expectedCash;
+              
+              return (
+                <TableRow key={shift.shift_id} hover>
+                  <TableCell>#{shift.shift_id}</TableCell>
+                  <TableCell>{formatDate(shift.opened_at)}</TableCell>
+                  <TableCell align="right">{shift.transaction_count || 0}</TableCell>
+                  <TableCell align="right">{formatCurrency(shift.cash_sales_total || 0)}</TableCell>
+                  <TableCell align="right">{formatCurrency(shift.bank_transfer_total || 0)}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(shift.total_sales || 0)}
+                  </TableCell>
+                  <TableCell align="right">{formatCurrency(shift.opening_cash || 0)}</TableCell>
+                  <TableCell align="right">{formatCurrency(shift.closing_cash || 0)}</TableCell>
+                  <TableCell align="right">
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: discrepancy === 0 ? 'success.main' : discrepancy > 0 ? 'info.main' : 'error.main'
+                      }}
+                    >
+                      {formatCurrency(discrepancy)}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {!loading && !shifts.length && (
+              <TableRow>
+                <TableCell colSpan={9} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  Không có dữ liệu
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 };
 
-export default ShiftReports;
+export default MyShiftReports;
+

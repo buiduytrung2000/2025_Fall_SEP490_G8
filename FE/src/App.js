@@ -35,7 +35,6 @@ import WarehouseOrderShipment from "./pages/Warehouse/OrderShipment";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
-import ProductPriceManagement from "./pages/Warehouse/ProductPriceManagement";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
@@ -46,6 +45,7 @@ import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
 import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 import SupplierManagement from "./pages/Warehouse/SupplierManagement";
 import ProductDetail from "./pages/Warehouse/ProductDetail";
+import MyShiftReports from "./pages/Cashier/MyShiftReports";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -190,6 +190,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/cashier/shift-reports"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <MyShiftReports />
+                </ProtectedRoute>
+              }
+            />
 
             {/* <Route
               path="/warehouse/inventory"
@@ -229,14 +237,6 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
                   <WarehouseInventoryDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/warehouse/pricing"
-              element={
-                <ProtectedRoute allowedRoles={["Warehouse"]}>
-                  <ProductPriceManagement />
                 </ProtectedRoute>
               }
             />
