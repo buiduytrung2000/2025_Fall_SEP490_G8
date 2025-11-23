@@ -50,6 +50,7 @@ const SupplierPortal = () => {
                 columns={columns}
                 data={orders}
                 enableRowActions
+                positionActionsColumn="last"
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button

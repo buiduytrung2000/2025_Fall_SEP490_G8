@@ -13,12 +13,6 @@ import {
     MenuItem,
     FormControl,
     InputLabel,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Chip,
     Card,
     CardContent,
@@ -32,6 +26,7 @@ import {
     FormControlLabel,
     Radio,
 } from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
 import {
     SwapHoriz,
     Send,
@@ -274,35 +269,23 @@ const ShiftChangeRequest = () => {
     };
 
     const weekOptions = useMemo(() => {
-        // Determine dynamic range from available data, with sensible fallbacks
-        const dates = [];
-        mySchedules.forEach((s) => {
-            const d = s.work_date || s.workDate;
-            if (d) dates.push(new Date(d));
-        });
-        allPossibleShifts.forEach((s) => {
-            const d = s.work_date || s.workDate;
-            if (d) dates.push(new Date(d));
-        });
-
+        // Chỉ cho phép chọn 4 tuần: 1 tuần hiện tại và 3 tuần trong tương lai
         const today = new Date();
-        let minDate = dates.length ? new Date(Math.min(...dates)) : new Date(today);
-        let maxDate = dates.length ? new Date(Math.max(...dates)) : new Date(today);
-
-        // Extend range so user can browse more weeks even if không có ca sẵn
-        minDate.setDate(minDate.getDate() - 26 * 7); // -26 tuần
-        maxDate.setDate(maxDate.getDate() + 52 * 7); // +52 tuần
-
-        // Align to week starts (Monday)
-        const start = new Date(getWeekStart(minDate.toISOString().split('T')[0]));
-        const end = new Date(getWeekStart(maxDate.toISOString().split('T')[0]));
-
+        const currentWeekStart = getWeekStart(today.toISOString().split('T')[0]);
+        
         const weeks = [];
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-            weeks.push(d.toISOString().split('T')[0]);
+        // Thêm tuần hiện tại
+        weeks.push(currentWeekStart);
+        
+        // Thêm 3 tuần tiếp theo
+        for (let i = 1; i <= 3; i++) {
+            const nextWeek = new Date(currentWeekStart);
+            nextWeek.setDate(nextWeek.getDate() + (i * 7));
+            weeks.push(nextWeek.toISOString().split('T')[0]);
         }
+        
         return weeks;
-    }, [allPossibleShifts, mySchedules]);
+    }, []);
 
     const handleOpenDialog = async (schedule = null) => {
         if (schedule) {
@@ -561,6 +544,91 @@ const ShiftChangeRequest = () => {
         return `${date} - ${template?.name || 'Ca'} (${time})${employeeName ? ` - ${employeeName}` : ''}`;
     };
 
+    // Định nghĩa cột cho bảng lịch làm việc
+    const scheduleColumns = useMemo(() => [
+        {
+            accessorKey: 'index',
+            header: 'STT',
+            size: 60,
+            Cell: ({ row }) => row.index + 1,
+        },
+        {
+            accessorKey: 'work_date',
+            header: 'Ngày',
+            size: 120,
+            Cell: ({ cell }) => formatDate(cell.getValue()),
+        },
+        {
+            accessorKey: 'shift_template_id',
+            header: 'Ca làm việc',
+            size: 150,
+            Cell: ({ row }) => {
+                const schedule = row.original;
+                const template = shiftTemplates.find(
+                    (t) =>
+                        t.shift_template_id === schedule.shift_template_id ||
+                        t.id === schedule.shift_template_id
+                );
+                return template?.name || 'N/A';
+            },
+        },
+        {
+            accessorKey: 'time',
+            header: 'Thời gian',
+            size: 150,
+            Cell: ({ row }) => {
+                const schedule = row.original;
+                const template = shiftTemplates.find(
+                    (t) =>
+                        t.shift_template_id === schedule.shift_template_id ||
+                        t.id === schedule.shift_template_id
+                );
+                return template
+                    ? `${formatTime(template.start_time)} - ${formatTime(template.end_time)}`
+                    : 'N/A';
+            },
+        },
+        {
+            accessorKey: 'attendance_status',
+            header: 'Trạng thái',
+            size: 180,
+            Cell: ({ row }) => {
+                const schedule = row.original;
+                const status = schedule.attendance_status;
+                if (status) {
+                    const label =
+                        status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
+                        status === 'checked_out' ? 'Đã kết ca' :
+                        status === 'absent' ? 'Vắng mặt' :
+                        'Chưa điểm danh';
+                    const color =
+                        status === 'checked_in' ? 'info' :
+                        status === 'checked_out' ? 'success' :
+                        status === 'absent' ? 'error' :
+                        'default';
+                    const variant = status !== 'not_checked_in' && status !== 'absent' ? 'filled' : 'outlined';
+                    return (
+                        <Chip
+                            label={label}
+                            size="small"
+                            color={color}
+                            variant={variant}
+                        />
+                    );
+                } else {
+                    return (
+                        <Chip
+                            label="Chưa điểm danh"
+                            size="small"
+                            color="default"
+                            variant="outlined"
+                        />
+                    );
+                }
+            },
+        },
+    ], [shiftTemplates]);
+
     return (
         <Box sx={{ p: 3 }}>
             <Typography variant="h4" fontWeight="bold" gutterBottom>
@@ -590,83 +658,54 @@ const ShiftChangeRequest = () => {
                             {mySchedules.length === 0 ? (
                                 <Alert severity="info">Bạn chưa có lịch làm việc nào</Alert>
                             ) : (
-                                <TableContainer component={Paper}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Ngày</TableCell>
-                                                <TableCell>Ca làm việc</TableCell>
-                                                <TableCell>Thời gian</TableCell>
-                                                <TableCell>Trạng thái</TableCell>
-                                                <TableCell>Thao tác</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {mySchedules.map((schedule) => {
-                                                const template = shiftTemplates.find(
-                                                    (t) =>
-                                                        t.shift_template_id === schedule.shift_template_id ||
-                                                        t.id === schedule.shift_template_id
-                                                );
-                                                const canSwap = schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out';
-                                                return (
-                                                    <TableRow key={schedule.schedule_id}>
-                                                        <TableCell>{formatDate(schedule.work_date)}</TableCell>
-                                                        <TableCell>{template?.name || 'N/A'}</TableCell>
-                                                        <TableCell>
-                                                            {template
-                                                                ? `${formatTime(template.start_time)} - ${formatTime(template.end_time)}`
-                                                                : 'N/A'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {schedule.attendance_status ? (
-                                                                <Chip
-                                                                    label={
-                                                                        schedule.attendance_status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
-                                                                        schedule.attendance_status === 'checked_out' ? 'Đã kết ca' :
-                                                                        schedule.attendance_status === 'absent' ? 'Vắng mặt' :
-                                                                        'Chưa điểm danh'
-                                                                    }
-                                                                    size="small"
-                                                                    color={
-                                                                        schedule.attendance_status === 'checked_in' ? 'info' :
-                                                                        schedule.attendance_status === 'checked_out' ? 'success' :
-                                                                        schedule.attendance_status === 'absent' ? 'error' :
-                                                                        'default'
-                                                                    }
-                                                                    variant={schedule.attendance_status !== 'not_checked_in' && schedule.attendance_status !== 'absent' ? 'filled' : 'outlined'}
-                                                                />
-                                                            ) : (
-                                                                <Chip
-                                                                    label="Chưa điểm danh"
-                                                                    size="small"
-                                                                    color="default"
-                                                                    variant="outlined"
-                                                                />
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {canSwap ? (
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    startIcon={<SwapHoriz />}
-                                                                    onClick={() => handleOpenDialog(schedule)}
-                                                                >
-                                                                    Đổi ca
-                                                                </Button>
-                                                            ) : (
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                                                    Không thể đổi
-                                                                </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
+                                <MaterialReactTable
+                                    columns={scheduleColumns}
+                                    data={mySchedules}
+                                    enableRowActions
+                                    positionActionsColumn="last"
+                                    enableColumnActions={false}
+                                    enableColumnFilters={false}
+                                    enableSorting={true}
+                                    enableTopToolbar={false}
+                                    enableBottomToolbar={true}
+                                    enablePagination={true}
+                                    muiTableContainerProps={{
+                                        sx: { maxHeight: '70vh' }
+                                    }}
+                                    muiTablePaperProps={{
+                                        elevation: 0,
+                                        sx: { boxShadow: 'none' }
+                                    }}
+                                    renderRowActions={({ row }) => {
+                                        const schedule = row.original;
+                                        const canSwap = schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out';
+                                        
+                                        return (
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                {canSwap ? (
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        startIcon={<SwapHoriz />}
+                                                        onClick={() => handleOpenDialog(schedule)}
+                                                    >
+                                                        Đổi ca
+                                                    </Button>
+                                                ) : (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', alignSelf: 'center' }}>
+                                                        Không thể đổi
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        );
+                                    }}
+                                    localization={{
+                                        noRecordsToDisplay: 'Bạn chưa có lịch làm việc nào'
+                                    }}
+                                    initialState={{
+                                        pagination: { pageSize: 10, pageIndex: 0 },
+                                    }}
+                                />
                             )}
                         </Box>
                     )}

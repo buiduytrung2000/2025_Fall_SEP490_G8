@@ -25,6 +25,7 @@ import {
   useMediaQuery,
   useTheme
 } from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
 import { Add, Delete } from '@mui/icons-material';
 import { createStoreOrder, getStoreOrders, updateStoreOrderStatus } from '../../api/storeOrderApi';
 import { toast } from 'react-toastify';
@@ -228,6 +229,69 @@ const PurchaseOrders = () => {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Định nghĩa cột cho bảng đơn nhập hàng
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'index',
+      header: 'STT',
+      size: 60,
+      Cell: ({ row }) => row.index + 1,
+    },
+    {
+      accessorKey: 'store_order_id',
+      header: 'Mã đơn',
+      size: 100,
+      Cell: ({ cell }) => cell.getValue() || 'N/A',
+    },
+    {
+      accessorKey: 'order_type',
+      header: 'Loại',
+      size: 100,
+      Cell: ({ cell }) => cell.getValue() || 'N/A',
+    },
+    {
+      accessorKey: 'target_warehouse',
+      header: 'Nơi nhận/NCC',
+      size: 150,
+      Cell: ({ row }) => row.original.target_warehouse || row.original.supplier_name || 'N/A',
+    },
+    {
+      accessorKey: 'created_at',
+      header: 'Ngày',
+      size: 100,
+      Cell: ({ cell }) => new Date(cell.getValue()).toLocaleDateString('vi-VN'),
+    },
+    {
+      accessorKey: 'items',
+      header: 'Số dòng',
+      size: 80,
+      Cell: ({ cell }) => cell.getValue() ? cell.getValue().length : 0,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'total_amount',
+      header: 'Tổng tiền',
+      size: 120,
+      Cell: ({ cell }) => `${Number(cell.getValue() || 0).toLocaleString('vi-VN')} đ`,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Trạng thái',
+      size: 100,
+      Cell: ({ row }) => {
+        const statusMeta = getStatusMeta(row.original.status);
+        return (
+          <Chip 
+            size="small" 
+            label={statusMeta.label}
+            color={statusMeta.color}
+          />
+        );
+      },
+    },
+  ], [getStatusMeta]);
+
   const handleConfirmReceived = async () => {
     if (!selectedOrder) return;
     
@@ -300,65 +364,49 @@ const PurchaseOrders = () => {
         </Stack>
       </Paper>
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table sx={{ minWidth: 700 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ minWidth: 100 }}>Mã đơn</TableCell>
-              <TableCell sx={{ minWidth: 100 }}>Loại</TableCell>
-              <TableCell sx={{ minWidth: 150 }}>Nơi nhận/NCC</TableCell>
-              <TableCell sx={{ minWidth: 100 }}>Ngày</TableCell>
-              <TableCell sx={{ minWidth: 80 }}>Số dòng</TableCell>
-              <TableCell sx={{ minWidth: 120 }}>Tổng tiền</TableCell>
-              <TableCell sx={{ minWidth: 100 }}>Trạng thái</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {orders.map(o => {
-              const statusMeta = getStatusMeta(o.status);
-              return (
-              <TableRow 
-                key={o.store_order_id} 
-                hover 
-                onClick={() => {
-                  // Có thể xem chi tiết đơn nhập hàng khi click vào bất kỳ dòng nào
-                  setSelectedOrder(o);
-                  setOpenModal(true);
-                }}
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
-              >
-                <TableCell>{o.store_order_id || o.order_code || 'N/A'}</TableCell>
-                <TableCell>{o.order_type || 'N/A'}</TableCell>
-                <TableCell>{o.target_warehouse || o.supplier_name || 'N/A'}</TableCell>
-                <TableCell>{new Date(o.created_at).toLocaleDateString('vi-VN')}</TableCell>
-                <TableCell>{o.items ? o.items.length : 0}</TableCell>
-                <TableCell>{Number(o.total_amount || 0).toLocaleString('vi-VN')} đ</TableCell>
-                <TableCell>
-                  <Chip 
-                    size="small" 
-                    label={statusMeta.label}
-                    color={statusMeta.color}
-                  />
-                </TableCell>
-              </TableRow>
-            )})}
-            {loadingOrders && (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                  Đang tải dữ liệu...
-                </TableCell>
-              </TableRow>
-            )}
-            {!loadingOrders && !orders.length && (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                  Chưa có đơn nào
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <MaterialReactTable
+        columns={columns}
+        data={loadingOrders ? [] : orders}
+        enableColumnActions={false}
+        enableColumnFilters={false}
+        enableSorting={true}
+        enableTopToolbar={false}
+        enableBottomToolbar={true}
+        enablePagination={true}
+        muiTableContainerProps={{
+          sx: { maxHeight: { xs: '70vh', md: 'none' } }
+        }}
+        muiTablePaperProps={{
+          elevation: 0,
+          sx: { boxShadow: 'none' }
+        }}
+        muiTableHeadCellProps={{
+          sx: {
+            fontWeight: 700,
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          }
+        }}
+        muiTableBodyRowProps={({ row }) => ({
+          onClick: () => {
+            setSelectedOrder(row.original);
+            setOpenModal(true);
+          },
+          sx: {
+            cursor: 'pointer',
+            '&:hover': { backgroundColor: 'action.hover' }
+          }
+        })}
+        state={{
+          isLoading: loadingOrders,
+          showProgressBars: loadingOrders
+        }}
+        localization={{
+          noRecordsToDisplay: 'Chưa có đơn nào'
+        }}
+        initialState={{
+          pagination: { pageSize: 10, pageIndex: 0 },
+        }}
+      />
 
       {/* Create Order Modal */}
       <Dialog

@@ -268,6 +268,7 @@ const SupplierManagement = () => {
                 data={suppliers}
                 state={{ isLoading: loading }}
                 enableRowActions
+                positionActionsColumn="last"
                 enableColumnFilters
                 enableFacetedValues
                 renderTopToolbarCustomActions={() => (

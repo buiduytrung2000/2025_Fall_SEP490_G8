@@ -46,6 +46,7 @@ const AdminPermissions = () => {
                 columns={columns}
                 data={users}
                 enableRowActions
+                positionActionsColumn="last"
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '1rem' }}>
                         <IconButton

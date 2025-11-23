@@ -26,13 +26,15 @@ import {
   MenuItem,
   InputAdornment
 } from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
 import { Download, Refresh, Edit, Add, Delete } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { createWarehouseOrder } from '../../api/warehouseOrderApi';
 import { getStoreInventory } from '../../api/inventoryApi';
 import { createStoreOrder } from '../../api/storeOrderApi';
 
-const columns = [
+// Old columns definition - kept for exportCsv function
+const oldColumns = [
   { key: 'select', label: '' },
   { key: 'sku', label: 'Mã SKU' },
   { key: 'name', label: 'Tên hàng' },
@@ -221,6 +223,109 @@ const InventoryManagement = () => {
       }
     }
   };
+
+  // Định nghĩa cột cho MaterialReactTable
+  const tableColumns = useMemo(() => [
+    {
+      id: 'select',
+      header: '',
+      size: 50,
+      Cell: ({ row }) => (
+        <Checkbox
+          checked={selected.has(rowId(row.original))}
+          onChange={(e) => toggleOne(rowId(row.original), e.target.checked)}
+          inputProps={{ 'aria-label': 'chọn sản phẩm' }}
+        />
+      ),
+      enableColumnFilter: false,
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'index',
+      header: 'STT',
+      size: 60,
+      Cell: ({ row }) => row.index + 1,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'sku',
+      header: 'Mã SKU',
+      size: 120,
+    },
+    {
+      accessorKey: 'name',
+      header: 'Tên hàng',
+      size: 200,
+    },
+    {
+      accessorKey: 'category',
+      header: 'Danh mục',
+      size: 150,
+    },
+    {
+      accessorKey: 'package_price',
+      header: 'Giá nhập/thùng',
+      size: 130,
+      Cell: ({ row }) => {
+        const price = row.original.package_price || row.original.price || 0;
+        return `${formatVnd(price)}đ`;
+      },
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'price',
+      header: 'Giá lẻ/đơn vị',
+      size: 130,
+      Cell: ({ cell }) => `${formatVnd(cell.getValue() || 0)}đ`,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'stock',
+      header: 'Tồn kho',
+      size: 100,
+      Cell: ({ row }) => {
+        const stock = row.original.stock || 0;
+        const minStock = row.original.min_stock_level || row.original.minStock || 0;
+        const isLow = stock <= minStock;
+        return (
+          <Typography
+            sx={{
+              fontWeight: isLow ? 700 : 400,
+              color: isLow ? '#dc2626' : 'inherit'
+            }}
+          >
+            {stock}
+          </Typography>
+        );
+      },
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'min_stock_level',
+      header: 'Tồn tối thiểu',
+      size: 120,
+      Cell: ({ row }) => row.original.min_stock_level || row.original.minStock || 0,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Trạng thái',
+      size: 120,
+      Cell: ({ row }) => {
+        const stock = row.original.stock || 0;
+        const minStock = row.original.min_stock_level || row.original.minStock || 0;
+        const isLow = stock <= minStock;
+        return (
+          <Chip
+            size="small"
+            color={isLow ? 'warning' : 'success'}
+            label={isLow ? 'Thiếu hàng' : 'Ổn định'}
+          />
+        );
+      },
+      enableColumnFilter: false,
+    },
+  ], [selected, toggleOne]);
 
   // Order management functions
   const addLine = () => {
@@ -417,75 +522,56 @@ const InventoryManagement = () => {
         />
       </Paper>
 
-      <TableContainer 
-        component={Paper} 
-        sx={{ 
-          boxShadow: 3, 
-          borderRadius: 2,
-          overflowX: 'auto',
-          maxHeight: { xs: '70vh', md: 'none' }
+      <MaterialReactTable
+        columns={tableColumns}
+        data={filtered}
+        enableColumnActions={false}
+        enableColumnFilters={false}
+        enableSorting={true}
+        enableTopToolbar={false}
+        enableBottomToolbar={true}
+        enablePagination={true}
+        enableRowSelection={false}
+        muiTableContainerProps={{
+          sx: {
+            maxHeight: { xs: '70vh', md: 'none' }
+          }
         }}
-      >
-        <Table sx={{ minWidth: 900 }}>
-          <TableHead>
-            <TableRow>
-              {columns.map((c) => (
-                <TableCell 
-                  key={c.key} 
-                  sx={{ 
-                    fontWeight: 700,
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {c.key === 'select' ? (
-                    <Checkbox
-                      indeterminate={someInViewSelected}
-                      checked={allInViewSelected}
-                      onChange={(e) => toggleAllInView(e.target.checked)}
-                      inputProps={{ 'aria-label': 'chọn tất cả' }}
-                    />
-                  ) : c.label}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.map((row) => {
-              const minStock = row.min_stock_level || row.minStock || 0;
-              const isLow = row.stock <= minStock;
-              return (
-                <TableRow key={row.inventory_id || row.sku} hover>
-                  <TableCell>
-                    <Checkbox
-                      checked={selected.has(rowId(row))}
-                      onChange={(e) => toggleOne(rowId(row), e.target.checked)}
-                      inputProps={{ 'aria-label': 'chọn sản phẩm' }}
-                    />
-                  </TableCell>
-                  <TableCell>{row.sku || ''}</TableCell>
-                  <TableCell>{row.name || ''}</TableCell>
-                  <TableCell>{row.category || ''}</TableCell>
-                  <TableCell>{formatVnd(row.package_price || row.price || 0)}đ</TableCell>
-                  <TableCell>{formatVnd(row.price || 0)}đ</TableCell>
-                  <TableCell sx={{ fontWeight: isLow ? 700 : 400, color: isLow ? '#dc2626' : 'inherit' }}>{row.stock || 0}</TableCell>
-                  <TableCell>{minStock}</TableCell>
-                  <TableCell>
-                    <Chip size="small" color={isLow ? 'warning' : 'success'} label={isLow ? 'Thiếu hàng' : 'Ổn định'} />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {!filtered.length && (
-              <TableRow>
-                <TableCell colSpan={columns.length} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                  {loading ? 'Đang tải...' : 'Không có dữ liệu'}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+        muiTablePaperProps={{
+          elevation: 0,
+          sx: { boxShadow: 'none' }
+        }}
+        muiTableHeadCellProps={{
+          sx: {
+            fontWeight: 700,
+            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+            whiteSpace: 'nowrap'
+          }
+        }}
+        renderTopToolbarCustomActions={() => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
+            <Checkbox
+              indeterminate={someInViewSelected}
+              checked={allInViewSelected}
+              onChange={(e) => toggleAllInView(e.target.checked)}
+              inputProps={{ 'aria-label': 'chọn tất cả' }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              {selectedCountInView > 0 ? `Đã chọn ${selectedCountInView} sản phẩm` : 'Chọn tất cả'}
+            </Typography>
+          </Box>
+        )}
+        state={{
+          isLoading: loading,
+          showProgressBars: loading
+        }}
+        localization={{
+          noRecordsToDisplay: 'Không có dữ liệu'
+        }}
+        initialState={{
+          pagination: { pageSize: 10, pageIndex: 0 },
+        }}
+      />
 
       {/* Create Order Modal */}
       <Dialog
@@ -629,7 +715,7 @@ const InventoryManagement = () => {
 };
 
 function exportCsv(rows) {
-  const header = columns.filter(c => c.key !== 'actions').map(c => c.label).join(',');
+  const header = oldColumns.filter(c => c.key !== 'actions' && c.key !== 'select').map(c => c.label).join(',');
   const lines = rows.map(r => {
     const minStock = r.min_stock_level || r.minStock || 0;
     const perThung = r.package_price || r.price || 0;
