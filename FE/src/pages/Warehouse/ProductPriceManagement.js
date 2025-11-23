@@ -844,6 +844,7 @@ const ProductPriceManagement = () => {
                                 isLoading: loading 
                             }}
                             enableRowActions={true}
+                            positionActionsColumn="last"
                             manualFiltering={false}
                             manualSorting={false}
                             manualPagination={false}

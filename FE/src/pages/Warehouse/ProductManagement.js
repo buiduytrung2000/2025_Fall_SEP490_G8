@@ -799,6 +799,7 @@ const ProductManagement = () => {
                 columns={columns}
                 data={products}
                 enableRowActions
+                positionActionsColumn="last"
                 muiTableBodyRowProps={({ row }) => ({
                     onClick: (event) => {
                         // Prevent navigation when clicking on action buttons
@@ -1393,6 +1394,7 @@ const ProductManagement = () => {
                                                 columns={priceHistoryColumns}
                                                 data={productPriceHistory}
                                                 enableRowActions
+                                                positionActionsColumn="last"
                                                 enableColumnActions={false}
                                                 enableColumnFilters={false}
                                                 enableSorting={false}

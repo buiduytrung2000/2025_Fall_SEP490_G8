@@ -1,6 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Modal, Form, Badge, Tabs, Tab } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash, FaGift, FaUserPlus } from 'react-icons/fa';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  FormControlLabel,
+  Checkbox,
+  Chip,
+  Tabs,
+  Tab,
+  IconButton,
+  Stack
+} from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, CardGiftcard as GiftIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
+import { MaterialReactTable } from 'material-react-table';
 import { toast } from 'react-toastify';
 import * as voucherTemplateApi from '../../api/voucherTemplateApi';
 import * as customerApi from '../../api/customerApi';
@@ -167,298 +189,425 @@ function VoucherManagement() {
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
     };
 
+    // Định nghĩa cột cho MaterialReactTable
+    const templateColumns = useMemo(() => [
+        {
+            accessorKey: 'index',
+            header: 'STT',
+            size: 60,
+            Cell: ({ row }) => row.index + 1,
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'voucher_code_prefix',
+            header: 'Mã tiền tố',
+            size: 120,
+        },
+        {
+            accessorKey: 'voucher_name',
+            header: 'Tên voucher',
+            size: 200,
+        },
+        {
+            accessorKey: 'discount_type',
+            header: 'Loại giảm giá',
+            size: 150,
+            Cell: ({ cell }) => cell.getValue() === 'percentage' ? 'Phần trăm' : 'Số tiền cố định',
+        },
+        {
+            accessorKey: 'discount_value',
+            header: 'Giá trị',
+            size: 120,
+            Cell: ({ row }) => {
+                const template = row.original;
+                return template.discount_type === 'percentage'
+                    ? `${template.discount_value}%`
+                    : formatCurrency(template.discount_value);
+            },
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'min_purchase_amount',
+            header: 'Đơn tối thiểu',
+            size: 130,
+            Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'max_discount_amount',
+            header: 'Giảm tối đa',
+            size: 130,
+            Cell: ({ cell }) => cell.getValue() ? formatCurrency(cell.getValue()) : 'Không giới hạn',
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'required_loyalty_points',
+            header: 'Điểm yêu cầu',
+            size: 120,
+            Cell: ({ cell }) => cell.getValue() || 0,
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'validity_days',
+            header: 'Hiệu lực (ngày)',
+            size: 120,
+            Cell: ({ cell }) => cell.getValue() || 0,
+            enableColumnFilter: false,
+        },
+        {
+            accessorKey: 'is_active',
+            header: 'Trạng thái',
+            size: 120,
+            Cell: ({ row }) => (
+                <Chip
+                    size="small"
+                    color={row.original.is_active ? 'success' : 'default'}
+                    label={row.original.is_active ? 'Hoạt động' : 'Vô hiệu hóa'}
+                />
+            ),
+        },
+    ], []);
+
+    const [tabValue, setTabValue] = useState(0);
+
     return (
-        <Container fluid className="py-4">
-            <h2 className="mb-4">Quản lý Voucher</h2>
+        <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý Voucher</Typography>
 
-            <Tabs defaultActiveKey="templates" className="mb-3">
-                <Tab eventKey="templates" title="Voucher Templates">
-                    <Card>
-                        <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5 className="mb-0">Danh sách Voucher Template</h5>
-                            <Button variant="primary" onClick={() => handleShowTemplateModal()}>
-                                <FaPlus /> Tạo mới
-                            </Button>
-                        </Card.Header>
-                        <Card.Body>
-                            <Table striped bordered hover responsive>
-                                <thead>
-                                    <tr>
-                                        <th>Mã tiền tố</th>
-                                        <th>Tên voucher</th>
-                                        <th>Loại giảm giá</th>
-                                        <th>Giá trị</th>
-                                        <th>Đơn tối thiểu</th>
-                                        <th>Giảm tối đa</th>
-                                        <th>Điểm yêu cầu</th>
-                                        <th>Hiệu lực (ngày)</th>
-                                        <th>Trạng thái</th>
-                                        <th>Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {templates.map(template => (
-                                        <tr key={template.voucher_template_id}>
-                                            <td>{template.voucher_code_prefix}</td>
-                                            <td>{template.voucher_name}</td>
-                                            <td>{template.discount_type === 'percentage' ? 'Phần trăm' : 'Số tiền cố định'}</td>
-                                            <td>
-                                                {template.discount_type === 'percentage' 
-                                                    ? `${template.discount_value}%` 
-                                                    : formatCurrency(template.discount_value)}
-                                            </td>
-                                            <td>{formatCurrency(template.min_purchase_amount)}</td>
-                                            <td>{template.max_discount_amount ? formatCurrency(template.max_discount_amount) : 'Không giới hạn'}</td>
-                                            <td>{template.required_loyalty_points}</td>
-                                            <td>{template.validity_days}</td>
-                                            <td>
-                                                <Badge bg={template.is_active ? 'success' : 'secondary'}>
-                                                    {template.is_active ? 'Hoạt động' : 'Vô hiệu hóa'}
-                                                </Badge>
-                                            </td>
-                                            <td>
-                                                <Button 
-                                                    variant="warning" 
-                                                    size="sm" 
-                                                    className="me-2"
-                                                    onClick={() => handleShowTemplateModal(template)}
-                                                >
-                                                    <FaEdit />
-                                                </Button>
-                                                <Button 
-                                                    variant="danger" 
-                                                    size="sm"
-                                                    onClick={() => handleDeleteTemplate(template.voucher_template_id)}
-                                                >
-                                                    <FaTrash />
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </Table>
-                        </Card.Body>
-                    </Card>
-                </Tab>
-
-                <Tab eventKey="assign" title="Gán Voucher cho Khách hàng">
-                    <Card>
-                        <Card.Header>
-                            <h5 className="mb-0">Danh sách Khách hàng</h5>
-                        </Card.Header>
-                        <Card.Body>
-                            <Table striped bordered hover responsive>
-                                <thead>
-                                    <tr>
-                                        <th>Tên khách hàng</th>
-                                        <th>Số điện thoại</th>
-                                        <th>Điểm tích lũy</th>
-                                        <th>Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {customers.map(customer => (
-                                        <tr key={customer.customer_id}>
-                                            <td>{customer.name}</td>
-                                            <td>{customer.phone}</td>
-                                            <td>{customer.loyalty_point || 0}</td>
-                                            <td>
-                                                <Button 
-                                                    variant="success" 
-                                                    size="sm"
-                                                    onClick={() => handleShowAssignModal(customer)}
-                                                >
-                                                    <FaUserPlus /> Thêm voucher
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </Table>
-                        </Card.Body>
-                    </Card>
-                </Tab>
+            <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+                <Tab label="Danh sách Voucher" />
+                <Tab label="Gán Voucher cho Khách hàng" />
             </Tabs>
 
+            {tabValue === 0 && (
+                <Paper sx={{ p: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                        <Typography variant="h6" fontWeight={600}>Danh sách Voucher Template</Typography>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleShowTemplateModal()}
+                        >
+                            Tạo mới
+                        </Button>
+                    </Stack>
+                    <MaterialReactTable
+                        columns={templateColumns}
+                        data={templates}
+                        enableColumnActions={false}
+                        enableColumnFilters={false}
+                        enableSorting={true}
+                        enableTopToolbar={false}
+                        enableBottomToolbar={true}
+                        enablePagination={true}
+                        enableRowActions={true}
+                        positionActionsColumn="last"
+                        renderRowActions={({ row }) => (
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton
+                                    color="warning"
+                                    size="small"
+                                    onClick={() => handleShowTemplateModal(row.original)}
+                                >
+                                    <EditIcon />
+                                </IconButton>
+                                <IconButton
+                                    color="error"
+                                    size="small"
+                                    onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
+                                >
+                                    <DeleteIcon />
+                                </IconButton>
+                            </Box>
+                        )}
+                        muiTableContainerProps={{
+                            sx: { maxHeight: { xs: '70vh', md: 'none' } }
+                        }}
+                        muiTablePaperProps={{
+                            elevation: 0,
+                            sx: { boxShadow: 'none' }
+                        }}
+                        muiTableHeadCellProps={{
+                            sx: {
+                                fontWeight: 700,
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                            }
+                        }}
+                        localization={{
+                            noRecordsToDisplay: 'Không có dữ liệu'
+                        }}
+                        initialState={{
+                            pagination: { pageSize: 10, pageIndex: 0 },
+                        }}
+                    />
+                </Paper>
+            )}
+
+            {tabValue === 1 && (
+                <Paper sx={{ p: 2 }}>
+                    <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Danh sách Khách hàng</Typography>
+                    <MaterialReactTable
+                        columns={[
+                            {
+                                accessorKey: 'index',
+                                header: 'STT',
+                                size: 60,
+                                Cell: ({ row }) => row.index + 1,
+                                enableColumnFilter: false,
+                            },
+                            {
+                                accessorKey: 'name',
+                                header: 'Tên khách hàng',
+                                size: 200,
+                            },
+                            {
+                                accessorKey: 'phone',
+                                header: 'Số điện thoại',
+                                size: 150,
+                            },
+                            {
+                                accessorKey: 'loyalty_point',
+                                header: 'Điểm tích lũy',
+                                size: 120,
+                                Cell: ({ cell }) => cell.getValue() || 0,
+                                enableColumnFilter: false,
+                            },
+                        ]}
+                        data={customers}
+                        enableColumnActions={false}
+                        enableColumnFilters={false}
+                        enableSorting={true}
+                        enableTopToolbar={false}
+                        enableBottomToolbar={true}
+                        enablePagination={true}
+                        enableRowActions={true}
+                        positionActionsColumn="last"
+                        renderRowActions={({ row }) => (
+                            <Button
+                                variant="contained"
+                                color="success"
+                                size="small"
+                                startIcon={<PersonAddIcon />}
+                                onClick={() => handleShowAssignModal(row.original)}
+                            >
+                                Thêm voucher
+                            </Button>
+                        )}
+                        muiTableContainerProps={{
+                            sx: { maxHeight: { xs: '70vh', md: 'none' } }
+                        }}
+                        muiTablePaperProps={{
+                            elevation: 0,
+                            sx: { boxShadow: 'none' }
+                        }}
+                        muiTableHeadCellProps={{
+                            sx: {
+                                fontWeight: 700,
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                            }
+                        }}
+                        localization={{
+                            noRecordsToDisplay: 'Không có dữ liệu'
+                        }}
+                        initialState={{
+                            pagination: { pageSize: 10, pageIndex: 0 },
+                        }}
+                    />
+                </Paper>
+            )}
+
             {/* Template Modal */}
-            <Modal show={showTemplateModal} onHide={handleCloseTemplateModal} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>{editingTemplate ? 'Chỉnh sửa' : 'Tạo mới'} Voucher Template</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form>
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Mã tiền tố *</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        value={formData.voucher_code_prefix}
-                                        onChange={(e) => setFormData({...formData, voucher_code_prefix: e.target.value})}
-                                        placeholder="VD: WELCOME, LOYAL100"
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Tên voucher *</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        value={formData.voucher_name}
-                                        onChange={(e) => setFormData({...formData, voucher_name: e.target.value})}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Loại giảm giá *</Form.Label>
-                                    <Form.Select
-                                        value={formData.discount_type}
-                                        onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
-                                    >
-                                        <option value="percentage">Phần trăm (%)</option>
-                                        <option value="fixed_amount">Số tiền cố định (VND)</option>
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Giá trị giảm giá *</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={formData.discount_value}
-                                        onChange={(e) => setFormData({...formData, discount_value: e.target.value})}
-                                        placeholder={formData.discount_type === 'percentage' ? '10' : '50000'}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Đơn hàng tối thiểu (VND)</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={formData.min_purchase_amount}
-                                        onChange={(e) => setFormData({...formData, min_purchase_amount: e.target.value})}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Giảm tối đa (VND)</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={formData.max_discount_amount}
-                                        onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
-                                        placeholder="Để trống nếu không giới hạn"
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Điểm tích lũy yêu cầu</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={formData.required_loyalty_points}
-                                        onChange={(e) => setFormData({...formData, required_loyalty_points: e.target.value})}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Số ngày hiệu lực</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={formData.validity_days}
-                                        onChange={(e) => setFormData({...formData, validity_days: e.target.value})}
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-
-                        <Form.Group className="mb-3">
-                            <Form.Check
-                                type="checkbox"
-                                label="Kích hoạt"
-                                checked={formData.is_active}
-                                onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+            <Dialog open={showTemplateModal} onClose={handleCloseTemplateModal} maxWidth="md" fullWidth>
+                <DialogTitle>{editingTemplate ? 'Chỉnh sửa' : 'Tạo mới'} Voucher Template</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                            <TextField
+                                label="Mã tiền tố *"
+                                fullWidth
+                                value={formData.voucher_code_prefix}
+                                onChange={(e) => setFormData({...formData, voucher_code_prefix: e.target.value})}
+                                placeholder="VD: WELCOME, LOYAL100"
                             />
-                        </Form.Group>
-                    </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={handleCloseTemplateModal}>
-                        Hủy
-                    </Button>
-                    <Button variant="primary" onClick={handleSaveTemplate}>
+                            <TextField
+                                label="Tên voucher *"
+                                fullWidth
+                                value={formData.voucher_name}
+                                onChange={(e) => setFormData({...formData, voucher_name: e.target.value})}
+                            />
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                            <FormControl fullWidth>
+                                <InputLabel>Loại giảm giá *</InputLabel>
+                                <Select
+                                    value={formData.discount_type}
+                                    onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
+                                    label="Loại giảm giá *"
+                                >
+                                    <MenuItem value="percentage">Phần trăm (%)</MenuItem>
+                                    <MenuItem value="fixed_amount">Số tiền cố định (VND)</MenuItem>
+                                </Select>
+                            </FormControl>
+                            <TextField
+                                label="Giá trị giảm giá *"
+                                fullWidth
+                                type="number"
+                                value={formData.discount_value}
+                                onChange={(e) => setFormData({...formData, discount_value: e.target.value})}
+                                placeholder={formData.discount_type === 'percentage' ? '10' : '50000'}
+                            />
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                            <TextField
+                                label="Đơn hàng tối thiểu (VND)"
+                                fullWidth
+                                type="number"
+                                value={formData.min_purchase_amount}
+                                onChange={(e) => setFormData({...formData, min_purchase_amount: e.target.value})}
+                            />
+                            <TextField
+                                label="Giảm tối đa (VND)"
+                                fullWidth
+                                type="number"
+                                value={formData.max_discount_amount}
+                                onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
+                                placeholder="Để trống nếu không giới hạn"
+                            />
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                            <TextField
+                                label="Điểm tích lũy yêu cầu"
+                                fullWidth
+                                type="number"
+                                value={formData.required_loyalty_points}
+                                onChange={(e) => setFormData({...formData, required_loyalty_points: e.target.value})}
+                            />
+                            <TextField
+                                label="Số ngày hiệu lực"
+                                fullWidth
+                                type="number"
+                                value={formData.validity_days}
+                                onChange={(e) => setFormData({...formData, validity_days: e.target.value})}
+                            />
+                        </Stack>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={formData.is_active}
+                                    onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+                                />
+                            }
+                            label="Kích hoạt"
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseTemplateModal} variant="outlined">Hủy</Button>
+                    <Button onClick={handleSaveTemplate} variant="contained">
                         {editingTemplate ? 'Cập nhật' : 'Tạo mới'}
                     </Button>
-                </Modal.Footer>
-            </Modal>
+                </DialogActions>
+            </Dialog>
 
             {/* Assign Voucher Modal */}
-            <Modal show={showAssignModal} onHide={() => setShowAssignModal(false)} size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>
-                        Thêm voucher cho {selectedCustomer?.name}
-                        <Badge bg="info" className="ms-2">{selectedCustomer?.loyalty_point || 0} điểm</Badge>
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
+            <Dialog open={showAssignModal} onClose={() => setShowAssignModal(false)} maxWidth="md" fullWidth>
+                <DialogTitle>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h6">Thêm voucher cho {selectedCustomer?.name}</Typography>
+                        <Chip label={`${selectedCustomer?.loyalty_point || 0} điểm`} color="info" size="small" />
+                    </Stack>
+                </DialogTitle>
+                <DialogContent>
                     {availableTemplates.length === 0 ? (
-                        <p className="text-center text-muted">Không có voucher khả dụng cho khách hàng này</p>
+                        <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                            Không có voucher khả dụng cho khách hàng này
+                        </Typography>
                     ) : (
-                        <Table striped bordered hover>
-                            <thead>
-                                <tr>
-                                    <th>Tên voucher</th>
-                                    <th>Giảm giá</th>
-                                    <th>Đơn tối thiểu</th>
-                                    <th>Điểm yêu cầu</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {availableTemplates.map(template => (
-                                    <tr key={template.voucher_template_id}>
-                                        <td>{template.voucher_name}</td>
-                                        <td>
-                                            {template.discount_type === 'percentage'
-                                                ? `${template.discount_value}%`
-                                                : formatCurrency(template.discount_value)}
-                                        </td>
-                                        <td>{formatCurrency(template.min_purchase_amount)}</td>
-                                        <td>{template.required_loyalty_points}</td>
-                                        <td>
-                                            <Button
-                                                variant="success"
-                                                size="sm"
-                                                onClick={() => handleAssignVoucher(template.voucher_template_id)}
-                                            >
-                                                <FaGift /> Thêm
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
+                        <MaterialReactTable
+                            columns={[
+                                {
+                                    accessorKey: 'index',
+                                    header: 'STT',
+                                    size: 60,
+                                    Cell: ({ row }) => row.index + 1,
+                                    enableColumnFilter: false,
+                                },
+                                {
+                                    accessorKey: 'voucher_name',
+                                    header: 'Tên voucher',
+                                    size: 200,
+                                },
+                                {
+                                    accessorKey: 'discount_value',
+                                    header: 'Giảm giá',
+                                    size: 120,
+                                    Cell: ({ row }) => {
+                                        const template = row.original;
+                                        return template.discount_type === 'percentage'
+                                            ? `${template.discount_value}%`
+                                            : formatCurrency(template.discount_value);
+                                    },
+                                    enableColumnFilter: false,
+                                },
+                                {
+                                    accessorKey: 'min_purchase_amount',
+                                    header: 'Đơn tối thiểu',
+                                    size: 130,
+                                    Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+                                    enableColumnFilter: false,
+                                },
+                                {
+                                    accessorKey: 'required_loyalty_points',
+                                    header: 'Điểm yêu cầu',
+                                    size: 120,
+                                    Cell: ({ cell }) => cell.getValue() || 0,
+                                    enableColumnFilter: false,
+                                },
+                            ]}
+                            data={availableTemplates}
+                            enableColumnActions={false}
+                            enableColumnFilters={false}
+                            enableSorting={true}
+                            enableTopToolbar={false}
+                            enableBottomToolbar={false}
+                            enablePagination={false}
+                            enableRowActions={true}
+                            positionActionsColumn="last"
+                            renderRowActions={({ row }) => (
+                                <Button
+                                    variant="contained"
+                                    color="success"
+                                    size="small"
+                                    startIcon={<GiftIcon />}
+                                    onClick={() => handleAssignVoucher(row.original.voucher_template_id)}
+                                >
+                                    Thêm
+                                </Button>
+                            )}
+                            muiTableContainerProps={{
+                                sx: { maxHeight: '60vh' }
+                            }}
+                            muiTablePaperProps={{
+                                elevation: 0,
+                                sx: { boxShadow: 'none' }
+                            }}
+                            muiTableHeadCellProps={{
+                                sx: {
+                                    fontWeight: 700,
+                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                                }
+                            }}
+                            localization={{
+                                noRecordsToDisplay: 'Không có dữ liệu'
+                            }}
+                        />
                     )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowAssignModal(false)}>
-                        Đóng
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-        </Container>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowAssignModal(false)} variant="outlined">Đóng</Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
     );
 }
 

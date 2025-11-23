@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
-  Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Chip, Stack, CircularProgress, Alert
+  Chip, Stack, CircularProgress, Alert
 } from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
 import { getShiftReport } from '../../api/shiftApi';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -95,6 +96,97 @@ const MyShiftReports = () => {
       totalShifts: summary.total_shifts
     };
   }, [summary]);
+
+  // Định nghĩa cột cho bảng shift reports
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'index',
+      header: 'STT',
+      size: 60,
+      Cell: ({ row }) => row.index + 1,
+    },
+    {
+      accessorKey: 'shift_id',
+      header: 'Mã ca',
+      size: 100,
+      Cell: ({ cell }) => `#${cell.getValue()}`,
+    },
+    {
+      accessorKey: 'opened_at',
+      header: 'Ngày giờ',
+      size: 150,
+      Cell: ({ cell }) => formatDate(cell.getValue()),
+    },
+    {
+      accessorKey: 'transaction_count',
+      header: 'Số GD',
+      size: 100,
+      Cell: ({ cell }) => cell.getValue() || 0,
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'cash_sales_total',
+      header: 'Tiền mặt',
+      size: 130,
+      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'bank_transfer_total',
+      header: 'Chuyển khoản',
+      size: 130,
+      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'total_sales',
+      header: 'Tổng doanh thu',
+      size: 140,
+      Cell: ({ cell }) => (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {formatCurrency(cell.getValue() || 0)}
+        </Typography>
+      ),
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'opening_cash',
+      header: 'Tiền đầu ca',
+      size: 130,
+      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'closing_cash',
+      header: 'Tiền cuối ca',
+      size: 130,
+      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'discrepancy',
+      header: 'Chênh lệch',
+      size: 130,
+      Cell: ({ row }) => {
+        const shift = row.original;
+        const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
+        const actualCash = parseFloat(shift.closing_cash || 0);
+        const discrepancy = actualCash - expectedCash;
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: discrepancy === 0 ? 'success.main' : discrepancy > 0 ? 'info.main' : 'error.main'
+            }}
+          >
+            {formatCurrency(discrepancy)}
+          </Typography>
+        );
+      },
+      enableColumnFilter: false,
+    },
+  ], []);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
@@ -213,63 +305,35 @@ const MyShiftReports = () => {
         </Stack>
       </Paper>
 
-      <TableContainer component={Paper} sx={{ overflowX: 'auto', maxHeight: { xs: '70vh', md: 'none' } }}>
-        <Table sx={{ minWidth: 1000 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Mã ca</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Ngày giờ</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Số GD</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền mặt</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Chuyển khoản</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tổng doanh thu</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền đầu ca</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Tiền cuối ca</TableCell>
-              <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', sm: '0.875rem' } }} align="right">Chênh lệch</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {shifts.map(shift => {
-              const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
-              const actualCash = parseFloat(shift.closing_cash || 0);
-              const discrepancy = actualCash - expectedCash;
-              
-              return (
-                <TableRow key={shift.shift_id} hover>
-                  <TableCell>#{shift.shift_id}</TableCell>
-                  <TableCell>{formatDate(shift.opened_at)}</TableCell>
-                  <TableCell align="right">{shift.transaction_count || 0}</TableCell>
-                  <TableCell align="right">{formatCurrency(shift.cash_sales_total || 0)}</TableCell>
-                  <TableCell align="right">{formatCurrency(shift.bank_transfer_total || 0)}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>
-                    {formatCurrency(shift.total_sales || 0)}
-                  </TableCell>
-                  <TableCell align="right">{formatCurrency(shift.opening_cash || 0)}</TableCell>
-                  <TableCell align="right">{formatCurrency(shift.closing_cash || 0)}</TableCell>
-                  <TableCell align="right">
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 600,
-                        color: discrepancy === 0 ? 'success.main' : discrepancy > 0 ? 'info.main' : 'error.main'
-                      }}
-                    >
-                      {formatCurrency(discrepancy)}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {!loading && !shifts.length && (
-              <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                  Không có dữ liệu
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <MaterialReactTable
+        columns={columns}
+        data={shifts}
+        enableColumnActions={false}
+        enableColumnFilters={false}
+        enableSorting={true}
+        enableTopToolbar={false}
+        enableBottomToolbar={true}
+        enablePagination={true}
+        muiTableContainerProps={{
+          sx: { maxHeight: { xs: '70vh', md: 'none' } }
+        }}
+        muiTablePaperProps={{
+          elevation: 0,
+          sx: { boxShadow: 'none' }
+        }}
+        muiTableHeadCellProps={{
+          sx: {
+            fontWeight: 700,
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          }
+        }}
+        localization={{
+          noRecordsToDisplay: 'Không có dữ liệu'
+        }}
+        initialState={{
+          pagination: { pageSize: 10, pageIndex: 0 },
+        }}
+      />
     </Box>
   );
 };
