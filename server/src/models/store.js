@@ -24,12 +24,8 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'store_id',
         as: 'pricingRules'
       });
-      Store.hasMany(models.Order, {
-        foreignKey: 'store_id',
-        as: 'orders',
-        onDelete: 'CASCADE'
-      });
-      // THÊM DÒNG NÀY
+      // Order table is now for warehouse-to-supplier orders (no store_id)
+      // StoreOrder table is for store-to-warehouse/supplier orders (has store_id)
       Store.hasMany(models.StoreOrder, {
         foreignKey: 'store_id',
         as: 'storeOrders',

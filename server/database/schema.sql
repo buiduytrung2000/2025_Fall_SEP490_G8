@@ -150,19 +150,18 @@ CREATE TABLE IF NOT EXISTS PricingRule (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+-- Order table: For warehouse-to-supplier orders (no store_id)
+-- StoreOrder table: For store-to-warehouse/supplier orders (has store_id)
 CREATE TABLE IF NOT EXISTS `Order` (
     order_id INT PRIMARY KEY AUTO_INCREMENT,
-    store_id INT NOT NULL,
     supplier_id INT NOT NULL,
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     expected_delivery DATETIME NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
     FOREIGN KEY (supplier_id) REFERENCES Supplier(supplier_id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES User(user_id) ON DELETE CASCADE,
-    INDEX idx_order_store (store_id),
     INDEX idx_order_supplier (supplier_id),
     INDEX idx_order_created_by (created_by),
     INDEX idx_order_status (status),

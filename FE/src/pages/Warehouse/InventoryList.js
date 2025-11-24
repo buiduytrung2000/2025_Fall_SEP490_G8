@@ -20,7 +20,16 @@ import {
   IconButton,
   CircularProgress,
   Alert,
-  Grid
+  Grid,
+  Checkbox,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  Switch,
+  FormControlLabel,
+  Tooltip
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -30,12 +39,15 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Inventory2 as InventoryIcon
+  Inventory2 as InventoryIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import {
   getAllWarehouseInventory
 } from '../../api/inventoryApi';
+import { createBatchWarehouseOrders } from '../../api/warehouseOrderApi';
 
 // =====================================================
 // CONSTANTS
@@ -88,6 +100,218 @@ const InventoryList = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [storeFilter, setStoreFilter] = useState('');
+
+  // =============================
+  // Selection & Create Order
+  // =============================
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [createOrderDialog, setCreateOrderDialog] = useState(false);
+  const [orderData, setOrderData] = useState({ expected_delivery: '', notes: '' });
+  const [orderItems, setOrderItems] = useState([]);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+
+  const handleSelectProduct = (item) => {
+    const id = item.warehouse_inventory_id || item.inventory_id;
+    const exists = selectedProducts.some(p => (p.warehouse_inventory_id || p.inventory_id) === id);
+    const next = exists
+      ? selectedProducts.filter(p => (p.warehouse_inventory_id || p.inventory_id) !== id)
+      : [...selectedProducts, item];
+    setSelectedProducts(next);
+    setSelectAll(next.length > 0 && next.length === inventory.length);
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedProducts([]);
+      setSelectAll(false);
+    } else {
+      setSelectedProducts([...inventory]);
+      setSelectAll(true);
+    }
+  };
+
+  const isSelected = (item) => selectedProducts.some(p => (p.warehouse_inventory_id || p.inventory_id) === (item.warehouse_inventory_id || item.inventory_id));
+
+  const handleOpenCreateOrder = () => {
+    if (!selectedProducts.length) {
+      toast.warning('Vui lòng chọn ít nhất 1 sản phẩm');
+      return;
+    }
+
+    // Group products by supplier
+    const groupedBySupplier = {};
+    const productsWithoutSupplier = [];
+
+    selectedProducts.forEach(item => {
+      const supplierId = item.product?.supplier?.supplier_id;
+      const supplierName = item.product?.supplier?.name;
+
+      if (!supplierId) {
+        productsWithoutSupplier.push(item);
+        return;
+      }
+
+      if (!groupedBySupplier[supplierId]) {
+        groupedBySupplier[supplierId] = {
+          supplier_id: supplierId,
+          supplier_name: supplierName,
+          items: []
+        };
+      }
+
+      groupedBySupplier[supplierId].items.push({
+        product_id: item.product?.product_id,
+        product_name: item.product?.name || '',
+        sku: item.product?.sku || '',
+        quantity: 1,
+        unit_price: 0,
+        unit_id: item.product?.base_unit_id || null,
+        base_unit_label: item.product?.base_unit_label || '',
+        stock: item.stock || 0,
+        stock_in_packages: item.stock_in_packages || null,
+        package_unit_label: item.package_unit_label || null,
+        package_conversion: item.package_conversion || null,
+        use_package_unit: false // Mặc định sử dụng đơn vị cơ sở
+      });
+    });
+
+    if (productsWithoutSupplier.length > 0) {
+      toast.warning(`${productsWithoutSupplier.length} sản phẩm không có nhà cung cấp và sẽ bị bỏ qua`);
+    }
+
+    const supplierGroups = Object.values(groupedBySupplier);
+
+    if (supplierGroups.length === 0) {
+      toast.error('Không có sản phẩm nào có nhà cung cấp');
+      return;
+    }
+
+    setOrderItems(supplierGroups);
+    setOrderData({ expected_delivery: '', notes: '' });
+    setCreateOrderDialog(true);
+  };
+
+  const handleCloseCreateOrder = () => setCreateOrderDialog(false);
+
+  const handleOrderItemChange = (supplierIndex, itemIndex, field, value) => {
+    const next = [...orderItems];
+    next[supplierIndex].items[itemIndex][field] = value;
+    setOrderItems(next);
+  };
+
+  // Handle unit toggle for order items
+  const handleUnitToggle = (supplierIndex, itemIndex) => {
+    const next = [...orderItems];
+    const item = next[supplierIndex].items[itemIndex];
+
+    if (item.package_conversion) {
+      const currentQuantity = Number(item.quantity) || 0;
+
+      if (item.use_package_unit) {
+        // Chuyển từ đơn vị quy đổi về đơn vị cơ sở
+        item.quantity = Math.round(currentQuantity * item.package_conversion);
+      } else {
+        // Chuyển từ đơn vị cơ sở sang đơn vị quy đổi
+        item.quantity = Number((currentQuantity / item.package_conversion).toFixed(2));
+      }
+
+      item.use_package_unit = !item.use_package_unit;
+      setOrderItems(next);
+    }
+  };
+
+  const handleRemoveOrderItem = (supplierIndex, itemIndex) => {
+    const next = [...orderItems];
+    next[supplierIndex].items = next[supplierIndex].items.filter((_, i) => i !== itemIndex);
+
+    // Remove supplier group if no items left
+    if (next[supplierIndex].items.length === 0) {
+      next.splice(supplierIndex, 1);
+    }
+
+    setOrderItems(next);
+  };
+
+  const handleSubmitOrder = async () => {
+    if (!orderItems.length) return toast.error('Đơn hàng phải có ít nhất 1 nhà cung cấp');
+
+    // Validate all items
+    for (const group of orderItems) {
+      if (!group.items.length) {
+        return toast.error(`Nhà cung cấp ${group.supplier_name} không có sản phẩm nào`);
+      }
+
+      for (const item of group.items) {
+        if (!item.quantity || Number(item.quantity) <= 0) {
+          return toast.error(`Số lượng phải > 0: ${item.product_name}`);
+        }
+        if (!item.unit_price || Number(item.unit_price) <= 0) {
+          return toast.error(`Đơn giá phải > 0: ${item.product_name}`);
+        }
+      }
+    }
+
+    setCreatingOrder(true);
+    try {
+      // Prepare batch payload
+      const payload = {
+        orders: orderItems.map(group => ({
+          supplier_id: Number(group.supplier_id),
+          items: group.items.map(item => {
+            const quantity = Number(item.quantity) || 0;
+
+            // Chuyển đổi về đơn vị cơ sở nếu đang sử dụng đơn vị quy đổi
+            const baseQuantity = item.use_package_unit && item.package_conversion
+              ? Math.round(quantity * item.package_conversion)
+              : quantity;
+
+            return {
+              product_id: item.product_id,
+              quantity: baseQuantity,
+              unit_price: Number(item.unit_price),
+              unit_id: item.unit_id
+            };
+          })
+        })),
+        expected_delivery: orderData.expected_delivery || null,
+        notes: orderData.notes || null
+      };
+
+      const res = await createBatchWarehouseOrders(payload);
+
+      if (res.err === 0) {
+        const { successCount, failCount } = res.data;
+
+        if (failCount === 0) {
+          toast.success(`Đã tạo thành công ${successCount} đơn hàng cho ${successCount} nhà cung cấp`);
+        } else {
+          toast.warning(`Đã tạo ${successCount} đơn hàng thành công, ${failCount} đơn hàng thất bại`);
+
+          // Show details of failed orders
+          if (res.data.failed && res.data.failed.length > 0) {
+            res.data.failed.forEach(fail => {
+              const supplierGroup = orderItems[fail.index];
+              toast.error(`Lỗi tạo đơn cho ${supplierGroup?.supplier_name}: ${fail.error}`);
+            });
+          }
+        }
+
+        setCreateOrderDialog(false);
+        setSelectedProducts([]);
+        setSelectAll(false);
+        // Notify other screens (OrderList) to refresh
+        try { window.dispatchEvent(new CustomEvent('warehouse-order:created')); } catch { }
+        loadInventory();
+      } else {
+        toast.error(res.msg || 'Không thể tạo đơn hàng');
+      }
+    } catch (e) {
+      toast.error('Lỗi kết nối: ' + e.message);
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
   // =====================================================
   // DATA LOADING
@@ -166,7 +390,21 @@ const InventoryList = () => {
             Theo dõi và quản lý tồn kho của tất cả chi nhánh
           </Typography>
         </Box>
-       
+        <Stack direction="row" spacing={2}>
+          {selectedProducts.length > 0 && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<ShoppingCartIcon />}
+              onClick={handleOpenCreateOrder}
+            >
+              Tạo Đơn Hàng ({selectedProducts.length})
+            </Button>
+          )}
+          <IconButton onClick={handleSearch} color="primary" title="Làm mới">
+            <RefreshIcon />
+          </IconButton>
+        </Stack>
       </Stack>
 
       {/* Filters - FIX: Tăng chiều rộng các cột */}
@@ -238,16 +476,21 @@ const InventoryList = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    color="primary"
+                    checked={inventory.length > 0 && selectAll}
+                    indeterminate={selectedProducts.length > 0 && selectedProducts.length < inventory.length}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
-                {/* <TableCell sx={{ fontWeight: 700 }}>Chi nhánh</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Min/Reorder</TableCell>
-                {/* <TableCell sx={{ fontWeight: 700 }} align="right">Giá trị</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
-                {/* <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell> */}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -264,72 +507,64 @@ const InventoryList = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                inventory.map((item, index) => (
-                  <TableRow key={item.warehouse_inventory_id || item.inventory_id || `inventory-${index}`} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {item.product?.sku}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {item.product?.name}
-                      </Typography>
-                      {item.product?.description && (
-                        <Typography variant="caption" color="text.secondary">
-                          {item.product.description}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={item.product?.category?.name || 'N/A'}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    {/* <TableCell>
-                      <Typography variant="body2">
-                        {item.store?.name}
-                      </Typography>
-                    </TableCell> */}
-                    <TableCell align="right">
-                      <Typography variant="h6" fontWeight={700}>
-                        {formatQty(item.stock)} {item.product?.base_unit_label || ''}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      {item.stock_in_packages ? (
-                          <Typography variant="h6" fontWeight={700}>
-                            {formatQty(item.stock_in_packages)} 
+                inventory.map((item, index) => {
+                  const selected = isSelected(item);
+                  return (
+                    <TableRow
+                      key={item.warehouse_inventory_id || item.inventory_id || `inventory-${index}`}
+                      hover
+                      onClick={() => handleSelectProduct(item)}
+                      role="checkbox"
+                      aria-checked={selected}
+                      selected={selected}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox color="primary" checked={selected} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>{item.product?.sku}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>{item.product?.name}</Typography>
+                        {item.product?.description && (
+                          <Typography variant="caption" color="text.secondary">
+                            {item.product.description}
                           </Typography>
-                      
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          —
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={item.product?.category?.name || 'N/A'} variant="outlined" />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="h6" fontWeight={700}>
+                          {formatQty(item.stock)} {item.product?.base_unit_label || ''}
                         </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" color="text.secondary">
-                        {item.min_stock_level} / {item.reorder_point}
-                      </Typography>
-                    </TableCell>
-                    {/* <TableCell align="right">
-                      <Typography variant="body2" fontWeight={600} color="success.main">
-                        {formatVnd(item.stockValue)}
-                      </Typography>
-                    </TableCell> */}
-                    <TableCell align="center">
-                      <Chip
-                        size="small"
-                        icon={statusIcons[item.stockStatus]}
-                        label={statusLabels[item.stockStatus]}
-                        color={statusColors[item.stockStatus]}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell align="right">
+                        {item.stock_in_packages ? (
+                          <Typography variant="h6" fontWeight={700}>
+                            {formatQty(item.stock_in_packages)} {item.package_unit_label || ''}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">—</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="text.secondary">
+                          {item.min_stock_level} / {item.reorder_point}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          size="small"
+                          icon={statusIcons[item.stockStatus]}
+                          label={statusLabels[item.stockStatus]}
+                          color={statusColors[item.stockStatus]}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -349,6 +584,243 @@ const InventoryList = () => {
           labelDisplayedRows={({ from, to, count }) => `${from}-${to} của ${count}`}
         />
       </Paper>
+
+      {/* Create Order Dialog */}
+      <Dialog open={createOrderDialog} onClose={handleCloseCreateOrder} fullWidth maxWidth="lg">
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Tạo Đơn Hàng Mới</Typography>
+            <Chip
+              label={`${orderItems.length} nhà cung cấp`}
+              color="primary"
+              size="small"
+            />
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Ngày giao hàng dự kiến (chung)"
+                value={orderData.expected_delivery}
+                onChange={(e) => setOrderData({ ...orderData, expected_delivery: e.target.value })}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                multiline
+                rows={1}
+                label="Ghi chú (chung)"
+                value={orderData.notes}
+                onChange={(e) => setOrderData({ ...orderData, notes: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 2 }}>Sản phẩm theo nhà cung cấp</Divider>
+
+          {orderItems.map((supplierGroup, supplierIndex) => {
+            const totalAmount = supplierGroup.items.reduce((acc, item) => {
+              const quantity = Number(item.quantity) || 0;
+              const unitPrice = Number(item.unit_price) || 0;
+
+              // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
+              const baseQuantity = item.use_package_unit && item.package_conversion
+                ? quantity * item.package_conversion
+                : quantity;
+
+              return acc + baseQuantity * unitPrice;
+            }, 0);
+
+            return (
+              <Paper key={supplierGroup.supplier_id} sx={{ p: 2, mb: 2 }} variant="outlined">
+                <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+                  <Typography variant="h6" color="primary">
+                    {supplierGroup.supplier_name}
+                  </Typography>
+                  <Chip
+                    label={`${supplierGroup.items.length} sản phẩm`}
+                    size="small"
+                    variant="outlined"
+                  />
+                </Stack>
+
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Sản phẩm</TableCell>
+                        <TableCell align="right">Tồn kho hiện tại</TableCell>
+                        <TableCell align="right">Số lượng</TableCell>
+                        <TableCell align="right">Đơn giá</TableCell>
+                        <TableCell align="right">Thành tiền</TableCell>
+                        <TableCell align="center">Xóa</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {supplierGroup.items.map((item, itemIndex) => (
+                        <TableRow key={item.product_id}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={600}>{item.product_name}</Typography>
+                            <Typography variant="caption" color="text.secondary">{item.sku}</Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Stack alignItems="flex-end" spacing={0.5}>
+                              <Typography variant="body2" fontWeight={600}>
+                                {formatQty(item.stock)} {item.base_unit_label}
+                              </Typography>
+                              {item.stock_in_packages && item.package_unit_label && (
+                                <Typography variant="caption" color="primary.main" fontWeight={600}>
+                                  ≈ {formatQty(item.stock_in_packages)} {item.package_unit_label}
+                                </Typography>
+                              )}
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Stack alignItems="flex-end" spacing={1}>
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={item.quantity}
+                                onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'quantity', e.target.value)}
+                                sx={{ width: 100 }}
+                                slotProps={{
+                                  input: {
+                                    inputProps: { min: item.use_package_unit ? 0.01 : 1, step: item.use_package_unit ? 0.01 : 1 }
+                                  }
+                                }}
+                              />
+
+                              {/* Hiển thị đơn vị hiện tại */}
+                              <Typography variant="caption" color="text.secondary">
+                                {item.use_package_unit ? item.package_unit_label : item.base_unit_label}
+                              </Typography>
+
+                              {/* Toggle đơn vị nếu có đơn vị quy đổi */}
+                              {item.package_conversion && item.package_unit_label && (
+                                <Tooltip title={`Chuyển đổi giữa ${item.base_unit_label} và ${item.package_unit_label}`}>
+                                  <FormControlLabel
+                                    control={
+                                      <Switch
+                                        size="small"
+                                        checked={item.use_package_unit}
+                                        onChange={() => handleUnitToggle(supplierIndex, itemIndex)}
+                                      />
+                                    }
+                                    label={
+                                      <Typography variant="caption">
+                                        {item.package_unit_label}
+                                      </Typography>
+                                    }
+                                    sx={{ m: 0 }}
+                                  />
+                                </Tooltip>
+                              )}
+
+                              {/* Hiển thị thông tin quy đổi */}
+                              {item.package_conversion && item.package_unit_label && (
+                                <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.7rem' }}>
+                                  1 {item.package_unit_label} = {item.package_conversion} {item.base_unit_label}
+                                </Typography>
+                              )}
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={item.unit_price}
+                              onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'unit_price', e.target.value)}
+                              sx={{ width: 120 }}
+                              slotProps={{
+                                input: {
+                                  endAdornment: <InputAdornment position="end">đ</InputAdornment>
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Typography fontWeight={600}>
+                              {(() => {
+                                const quantity = Number(item.quantity) || 0;
+                                const unitPrice = Number(item.unit_price) || 0;
+
+                                // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
+                                const baseQuantity = item.use_package_unit && item.package_conversion
+                                  ? quantity * item.package_conversion
+                                  : quantity;
+
+                                return formatVnd(baseQuantity * unitPrice);
+                              })()}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveOrderItem(supplierIndex, itemIndex)}
+                              color="error"
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell colSpan={3} align="right">
+                          <Typography variant="subtitle1" fontWeight={600}>Tổng tiền</Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="subtitle1" fontWeight={700} color="error.main">
+                            {formatVnd(totalAmount)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            );
+          })}
+
+          {orderItems.length > 0 && (
+            <Paper sx={{ p: 2, bgcolor: 'primary.50' }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="h6">Tổng cộng tất cả đơn hàng</Typography>
+                <Typography variant="h5" fontWeight={700} color="error.main">
+                  {formatVnd(orderItems.reduce((total, group) =>
+                    total + group.items.reduce((acc, item) => {
+                      const quantity = Number(item.quantity) || 0;
+                      const unitPrice = Number(item.unit_price) || 0;
+
+                      // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
+                      const baseQuantity = item.use_package_unit && item.package_conversion
+                        ? quantity * item.package_conversion
+                        : quantity;
+
+                      return acc + baseQuantity * unitPrice;
+                    }, 0), 0
+                  ))}
+                </Typography>
+              </Stack>
+            </Paper>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseCreateOrder}>Hủy</Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitOrder}
+            disabled={creatingOrder || orderItems.length === 0}
+          >
+            {creatingOrder ? <CircularProgress size={24} /> : `Tạo ${orderItems.length} Đơn Hàng`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

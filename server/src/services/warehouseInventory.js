@@ -44,7 +44,7 @@ const buildPackageMetaMap = async (productIds = []) => {
 export const getAllWarehouseInventoryService = async ({ page, limit, categoryId, status, search }) => {
     try {
         const offset = (page - 1) * limit;
-        
+
         const productWhere = {};
         if (search) {
             productWhere[Op.or] = [
@@ -57,7 +57,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
             {
                 model: db.Product,
                 as: 'product',
-                attributes: ['product_id', 'name', 'sku', 'description', 'hq_price'],
+                attributes: ['product_id', 'name', 'sku', 'description', 'hq_price', 'base_unit_id'],
                 where: productWhere,
                 include: [
                     {
@@ -72,6 +72,11 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                         model: db.Supplier,
                         as: 'supplier',
                         attributes: ['supplier_id', 'name', 'contact']
+                    },
+                    {
+                        model: db.Unit,
+                        as: 'baseUnit',
+                        attributes: ['unit_id', 'name', 'symbol']
                     }
                 ]
             }
@@ -90,7 +95,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
 
         const inventoryWithStatus = rows.map(item => {
             const itemData = item.toJSON();
-            
+
             let stockStatus = 'normal';
             if (itemData.stock === 0) {
                 stockStatus = 'out_of_stock';
@@ -108,6 +113,11 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
             const stockInPackages = packageConversion
                 ? Number((itemData.stock / packageConversion).toFixed(2))
                 : null;
+
+            // Add base_unit_label to product
+            if (itemData.product && itemData.product.baseUnit) {
+                itemData.product.base_unit_label = itemData.product.baseUnit.symbol || itemData.product.baseUnit.name;
+            }
 
             return {
                 ...itemData,

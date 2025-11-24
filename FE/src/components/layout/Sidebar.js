@@ -40,6 +40,7 @@ const navLinks = {
         // - Quản lý tồn kho tổng
         { to: "/warehouse/inventory", icon: <FaBoxes />, text: "Quản lý Tồn kho" },
         // Đơn hàng
+        { to: "/warehouse/orders", icon: <FaClipboardList />, text: "Đơn đặt hàng (Kho → NCC)" },
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },
         // Sản phẩm & Giá
         { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },

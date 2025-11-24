@@ -10,13 +10,6 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // Order belongs to Store
-      Order.belongsTo(models.Store, {
-        foreignKey: 'store_id',
-        as: 'store',
-        onDelete: 'CASCADE'
-      });
-
       // Order belongs to Supplier
       Order.belongsTo(models.Supplier, {
         foreignKey: 'supplier_id',
@@ -51,14 +44,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
-    },
-    store_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'Store',
-        key: 'store_id'
-      }
     },
     supplier_id: {
       type: DataTypes.INTEGER,

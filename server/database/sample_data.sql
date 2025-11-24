@@ -114,11 +114,12 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
     ('Mary Shopper', '0902345678', 'mary.shopper@email.com', 150, 'silver'),
     ('Bob Buyer', '0903456789', 'bob.buyer@email.com', 50, 'bronze');
 
-    -- 8. Insert Orders (Purchase Orders from Suppliers)
-    INSERT INTO `Order` (store_id, supplier_id, created_by, status, expected_delivery) VALUES
-    (1, 1, 2, 'confirmed', '2024-12-20 10:00:00'),
-    (1, 2, 2, 'pending', '2024-12-25 14:00:00'),
-    (1, 3, 2, 'delivered', '2024-12-15 09:00:00');
+    -- 8. Insert Orders (Warehouse-to-Supplier Orders)
+    -- Note: Order table is now for warehouse orders (no store_id)
+    INSERT INTO `Order` (supplier_id, created_by, status, expected_delivery) VALUES
+    (1, 2, 'confirmed', '2024-12-20 10:00:00'),
+    (2, 2, 'pending', '2024-12-25 14:00:00'),
+    (3, 2, 'delivered', '2024-12-15 09:00:00');
 
     -- 9. Insert Order Items
 INSERT INTO OrderItem (order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base) VALUES

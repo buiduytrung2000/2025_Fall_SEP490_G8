@@ -23,6 +23,13 @@ module.exports = (sequelize, DataTypes) => {
         as: 'product',
         onDelete: 'CASCADE'
       });
+
+      // OrderItem belongs to Unit
+      OrderItem.belongsTo(models.Unit, {
+        foreignKey: 'unit_id',
+        as: 'unit',
+        onDelete: 'SET NULL'
+      });
     }
   }
   OrderItem.init({

@@ -183,3 +183,98 @@ export async function createWarehouseOrder(payload) {
         return { err: -1, msg: 'Network error: ' + error.message };
     }
 }
+
+/**
+ * Create warehouse to supplier order
+ * @param {Object} payload - Order data
+ * @param {number} payload.supplier_id
+ * @param {Array} payload.items - [{ product_id, quantity, unit_price, unit_id }]
+ * @param {string} [payload.expected_delivery]
+ * @param {string} [payload.notes]
+ */
+export async function createWarehouseToSupplierOrder(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/order`, { // Endpoint for warehouse-to-supplier
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Create multiple warehouse to supplier orders (batch create)
+ * @param {Object} payload - Batch order data
+ * @param {Array} payload.orders - Array of order objects
+ * @param {string} [payload.expected_delivery] - Common expected delivery date
+ * @param {string} [payload.notes] - Common notes
+ */
+export async function createBatchWarehouseOrders(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/order/batch`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// ================= Warehouse → Supplier Orders (Order module) =================
+
+// List orders
+export async function getWarehouseSupplierOrders({ page = 1, limit = 10, status, supplierId, search } = {}) {
+    try {
+        const params = new URLSearchParams({ page, limit });
+        if (status) params.append('status', status);
+        if (supplierId) params.append('supplierId', supplierId);
+        if (search) params.append('search', search);
+        const res = await fetch(`${API_BASE}/order?${params}`, { method: 'GET', headers: getAuthHeaders() });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Detail
+export async function getWarehouseSupplierOrderDetail(orderId) {
+    try {
+        const res = await fetch(`${API_BASE}/order/${orderId}`, { method: 'GET', headers: getAuthHeaders() });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Update status
+export async function updateWarehouseSupplierOrderStatus(orderId, status) {
+    try {
+        const res = await fetch(`${API_BASE}/order/${orderId}/status`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ status })
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Update expected delivery
+export async function updateWarehouseSupplierExpectedDelivery(orderId, expected_delivery) {
+    try {
+        const res = await fetch(`${API_BASE}/order/${orderId}/delivery`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ expected_delivery })
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}

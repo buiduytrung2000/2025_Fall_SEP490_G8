@@ -35,8 +35,8 @@ import {
     FilterList as FilterIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
-import { 
-    getAllWarehouseInventory, 
+import {
+    getAllWarehouseInventory,
     getWarehouseInventoryStatistics,
     getWarehouseInventoryDetail,
     updateWarehouseInventorySettings,
@@ -62,12 +62,12 @@ const InventoryManagement = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
-    
+
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
-    
+
     // Detail modal
     const [selectedItem, setSelectedItem] = useState(null);
     const [detailDialog, setDetailDialog] = useState(false);
@@ -257,9 +257,9 @@ const InventoryManagement = () => {
     };
 
     const formatCurrency = (value) => {
-        return new Intl.NumberFormat('vi-VN', { 
-            style: 'currency', 
-            currency: 'VND' 
+        return new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND'
         }).format(value || 0);
     };
 
@@ -285,7 +285,7 @@ const InventoryManagement = () => {
                         Quản lý tồn kho (Kho tổng)
                     </Typography>
                     <Typography color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                        Xem và quản lý tồn kho 
+                        Xem và quản lý tồn kho
                     </Typography>
                 </Box>
                 <Tooltip title="Làm mới">

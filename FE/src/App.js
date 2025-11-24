@@ -46,6 +46,8 @@ import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 import SupplierManagement from "./pages/Warehouse/SupplierManagement";
 import ProductDetail from "./pages/Warehouse/ProductDetail";
 import MyShiftReports from "./pages/Cashier/MyShiftReports";
+import OrderList from "./pages/Warehouse/Orders/OrderList";
+import OrderDetail from "./pages/Warehouse/Orders/OrderDetail";
 // Component để chuyển hướng người dùng đã đăng nhập
 const AuthenticatedRedirect = () => {
   const { user } = useAuth();
@@ -223,6 +225,25 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Warehouse → Supplier Orders */}
+            <Route
+              path="/warehouse/orders"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <OrderList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/orders/:orderId"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <OrderDetail />
+                </ProtectedRoute>
+              }
+            />
+
 
             <Route
               path="/warehouse/inventory"
