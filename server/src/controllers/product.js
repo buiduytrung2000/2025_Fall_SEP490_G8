@@ -33,11 +33,11 @@ export const getOne = async (req, res) => {
 
 // CREATE PRODUCT
 export const create = async (req, res) => {
-    const { name, sku } = req.body
+    const { name, sku, base_unit_id } = req.body
     try {
-        if (!name || !sku) return res.status(400).json({
+        if (!name || !sku || !base_unit_id) return res.status(400).json({
             err: 1,
-            msg: 'Missing required fields: name, sku'
+            msg: 'Missing required fields: name, sku, base_unit_id'
         })
         const response = await productService.create(req.body)
         return res.status(200).json(response)
@@ -67,7 +67,7 @@ export const update = async (req, res) => {
     }
 }
 
-// DELETE PRODUCT
+// SOFT DELETE PRODUCT
 export const remove = async (req, res) => {
     const { product_id } = req.params
     try {
@@ -76,6 +76,60 @@ export const remove = async (req, res) => {
             msg: 'Missing product_id'
         })
         const response = await productService.remove(product_id)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+
+// RESTORE PRODUCT
+export const restore = async (req, res) => {
+    const { product_id } = req.params
+    try {
+        if (!product_id) return res.status(400).json({
+            err: 1,
+            msg: 'Missing product_id'
+        })
+        const response = await productService.restore(product_id)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+
+// HARD DELETE PRODUCT (permanent deletion)
+export const hardDelete = async (req, res) => {
+    const { product_id } = req.params
+    try {
+        if (!product_id) return res.status(400).json({
+            err: 1,
+            msg: 'Missing product_id'
+        })
+        const response = await productService.hardDelete(product_id)
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+
+// TOGGLE PRODUCT STATUS
+export const toggleStatus = async (req, res) => {
+    const { product_id } = req.params
+    try {
+        if (!product_id) return res.status(400).json({
+            err: 1,
+            msg: 'Missing product_id'
+        })
+        const response = await productService.toggleStatus(product_id)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
