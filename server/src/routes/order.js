@@ -9,35 +9,34 @@ const router = express.Router();
 // MIDDLEWARE - Authentication & Authorization
 // =====================================================
 router.use(verifyToken);
-router.use(checkRole('Warehouse', 'CEO'));
 
 // =====================================================
 // ORDER ROUTES - Warehouse to Supplier Orders
 // =====================================================
 
 // Create batch warehouse orders (MUST BE BEFORE single order route)
-router.post('/batch', orderController.createBatchOrders);
+router.post('/batch', checkRole('Warehouse', 'CEO'), orderController.createBatchOrders);
 
 // Create warehouse order
-router.post('/', orderController.createOrder);
+router.post('/', checkRole('Warehouse', 'CEO'), orderController.createOrder);
 
 // Get all orders with filters
-router.get('/', orderController.getAllOrders);
+router.get('/', checkRole('Warehouse', 'CEO', 'Supplier'), orderController.getAllOrders);
 
 // Get orders by supplier
-router.get('/supplier/:supplierId', orderController.getOrdersBySupplier);
+router.get('/supplier/:supplierId', checkRole('Warehouse', 'CEO'), orderController.getOrdersBySupplier);
 
 // Get orders by status
-router.get('/status/:status', orderController.getOrdersByStatus);
+router.get('/status/:status', checkRole('Warehouse', 'CEO'), orderController.getOrdersByStatus);
 
 // Get order detail by ID (MUST BE AFTER specific routes)
-router.get('/:orderId', orderController.getOrderDetail);
+router.get('/:orderId', checkRole('Warehouse', 'CEO', 'Supplier'), orderController.getOrderDetail);
 
 // Update order status
-router.patch('/:orderId/status', orderController.updateOrderStatus);
+router.patch('/:orderId/status', checkRole('Warehouse', 'CEO', 'Supplier'), orderController.updateOrderStatus);
 
 // Delete order
-router.delete('/:orderId', orderController.deleteOrder);
+router.delete('/:orderId', checkRole('Warehouse', 'CEO'), orderController.deleteOrder);
 
 export default router;
 

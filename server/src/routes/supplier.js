@@ -4,6 +4,7 @@ import * as supplierController from '../controllers/supplier'
 const router = express.Router()
 
 router.get('/', supplierController.getAll)
+router.get('/accounts/list', supplierController.getAccounts)
 router.get('/:supplier_id', supplierController.getOne)
 router.post('/', supplierController.create)
 router.put('/:supplier_id', supplierController.update)

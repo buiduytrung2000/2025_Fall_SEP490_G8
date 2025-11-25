@@ -85,3 +85,16 @@ export const remove = async (req, res) => {
     }
 }
 
+// LIST SUPPLIER USER ACCOUNTS
+export const getAccounts = async (req, res) => {
+    try {
+        const response = await supplierService.getAccounts()
+        return res.status(200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at supplier controller: ' + error
+        })
+    }
+}
+

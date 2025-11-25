@@ -81,6 +81,33 @@ const formatQty = (value) =>
     minimumFractionDigits: 0
   });
 
+const getDisplayUnitLabel = (item) => {
+  if (item?.use_package_unit && item?.package_unit_label) return item.package_unit_label;
+  return item?.base_unit_label || '';
+};
+
+const toBaseQuantity = (item) => {
+  const quantity = Number(item?.quantity) || 0;
+  if (item?.use_package_unit && item?.package_conversion) {
+    return Math.round(quantity * item.package_conversion);
+  }
+  return Math.round(quantity);
+};
+
+const toBaseUnitPrice = (item) => {
+  const price = Number(item?.unit_price) || 0;
+  if (item?.use_package_unit && item?.package_conversion) {
+    return Number((price / item.package_conversion).toFixed(2));
+  }
+  return price;
+};
+
+const getDisplaySubtotal = (item) => {
+  const quantity = Number(item?.quantity) || 0;
+  const price = Number(item?.unit_price) || 0;
+  return quantity * price;
+};
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -160,19 +187,25 @@ const InventoryList = () => {
         };
       }
 
+      const baseUnitPrice = Number(item.product?.hq_price) || 0;
+      const hasPackageUnit = Boolean(item.package_conversion && item.package_unit_label);
+      const initialUnitPrice = hasPackageUnit && item.package_conversion
+        ? Number((baseUnitPrice * item.package_conversion).toFixed(2))
+        : baseUnitPrice;
+
       groupedBySupplier[supplierId].items.push({
         product_id: item.product?.product_id,
         product_name: item.product?.name || '',
         sku: item.product?.sku || '',
         quantity: 1,
-        unit_price: 0,
+        unit_price: initialUnitPrice,
         unit_id: item.product?.base_unit_id || null,
         base_unit_label: item.product?.base_unit_label || '',
         stock: item.stock || 0,
         stock_in_packages: item.stock_in_packages || null,
         package_unit_label: item.package_unit_label || null,
         package_conversion: item.package_conversion || null,
-        use_package_unit: false // Mặc định sử dụng đơn vị cơ sở
+        use_package_unit: hasPackageUnit // Mặc định ưu tiên theo thùng nếu có
       });
     });
 
@@ -207,13 +240,16 @@ const InventoryList = () => {
 
     if (item.package_conversion) {
       const currentQuantity = Number(item.quantity) || 0;
+      const currentPrice = Number(item.unit_price) || 0;
 
       if (item.use_package_unit) {
         // Chuyển từ đơn vị quy đổi về đơn vị cơ sở
         item.quantity = Math.round(currentQuantity * item.package_conversion);
+        item.unit_price = Number((currentPrice / item.package_conversion).toFixed(2));
       } else {
         // Chuyển từ đơn vị cơ sở sang đơn vị quy đổi
         item.quantity = Number((currentQuantity / item.package_conversion).toFixed(2));
+        item.unit_price = Number((currentPrice * item.package_conversion).toFixed(2));
       }
 
       item.use_package_unit = !item.use_package_unit;
@@ -259,17 +295,13 @@ const InventoryList = () => {
         orders: orderItems.map(group => ({
           supplier_id: Number(group.supplier_id),
           items: group.items.map(item => {
-            const quantity = Number(item.quantity) || 0;
-
-            // Chuyển đổi về đơn vị cơ sở nếu đang sử dụng đơn vị quy đổi
-            const baseQuantity = item.use_package_unit && item.package_conversion
-              ? Math.round(quantity * item.package_conversion)
-              : quantity;
+            const baseQuantity = toBaseQuantity(item);
+            const baseUnitPrice = toBaseUnitPrice(item);
 
             return {
               product_id: item.product_id,
               quantity: baseQuantity,
-              unit_price: Number(item.unit_price),
+              unit_price: baseUnitPrice,
               unit_id: item.unit_id
             };
           })
@@ -625,15 +657,7 @@ const InventoryList = () => {
 
           {orderItems.map((supplierGroup, supplierIndex) => {
             const totalAmount = supplierGroup.items.reduce((acc, item) => {
-              const quantity = Number(item.quantity) || 0;
-              const unitPrice = Number(item.unit_price) || 0;
-
-              // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
-              const baseQuantity = item.use_package_unit && item.package_conversion
-                ? quantity * item.package_conversion
-                : quantity;
-
-              return acc + baseQuantity * unitPrice;
+              return acc + getDisplaySubtotal(item);
             }, 0);
 
             return (
@@ -670,14 +694,15 @@ const InventoryList = () => {
                           </TableCell>
                           <TableCell align="right">
                             <Stack alignItems="flex-end" spacing={0.5}>
-                              <Typography variant="body2" fontWeight={600}>
-                                {formatQty(item.stock)} {item.base_unit_label}
-                              </Typography>
+                             
                               {item.stock_in_packages && item.package_unit_label && (
-                                <Typography variant="caption" color="primary.main" fontWeight={600}>
-                                  ≈ {formatQty(item.stock_in_packages)} {item.package_unit_label}
+                                <Typography variant="body2" fontWeight={600}>
+                                  {formatQty(item.stock_in_packages)} {item.package_unit_label}
                                 </Typography>
                               )}
+                               <Typography  variant="caption" color="primary.main" fontWeight={600}>
+                               ≈ {formatQty(item.stock)} {item.base_unit_label}
+                              </Typography>
                             </Stack>
                           </TableCell>
                           <TableCell align="right">
@@ -687,75 +712,63 @@ const InventoryList = () => {
                                 size="small"
                                 value={item.quantity}
                                 onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'quantity', e.target.value)}
-                                sx={{ width: 100 }}
+                                sx={{ width: 130 }}
                                 slotProps={{
                                   input: {
-                                    inputProps: { min: item.use_package_unit ? 0.01 : 1, step: item.use_package_unit ? 0.01 : 1 }
+                                    inputProps: { min: item.use_package_unit ? 0.01 : 1, step: item.use_package_unit ? 0.01 : 1 },
+                                    endAdornment: getDisplayUnitLabel(item)
+                                      ? <InputAdornment position="end">{getDisplayUnitLabel(item)}</InputAdornment>
+                                      : null
                                   }
                                 }}
                               />
-
-                              {/* Hiển thị đơn vị hiện tại */}
-                              <Typography variant="caption" color="text.secondary">
-                                {item.use_package_unit ? item.package_unit_label : item.base_unit_label}
-                              </Typography>
-
-                              {/* Toggle đơn vị nếu có đơn vị quy đổi */}
-                              {item.package_conversion && item.package_unit_label && (
-                                <Tooltip title={`Chuyển đổi giữa ${item.base_unit_label} và ${item.package_unit_label}`}>
-                                  <FormControlLabel
-                                    control={
-                                      <Switch
-                                        size="small"
-                                        checked={item.use_package_unit}
-                                        onChange={() => handleUnitToggle(supplierIndex, itemIndex)}
-                                      />
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Typography variant="caption" color="text.secondary">
+                                  Đơn vị: {getDisplayUnitLabel(item) || '—'}
+                                </Typography>
+                                {item.package_conversion && (
+                                  <Button
+                                    size="small"
+                                    variant="text"
+                                    onClick={() => handleUnitToggle(supplierIndex, itemIndex)}
+                                  >
+                                    {item.use_package_unit
+                                      ? `Sang ${item.base_unit_label || 'đơn vị lẻ'}`
+                                      : `Sang ${item.package_unit_label || 'thùng'}`
                                     }
-                                    label={
-                                      <Typography variant="caption">
-                                        {item.package_unit_label}
-                                      </Typography>
-                                    }
-                                    sx={{ m: 0 }}
-                                  />
-                                </Tooltip>
-                              )}
-
-                              {/* Hiển thị thông tin quy đổi */}
-                              {item.package_conversion && item.package_unit_label && (
-                                <Typography variant="caption" color="primary.main" sx={{ fontSize: '0.7rem' }}>
-                                  1 {item.package_unit_label} = {item.package_conversion} {item.base_unit_label}
+                                  </Button>
+                                )}
+                              </Stack>
+                            </Stack>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Stack alignItems="flex-end" spacing={0.5}>
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={item.unit_price}
+                                onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'unit_price', e.target.value)}
+                                sx={{ width: 140 }}
+                                slotProps={{
+                                  input: {
+                                    endAdornment: (
+                                      <InputAdornment position="end">
+                                        đ/{getDisplayUnitLabel(item) || 'đv'}
+                                      </InputAdornment>
+                                    )
+                                  }
+                                }}
+                              />
+                              {item.use_package_unit && item.package_conversion && (
+                                <Typography variant="caption" color="text.secondary">
+                                  ≈ {formatVnd(toBaseUnitPrice(item))} / {item.base_unit_label || 'đơn vị lẻ'}
                                 </Typography>
                               )}
                             </Stack>
                           </TableCell>
                           <TableCell align="right">
-                            <TextField
-                              type="number"
-                              size="small"
-                              value={item.unit_price}
-                              onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'unit_price', e.target.value)}
-                              sx={{ width: 120 }}
-                              slotProps={{
-                                input: {
-                                  endAdornment: <InputAdornment position="end">đ</InputAdornment>
-                                }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell align="right">
                             <Typography fontWeight={600}>
-                              {(() => {
-                                const quantity = Number(item.quantity) || 0;
-                                const unitPrice = Number(item.unit_price) || 0;
-
-                                // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
-                                const baseQuantity = item.use_package_unit && item.package_conversion
-                                  ? quantity * item.package_conversion
-                                  : quantity;
-
-                                return formatVnd(baseQuantity * unitPrice);
-                              })()}
+                              {formatVnd(getDisplaySubtotal(item))}
                             </Typography>
                           </TableCell>
                           <TableCell align="center">
@@ -793,17 +806,7 @@ const InventoryList = () => {
                 <Typography variant="h6">Tổng cộng tất cả đơn hàng</Typography>
                 <Typography variant="h5" fontWeight={700} color="error.main">
                   {formatVnd(orderItems.reduce((total, group) =>
-                    total + group.items.reduce((acc, item) => {
-                      const quantity = Number(item.quantity) || 0;
-                      const unitPrice = Number(item.unit_price) || 0;
-
-                      // Nếu đang sử dụng đơn vị quy đổi, cần chuyển về đơn vị cơ sở để tính tiền
-                      const baseQuantity = item.use_package_unit && item.package_conversion
-                        ? quantity * item.package_conversion
-                        : quantity;
-
-                      return acc + baseQuantity * unitPrice;
-                    }, 0), 0
+                    total + group.items.reduce((acc, item) => acc + getDisplaySubtotal(item), 0), 0
                   ))}
                 </Typography>
               </Stack>

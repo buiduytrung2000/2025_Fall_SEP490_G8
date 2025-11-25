@@ -110,6 +110,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                 : null;
             const packageConversion = packageMeta?.conversion_to_base || null;
             const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+            const packageUnitId = packageMeta?.unit ? packageMeta.unit.unit_id : null;
             const stockInPackages = packageConversion
                 ? Number((itemData.stock / packageConversion).toFixed(2))
                 : null;
@@ -125,6 +126,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                 stockValue: itemData.stock * (itemData.product?.hq_price || 0),
                 package_conversion: packageConversion,
                 package_unit_label: packageUnitLabel,
+                package_unit_id: packageUnitId,
                 stock_in_packages: stockInPackages
             };
         });
@@ -195,6 +197,7 @@ export const getWarehouseInventoryDetailService = async (inventoryId) => {
             : null;
         const packageConversion = packageMeta?.conversion_to_base || null;
         const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+        const packageUnitId = packageMeta?.unit ? packageMeta.unit.unit_id : null;
         const stockInPackages = packageConversion
             ? Number((itemData.stock / packageConversion).toFixed(2))
             : null;
@@ -217,6 +220,7 @@ export const getWarehouseInventoryDetailService = async (inventoryId) => {
                 stockValue: itemData.stock * (itemData.product?.hq_price || 0),
                 package_conversion: packageConversion,
                 package_unit_label: packageUnitLabel,
+                package_unit_id: packageUnitId,
                 stock_in_packages: stockInPackages
             }
         };

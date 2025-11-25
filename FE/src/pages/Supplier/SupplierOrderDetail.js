@@ -13,17 +13,15 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  TextField,
-  Button,
   CircularProgress,
   Alert,
+  Button,
 } from "@mui/material";
-import { toast } from "react-toastify";
 import {
   getWarehouseSupplierOrderDetail,
   updateWarehouseSupplierOrderStatus,
-  updateWarehouseSupplierExpectedDelivery,
-} from "../../../api/warehouseOrderApi";
+} from "../../api/warehouseOrderApi";
+import { toast } from "react-toastify";
 
 const statusColors = {
   pending: "warning",
@@ -34,23 +32,21 @@ const statusColors = {
   cancelled: "error",
 };
 
-const nextTransitions = {
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
-  preparing: ["shipped", "cancelled"],
-  shipped: ["delivered", "cancelled"],
-  delivered: [],
-  cancelled: [],
+const statusLabels = {
+  pending: "Đang chờ",
+  confirmed: "Đã xác nhận",
+  preparing: "Đang chuẩn bị",
+  shipped: "Đang giao",
+  delivered: "Đã giao",
+  cancelled: "Đã hủy",
 };
 
-export default function OrderDetail() {
+const SupplierOrderDetail = () => {
   const { orderId } = useParams();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
-  const [deliveryDate, setDeliveryDate] = useState("");
-  const [updatingDelivery, setUpdatingDelivery] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const loadDetail = async () => {
     setLoading(true);
@@ -59,11 +55,6 @@ export default function OrderDetail() {
       const res = await getWarehouseSupplierOrderDetail(orderId);
       if (res.err === 0) {
         setOrder(res.data);
-        setDeliveryDate(
-          res.data.expected_delivery
-            ? res.data.expected_delivery.substring(0, 10)
-            : ""
-        );
       } else setError(res.msg || "Không tìm thấy đơn hàng");
     } catch (e) {
       setError("Lỗi kết nối: " + e.message);
@@ -76,46 +67,28 @@ export default function OrderDetail() {
     loadDetail();
   }, [orderId]);
 
-  const canTransitionTo = (target) =>
-    (nextTransitions[order?.status] || []).includes(target);
-
-  const handleQuickUpdateStatus = async (targetStatus) => {
+  const handleUpdateStatus = async (next) => {
     if (!order) return;
-    if (!canTransitionTo(targetStatus)) {
-      return toast.error("Không thể chuyển trạng thái này");
-    }
+    setUpdating(true);
     try {
-      const res = await updateWarehouseSupplierOrderStatus(
-        order.order_id,
-        targetStatus
-      );
+      const res = await updateWarehouseSupplierOrderStatus(order.order_id, next);
       if (res.err === 0) {
-        toast.success("Cập nhật trạng thái thành công");
-        loadDetail();
-      } else toast.error(res.msg || "Không thể cập nhật trạng thái");
-    } catch (e) {
-      toast.error("Lỗi kết nối: " + e.message);
-    }
-  };
-
-  const handleUpdateDelivery = async () => {
-    if (!order) return;
-    setUpdatingDelivery(true);
-    try {
-      const res = await updateWarehouseSupplierExpectedDelivery(
-        order.order_id,
-        deliveryDate || null
-      );
-      if (res.err === 0) {
-        toast.success("Cập nhật ngày giao dự kiến thành công");
-        loadDetail();
-      } else toast.error(res.msg || "Không thể cập nhật");
+        toast.success(
+          next === "confirmed" ? "Đã xác nhận đơn hàng" : "Đã từ chối đơn hàng"
+        );
+        await loadDetail();
+      } else {
+        toast.error(res.msg || "Không thể cập nhật trạng thái");
+      }
     } catch (e) {
       toast.error("Lỗi kết nối: " + e.message);
     } finally {
-      setUpdatingDelivery(false);
+      setUpdating(false);
     }
   };
+
+  const canConfirm = order?.status === "pending";
+  const canReject = order?.status === "pending";
 
   if (loading)
     return (
@@ -132,20 +105,47 @@ export default function OrderDetail() {
   if (!order) return null;
 
   const totalAmount = Number(order.totalAmount || 0);
+
   const orderCode =
     order.order_code || `ORD${String(order.order_id || "").padStart(3, "0")}`;
 
   return (
     <Box p={2}>
       <Stack
-        direction="row"
+        direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: "flex-start", md: "center" }}
         mb={2}
+        spacing={2}
       >
-        <Typography variant="h5" fontWeight={700}>
-          Chi tiết đơn hàng {orderCode}
-        </Typography>
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography variant="h5" fontWeight={700}>
+            Đơn hàng {orderCode}
+          </Typography>
+          <Typography color="text.secondary">
+            Đây là thông tin chi tiết đơn hàng kho đã gửi cho bạn.
+          </Typography>
+        </Box>
+       
+      </Stack>
+
+      <Stack direction="row" spacing={2} mb={2}>
+        <Button
+          variant="contained"
+          color="success"
+          disabled={!canConfirm || updating}
+          onClick={() => handleUpdateStatus("confirmed")}
+        >
+          {updating && canConfirm ? "Đang xử lý..." : "Xác nhận đơn hàng"}
+        </Button>
+        <Button
+          variant="outlined"
+          color="error"
+          disabled={!canReject || updating}
+          onClick={() => handleUpdateStatus("cancelled")}
+        >
+          {updating && !canConfirm ? "Đang xử lý..." : "Từ chối đơn hàng"}
+        </Button>
       </Stack>
 
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -158,42 +158,31 @@ export default function OrderDetail() {
               <b>Người tạo:</b>{" "}
               {order.creator?.username || order.creator?.email || "—"}
             </Typography>
+          </Grid>
+          <Grid item xs={12} md={4}>
             <Typography>
-              <b>Ngày tạo:</b> {new Date(order.created_at).toLocaleString()}
+              <b>Ngày tạo:</b>{" "}
+              {order.created_at
+                ? new Date(order.created_at).toLocaleString("vi-VN")
+                : "—"}
+            </Typography>
+            <Typography>
+              <b>Ngày giao dự kiến:</b>{" "}
+              {order.expected_delivery
+                ? new Date(order.expected_delivery).toLocaleDateString("vi-VN")
+                : "—"}
             </Typography>
           </Grid>
           <Grid item xs={12} md={4}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              {/* <TextField
-                type="date"
-                label="Ngày giao dự kiến"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                size="small"
-              />
-              <Button
-                onClick={handleUpdateDelivery}
-                disabled={updatingDelivery}
-              > */}
-                {/* {updatingDelivery ? "Đang lưu..." : "Lưu"}
-              </Button> */}
-            </Stack>
-            {/* <Typography sx={{ mt: 1 }}>
-              <b>Tổng tiền:</b> {totalAmount.toLocaleString("vi-VN")} đ
-            </Typography> */}
-          </Grid>
-          {/* <Grid item xs={12} md={4}>
             <Typography>
-              <b>Trạng thái:</b>
+              <b>Tổng tiền:</b>{" "}
+              {totalAmount.toLocaleString("vi-VN", {
+                style: "currency",
+                currency: "VND",
+                minimumFractionDigits: 0,
+              })}
             </Typography>
-            <Chip
-              sx={{ mt: 1 }}
-              size="medium"
-              color={statusColors[order.status] || "default"}
-              label={order.status}
-            />
-          </Grid> */}
+          </Grid>
         </Grid>
       </Paper>
 
@@ -228,8 +217,15 @@ export default function OrderDetail() {
                 <TableCell align="center">
                   <Chip
                     size="small"
-                    color={statusColors[it.status || order.status] || "default"}
-                    label={it.status || order.status || "—"}
+                    color={
+                      statusColors[it.status || order.status] || "default"
+                    }
+                    label={
+                      statusLabels[it.status || order.status] ||
+                      it.status ||
+                      order.status ||
+                      "—"
+                    }
                   />
                 </TableCell>
                 <TableCell align="right">
@@ -251,4 +247,7 @@ export default function OrderDetail() {
       </Paper>
     </Box>
   );
-}
+};
+
+export default SupplierOrderDetail;
+

@@ -23,6 +23,7 @@ import AdminPermissions from "./pages/Admin/AdminPermissions";
 import CEODashboard from "./pages/CEO/CEODashboard";
 import InventoryManagement from "./pages/Warehouse/InventoryManagement";
 import SupplierPortal from "./pages/Supplier/SupplierPortal";
+import SupplierOrderDetail from "./pages/Supplier/SupplierOrderDetail";
 import StaffManagement from "./pages/Store_Manager/StaffManagement";
 import ScheduleManagement from "./pages/Store_Manager/ScheduleManagement";
 import StoreInventory from "./pages/Store_Manager/InventoryManagement";
@@ -314,6 +315,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Supplier"]}>
                   <SupplierPortal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/supplier/orders/:orderId"
+              element={
+                <ProtectedRoute allowedRoles={["Supplier"]}>
+                  <SupplierOrderDetail />
                 </ProtectedRoute>
               }
             />

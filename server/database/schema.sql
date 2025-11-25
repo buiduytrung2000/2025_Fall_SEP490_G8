@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS PricingRule (
 -- StoreOrder table: For store-to-warehouse/supplier orders (has store_id)
 CREATE TABLE IF NOT EXISTS `Order` (
     order_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_code VARCHAR(8) NOT NULL UNIQUE,
     supplier_id INT NOT NULL,
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

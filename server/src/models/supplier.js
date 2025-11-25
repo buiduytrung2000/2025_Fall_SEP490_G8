@@ -22,6 +22,12 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'orders',
                 onDelete: 'CASCADE'
             });
+
+            // Supplier belongs to a User account (optional)
+            Supplier.belongsTo(models.User, {
+                foreignKey: 'user_id',
+                as: 'accountOwner'
+            });
         }
     }
     Supplier.init({
@@ -29,6 +35,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             primaryKey: true,
             autoIncrement: true
+        },
+        user_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true
         },
         name: {
             type: DataTypes.STRING(255),

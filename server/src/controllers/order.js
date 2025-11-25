@@ -1,4 +1,41 @@
 import * as orderService from '../services/order';
+import db from '../models';
+import { Op } from 'sequelize';
+
+const findSupplierIdForUser = async (user) => {
+    if (!user) return null;
+
+    if (user.user_id) {
+        const supplierByAccount = await db.Supplier.findOne({
+            where: { user_id: user.user_id },
+            attributes: ['supplier_id']
+        });
+        if (supplierByAccount) return supplierByAccount.supplier_id;
+    }
+
+    const conditions = [];
+    if (user.email) conditions.push({ email: user.email });
+    if (user.username) conditions.push({ name: user.username });
+    if (!conditions.length) return null;
+
+    const supplier = await db.Supplier.findOne({
+        where: { [Op.or]: conditions },
+        attributes: ['supplier_id']
+    });
+    return supplier?.supplier_id || null;
+};
+
+const ensureSupplierLinked = async (req, res) => {
+    const supplierId = await findSupplierIdForUser(req.user);
+    if (!supplierId) {
+        res.status(403).json({
+            err: 1,
+            msg: 'Tài khoản nhà cung cấp chưa được liên kết với bất kỳ nhà cung cấp nào.'
+        });
+        return null;
+    }
+    return supplierId;
+};
 
 // =====================================================
 // ORDER CONTROLLERS - Warehouse to Supplier Orders
@@ -199,11 +236,19 @@ export const getAllOrders = async (req, res) => {
     try {
         const { page = 1, limit = 10, status, supplierId, search } = req.query;
 
+        let effectiveSupplierId = supplierId ? parseInt(supplierId) : undefined;
+
+        if (req.user?.role === 'Supplier') {
+            const supplierIdFromUser = await ensureSupplierLinked(req, res);
+            if (!supplierIdFromUser) return;
+            effectiveSupplierId = supplierIdFromUser;
+        }
+
         const response = await orderService.getAllOrders({
             page: parseInt(page),
             limit: parseInt(limit),
             status,
-            supplierId,
+            supplierId: effectiveSupplierId,
             search
         });
 
@@ -232,6 +277,20 @@ export const getOrderDetail = async (req, res) => {
         }
 
         const response = await orderService.getOrderDetail(parseInt(orderId));
+
+        if (req.user?.role === 'Supplier' && response.err === 0) {
+            const supplierIdFromUser = await ensureSupplierLinked(req, res);
+            if (!supplierIdFromUser) return;
+
+            const orderSupplierId = response.data?.supplier?.supplier_id;
+            if (orderSupplierId !== supplierIdFromUser) {
+                return res.status(403).json({
+                    err: 1,
+                    msg: 'Bạn không có quyền xem đơn hàng này.'
+                });
+            }
+        }
+
         return res.status(response.err === 0 ? 200 : 404).json(response);
     } catch (error) {
         return res.status(500).json({
@@ -265,10 +324,24 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
+        let supplierGuardId = null;
+        if (req.user?.role === 'Supplier') {
+            supplierGuardId = await ensureSupplierLinked(req, res);
+            if (!supplierGuardId) return;
+            const allowedForSupplier = ['confirmed', 'cancelled'];
+            if (!allowedForSupplier.includes(status)) {
+                return res.status(403).json({
+                    err: 1,
+                    msg: 'Nhà cung cấp chỉ có thể xác nhận hoặc từ chối đơn hàng'
+                });
+            }
+        }
+
         const response = await orderService.updateOrderStatus({
             orderId: parseInt(orderId),
             status,
-            updatedBy: req.user?.user_id
+            updatedBy: req.user?.user_id,
+            supplierGuardId
         });
 
         return res.status(response.err === 0 ? 200 : 400).json(response);

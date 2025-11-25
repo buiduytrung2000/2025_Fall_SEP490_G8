@@ -77,3 +77,18 @@ export const deleteSupplier = async (supplierId) => {
     }
 };
 
+// Get supplier user accounts (role = Supplier)
+export const getSupplierAccounts = async () => {
+    try {
+        const response = await axios.get(`${API_URL}/api/v1/supplier/accounts/list`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching supplier accounts:', error);
+        return {
+            err: -1,
+            msg: error.response?.data?.msg || 'Lỗi khi tải danh sách tài khoản Supplier',
+            data: null
+        };
+    }
+};
+

@@ -1,6 +1,58 @@
 import db from '../models';
 import { Op } from 'sequelize';
 
+const buildPackageMetaMap = async (productIds = []) => {
+    if (!productIds.length) return {};
+
+    const productUnits = await db.ProductUnit.findAll({
+        where: { product_id: productIds },
+        include: [
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        order: [['conversion_to_base', 'DESC']]
+    });
+
+    const metaMap = {};
+    productUnits.forEach((pu) => {
+        const plain = pu.get ? pu.get({ plain: true }) : JSON.parse(JSON.stringify(pu));
+        const conversion = Number(plain.conversion_to_base) || 0;
+        if (!plain.product_id) return;
+        if (!metaMap[plain.product_id] || conversion > metaMap[plain.product_id].conversion_to_base) {
+            metaMap[plain.product_id] = {
+                conversion_to_base: conversion,
+                unit: plain.unit
+                    ? {
+                        unit_id: plain.unit.unit_id,
+                        name: plain.unit.name,
+                        symbol: plain.unit.symbol
+                    }
+                    : null
+            };
+        }
+    });
+
+    return metaMap;
+};
+
+const generateOrderCode = async () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    let exists = true;
+
+    while (exists) {
+        code = Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        // Ensure uniqueness
+        const count = await db.Order.count({ where: { order_code: code } });
+        if (count === 0) exists = false;
+    }
+
+    return code;
+};
+
 // =====================================================
 // ORDER SERVICES - Warehouse to Supplier Orders
 // =====================================================
@@ -122,9 +174,11 @@ export const createOrder = (orderData) => new Promise(async (resolve, reject) =>
         }
 
         // Create order
+        const orderCode = await generateOrderCode();
         const order = await db.Order.create({
             supplier_id,
             created_by,
+            order_code: orderCode,
             status: 'pending',
             expected_delivery: expected_delivery || null
         }, { transaction });
@@ -265,15 +319,42 @@ export const getAllOrders = async ({ page, limit, status, supplierId, search }) 
             distinct: true
         });
 
+        const productIds = [];
+        rows.forEach(order => {
+            order.orderItems?.forEach(item => {
+                if (item.product_id) productIds.push(item.product_id);
+            });
+        });
+        const packageMetaMap = await buildPackageMetaMap([...new Set(productIds)]);
+
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalItems = orderData.orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
             const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const packageQuantity = orderData.orderItems?.reduce((sum, item) => {
+                const meta = packageMetaMap[item.product_id];
+                if (meta?.conversion_to_base) {
+                    const baseQty = Number(item.quantity_in_base) || Number(item.quantity) || 0;
+                    return sum + baseQty / meta.conversion_to_base;
+                }
+                return sum + (Number(item.quantity) || 0);
+            }, 0) || 0;
+            const packageUnitLabel = (() => {
+                const candidate = orderData.orderItems?.find(it => packageMetaMap[it.product_id]?.unit);
+                if (candidate) {
+                    const unitInfo = packageMetaMap[candidate.product_id].unit;
+                    return unitInfo?.name || unitInfo?.symbol || 'thùng';
+                }
+                const fallbackUnit = orderData.orderItems?.[0]?.unit;
+                return fallbackUnit?.name || fallbackUnit?.symbol || 'đơn vị';
+            })();
 
             return {
                 ...orderData,
                 totalItems,
-                totalAmount: parseFloat(totalAmount.toFixed(2))
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                displayPackageQuantity: parseFloat(packageQuantity.toFixed(2)),
+                displayPackageUnit: packageUnitLabel
             };
         });
 
@@ -344,14 +425,40 @@ export const getOrderDetail = async (orderId) => {
         }
 
         const orderData = order.toJSON();
-        const totalItems = orderData.orderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-        const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+        const productIds = orderData.orderItems?.map(item => item.product_id).filter(Boolean) || [];
+        const packageMetaMap = await buildPackageMetaMap([...new Set(productIds)]);
+
+        const enhancedItems = orderData.orderItems?.map(item => {
+            const meta = packageMetaMap[item.product_id];
+            const conversion = meta?.conversion_to_base || null;
+            const baseQuantity = Number(item.quantity_in_base) || Number(item.quantity) || 0;
+            let displayQuantity = baseQuantity;
+            let displayUnitPrice = Number(item.unit_price) || 0;
+            let displayUnitLabel = item.unit?.name || item.unit?.symbol || 'đơn vị';
+
+            if (conversion && conversion > 0) {
+                displayQuantity = Number((baseQuantity / conversion).toFixed(2));
+                displayUnitPrice = Number((displayUnitPrice * conversion).toFixed(2));
+                displayUnitLabel = meta.unit?.name || meta.unit?.symbol || 'thùng';
+            }
+
+            return {
+                ...item,
+                display_quantity: displayQuantity,
+                display_unit_price: displayUnitPrice,
+                display_unit_label: displayUnitLabel
+            };
+        }) || [];
+
+        const totalItems = enhancedItems.reduce((sum, item) => sum + (Number(item.display_quantity) || 0), 0);
+        const totalAmount = enhancedItems.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
 
         return {
             err: 0,
             msg: 'Get order detail successfully',
             data: {
                 ...orderData,
+                orderItems: enhancedItems,
                 totalItems,
                 totalAmount: parseFloat(totalAmount.toFixed(2))
             }
@@ -364,7 +471,7 @@ export const getOrderDetail = async (orderId) => {
 /**
  * Update order status
  */
-export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
+export const updateOrderStatus = async ({ orderId, status, updatedBy, supplierGuardId }) => {
     const transaction = await db.sequelize.transaction();
     try {
         const order = await db.Order.findByPk(orderId, { transaction });
@@ -374,7 +481,16 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
             return { err: 1, msg: 'Order not found' };
         }
 
+        if (supplierGuardId && order.supplier_id !== supplierGuardId) {
+            await transaction.rollback();
+            return { err: 1, msg: 'Bạn không có quyền cập nhật đơn hàng này' };
+        }
+
         const currentStatus = order.status;
+        if (supplierGuardId && currentStatus !== 'pending') {
+            await transaction.rollback();
+            return { err: 1, msg: 'Đơn hàng đã được xử lý, không thể cập nhật nữa' };
+        }
 
         // Only run inventory logic when status changes to 'confirmed'
         if (status === 'confirmed' && currentStatus !== 'confirmed') {

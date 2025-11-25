@@ -10,7 +10,8 @@ import {
     DialogActions,
     TextField,
     CircularProgress,
-    Alert
+    Alert,
+    MenuItem
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -22,11 +23,13 @@ import {
     getAllSuppliers,
     createSupplier,
     updateSupplier,
-    deleteSupplier
+    deleteSupplier,
+    getSupplierAccounts
 } from '../../api/supplierApi';
 
 const SupplierManagement = () => {
     const [suppliers, setSuppliers] = useState([]);
+    const [supplierAccounts, setSupplierAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -40,13 +43,15 @@ const SupplierManagement = () => {
         name: '',
         contact: '',
         email: '',
-        address: ''
+        address: '',
+        account_user_id: ''
     });
     const [formErrors, setFormErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         loadSuppliers();
+        loadAccounts();
     }, []);
 
     const loadSuppliers = async () => {
@@ -68,6 +73,19 @@ const SupplierManagement = () => {
         }
     };
 
+    const loadAccounts = async () => {
+        try {
+            const res = await getSupplierAccounts();
+            if (res.err === 0) {
+                setSupplierAccounts(res.data || []);
+            } else {
+                toast.error(res.msg || 'Không thể tải danh sách tài khoản Supplier');
+            }
+        } catch (error) {
+            toast.error('Lỗi kết nối tài khoản: ' + error.message);
+        }
+    };
+
     const handleOpenModal = (mode, supplier = null) => {
         setModalMode(mode);
         setSelectedSupplier(supplier);
@@ -77,14 +95,16 @@ const SupplierManagement = () => {
                 name: supplier.name || '',
                 contact: supplier.contact || '',
                 email: supplier.email || '',
-                address: supplier.address || ''
+                address: supplier.address || '',
+                account_user_id: supplier.user_id || supplier.accountOwner?.user_id || ''
             });
         } else {
             setFormData({
                 name: '',
                 contact: '',
                 email: '',
-                address: ''
+                address: '',
+                account_user_id: ''
             });
         }
 
@@ -99,7 +119,8 @@ const SupplierManagement = () => {
             name: '',
             contact: '',
             email: '',
-            address: ''
+            address: '',
+            account_user_id: ''
         });
         setFormErrors({});
     };
@@ -149,9 +170,15 @@ const SupplierManagement = () => {
         try {
             let response;
             if (modalMode === 'create') {
-                response = await createSupplier(formData);
+                response = await createSupplier({
+                    ...formData,
+                    account_user_id: formData.account_user_id || undefined
+                });
             } else if (modalMode === 'edit') {
-                response = await updateSupplier(selectedSupplier.supplier_id, formData);
+                response = await updateSupplier(selectedSupplier.supplier_id, {
+                    ...formData,
+                    account_user_id: formData.account_user_id || undefined
+                });
             }
 
             if (response.err === 0) {
@@ -222,6 +249,12 @@ const SupplierManagement = () => {
                     const hasValue = !!row.original[id];
                     return filterValue === 'true' ? hasValue : !hasValue;
                 },
+            },
+            {
+                accessorKey: 'accountOwner.username',
+                header: 'Tài khoản Supplier',
+                size: 200,
+                Cell: ({ row }) => row.original.accountOwner?.username || <em>Chưa liên kết</em>
             },
             {
                 accessorKey: 'address',
@@ -353,6 +386,22 @@ const SupplierManagement = () => {
                                 rows={3}
                                 fullWidth
                             />
+                            <TextField
+                                select
+                                label="Tài khoản Supplier"
+                                name="account_user_id"
+                                value={formData.account_user_id}
+                                onChange={handleInputChange}
+                                helperText="Chọn tài khoản đăng nhập Supplier tương ứng (tùy chọn)"
+                                fullWidth
+                            >
+                                <MenuItem value="">Chưa liên kết</MenuItem>
+                                {supplierAccounts.map((account) => (
+                                    <MenuItem key={account.user_id} value={account.user_id}>
+                                        {account.username || account.email} ({account.email || 'không email'})
+                                    </MenuItem>
+                                ))}
+                            </TextField>
                         </Box>
                     </DialogContent>
                     <DialogActions>
