@@ -109,9 +109,21 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: 0.00
         },
+        import_price: {
+            type: DataTypes.DECIMAL(10, 2),
+            allowNull: false,
+            defaultValue: 0.00,
+            comment: 'Giá nhập/giá vốn của sản phẩm'
+        },
         description: {
             type: DataTypes.TEXT,
             allowNull: true
+        },
+        is_active: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            comment: 'Trạng thái hoạt động của sản phẩm (true = hoạt động, false = đã xóa/vô hiệu hóa)'
         },
         created_at: {
             type: DataTypes.DATE,

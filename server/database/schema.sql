@@ -71,7 +71,9 @@ CREATE TABLE IF NOT EXISTS Product (
     supplier_id INT NULL,
     base_unit_id INT NOT NULL,
     hq_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    import_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT 'Giá nhập/giá vốn của sản phẩm',
     description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Trạng thái hoạt động của sản phẩm (TRUE = hoạt động, FALSE = đã xóa/vô hiệu hóa)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES Category(category_id) ON DELETE SET NULL,
@@ -79,7 +81,8 @@ CREATE TABLE IF NOT EXISTS Product (
     FOREIGN KEY (base_unit_id) REFERENCES Unit(unit_id),
     INDEX idx_product_category (category_id),
     INDEX idx_product_supplier (supplier_id),
-    INDEX idx_product_sku (sku)
+    INDEX idx_product_sku (sku),
+    INDEX idx_product_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ProductUnit (

@@ -136,7 +136,7 @@ export async function updateProduct(productId, productData) {
     }
 }
 
-// DELETE PRODUCT
+// SOFT DELETE PRODUCT
 export async function deleteProduct(productId) {
     if (!productId) {
         return { err: 1, msg: 'Missing productId', data: null };
@@ -144,6 +144,75 @@ export async function deleteProduct(productId) {
     try {
         const res = await fetch(`${API_BASE}/product/${productId}`, {
             method: 'DELETE',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// RESTORE PRODUCT
+export async function restoreProduct(productId) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/product/${productId}/restore`, {
+            method: 'PATCH',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// HARD DELETE PRODUCT (permanent deletion)
+export async function hardDeleteProduct(productId) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/product/${productId}/hard-delete`, {
+            method: 'DELETE',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+// TOGGLE PRODUCT STATUS
+export async function toggleProductStatus(productId) {
+    if (!productId) {
+        return { err: 1, msg: 'Missing productId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/product/${productId}/toggle`, {
+            method: 'PATCH',
             headers: getHeaders()
         });
 
