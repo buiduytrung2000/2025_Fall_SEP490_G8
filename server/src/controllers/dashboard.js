@@ -170,3 +170,112 @@ export const getLowStockProducts = async (req, res) => {
     }
 };
 
+// =====================================================
+// DASHBOARD CONTROLLERS FOR CEO
+// =====================================================
+
+// Get company-wide KPIs
+export const getCompanyKPIs = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const response = await dashboardService.getCompanyKPIs();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get company revenue for last 30 days
+export const getCompanyRevenueLast30Days = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const { year } = req.query;
+        const response = await dashboardService.getCompanyRevenueLast30Days(year);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get company top products
+export const getCompanyTopProducts = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const limit = req.query.limit || 10;
+        const response = await dashboardService.getCompanyTopProducts(limit);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get store performance
+export const getStorePerformance = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const response = await dashboardService.getStorePerformance();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get warehouse orders summary
+export const getWarehouseOrdersSummary = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const response = await dashboardService.getWarehouseOrdersSummary();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get company low stock alerts
+export const getCompanyLowStock = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const limit = req.query.limit || 10;
+        const response = await dashboardService.getCompanyLowStock(limit);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+

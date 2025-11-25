@@ -25,5 +25,27 @@ router.get('/employee-stats', dashboardController.getEmployeeStats);
 // Get low stock products
 router.get('/low-stock', dashboardController.getLowStockProducts);
 
+// =====================================================
+// CEO DASHBOARD ROUTES
+// =====================================================
+
+// Get company-wide KPIs
+router.get('/ceo/kpis', dashboardController.getCompanyKPIs);
+
+// Get company revenue for last 30 days
+router.get('/ceo/revenue-last-30-days', dashboardController.getCompanyRevenueLast30Days);
+
+// Get company top products
+router.get('/ceo/top-products', dashboardController.getCompanyTopProducts);
+
+// Get store performance
+router.get('/ceo/store-performance', dashboardController.getStorePerformance);
+
+// Get warehouse orders summary
+router.get('/ceo/warehouse-orders', dashboardController.getWarehouseOrdersSummary);
+
+// Get company low stock alerts
+router.get('/ceo/low-stock', dashboardController.getCompanyLowStock);
+
 export default router;
 

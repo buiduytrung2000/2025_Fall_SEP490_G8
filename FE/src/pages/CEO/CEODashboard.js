@@ -1,50 +1,580 @@
-// src/pages/CEO/CEODashboard.js
-import React from 'react';
-import { Row, Col, Card } from 'react-bootstrap';
-import { FaMoneyBillWave, FaBoxOpen, FaUsers } from 'react-icons/fa';
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Avatar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Grid,
+  Paper,
+  Skeleton,
+  Alert,
+  LinearProgress,
+  TextField,
+  MenuItem,
+} from "@mui/material";
+import { Bar, Line } from "react-chartjs-2";
+import {
+  TrendingUp,
+  AttachMoney,
+  ShoppingCart,
+  Store,
+  Inventory2,
+  Assignment,
+  People,
+  Warning,
+} from "@mui/icons-material";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import {
+  getCompanyKPIs,
+  getCompanyRevenueLast30Days,
+  getCompanyTopProducts,
+  getStorePerformance,
+  getWarehouseOrdersSummary,
+  getCompanyLowStock,
+} from "../../api/dashboardApi";
+import { toast } from "react-toastify";
 
-const CEODashboard = () => {
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+const StatCard = ({
+  label,
+  value,
+  icon,
+  gradient,
+  loading = false,
+  subtitle,
+}) => (
+  <Card
+    elevation={0}
+    sx={{
+      background: gradient,
+      color: "white",
+      position: "relative",
+      overflow: "hidden",
+      borderRadius: 3,
+      height: "100%",
+      "&:hover": {
+        transform: "translateY(-8px)",
+        boxShadow: "0 12px 24px rgba(0,0,0,0.15)",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      },
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    }}
+  >
+    <CardContent sx={{ position: "relative", zIndex: 1, p: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box sx={{ flex: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              opacity: 0.95,
+              mb: 1.5,
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {label}
+          </Typography>
+          {loading ? (
+            <Skeleton
+              variant="text"
+              width={120}
+              height={40}
+              sx={{ bgcolor: "rgba(255,255,255,0.3)" }}
+            />
+          ) : (
+            <>
+              <Typography
+                variant="h4"
+                fontWeight={700}
+                sx={{
+                  fontSize: { xs: "1.75rem", sm: "2rem" },
+                  lineHeight: 1.2,
+                  textShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                }}
+              >
+                {value}
+              </Typography>
+              {subtitle && (
+                <Typography
+                  variant="caption"
+                  sx={{ opacity: 0.9, mt: 0.5, display: "block" }}
+                >
+                  {subtitle}
+                </Typography>
+              )}
+            </>
+          )}
+        </Box>
+        <Avatar
+          sx={{
+            bgcolor: "rgba(255,255,255,0.25)",
+            width: { xs: 48, sm: 64 },
+            height: { xs: 48, sm: 64 },
+          }}
+        >
+          {icon}
+        </Avatar>
+      </Box>
+    </CardContent>
+  </Card>
+);
+
+export default function CEODashboard() {
+  const [loading, setLoading] = useState(true);
+  const [kpis, setKpis] = useState(null);
+  const [revenueData, setRevenueData] = useState(null);
+  const [topProducts, setTopProducts] = useState([]);
+  const [storePerformance, setStorePerformance] = useState([]);
+  const [warehouseOrders, setWarehouseOrders] = useState(null);
+  const [lowStock, setLowStock] = useState([]);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const yearOptions = Array.from({ length: 5 }, (_, idx) => currentYear - idx);
+
+  const loadDashboardData = async (year = selectedYear) => {
+    setLoading(true);
+    try {
+      const [
+        kpisRes,
+        revenueRes,
+        productsRes,
+        storesRes,
+        warehouseRes,
+        lowStockRes,
+      ] = await Promise.all([
+        getCompanyKPIs(),
+        getCompanyRevenueLast30Days(year),
+        getCompanyTopProducts(10),
+        getStorePerformance(),
+        getWarehouseOrdersSummary(),
+        getCompanyLowStock(10),
+      ]);
+
+      if (kpisRes.err === 0) setKpis(kpisRes.data);
+      if (revenueRes.err === 0) setRevenueData(revenueRes.data);
+      if (productsRes.err === 0) setTopProducts(productsRes.data);
+      if (storesRes.err === 0) setStorePerformance(storesRes.data);
+      if (warehouseRes.err === 0) setWarehouseOrders(warehouseRes.data);
+      if (lowStockRes.err === 0) setLowStock(lowStockRes.data);
+    } catch (error) {
+      toast.error("Lỗi tải dữ liệu: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData(selectedYear);
+  }, [selectedYear]);
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatNumber = (value) => {
+    return new Intl.NumberFormat("vi-VN").format(value);
+  };
+
+  const revenueChartData = revenueData
+    ? {
+        labels: revenueData.map((d) => d.label || d.name),
+        datasets: [
+          {
+            label: "Doanh thu (VNĐ)",
+            data: revenueData.map((d) => d.DoanhThu),
+            borderColor: "rgb(75, 192, 192)",
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            tension: 0.4,
+          },
+        ],
+      }
+    : null;
+
+  const revenueChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top",
+      },
+      title: {
+        display: true,
+        text: "Doanh thu theo tháng",
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            return formatCurrency(context.parsed.y);
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function (value) {
+            return (value / 1000000).toFixed(1) + "M";
+          },
+        },
+      },
+    },
+  };
+
+  if (loading && !kpis) {
     return (
-        <div>
-            <h2>Bảng điều khiển cho CEO</h2>
-            <p>Dữ liệu kinh doanh tổng hợp toàn chuỗi.</p>
-            <Row>
-                <Col md={4}>
-                    <Card bg="primary" text="white" className="mb-2">
-                        <Card.Body className="d-flex align-items-center">
-                            <FaMoneyBillWave size={50} className="me-3" />
-                            <div>
-                                <Card.Title>Tổng doanh thu (Tháng)</Card.Title>
-                                <Card.Text className="fs-4">5,150,000,000 VNĐ</Card.Text>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                 <Col md={4}>
-                    <Card bg="success" text="white" className="mb-2">
-                        <Card.Body className="d-flex align-items-center">
-                            <FaBoxOpen size={50} className="me-3" />
-                            <div>
-                                <Card.Title>Tổng số đơn hàng (Hôm nay)</Card.Title>
-                                <Card.Text className="fs-4">1,205</Card.Text>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                 <Col md={4}>
-                    <Card bg="info" text="white" className="mb-2">
-                        <Card.Body className="d-flex align-items-center">
-                            <FaUsers size={50} className="me-3" />
-                            <div>
-                                <Card.Title>Khách hàng mới (Tháng)</Card.Title>
-                                <Card.Text className="fs-4">890</Card.Text>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-            {/* Trong tương lai, thêm các biểu đồ phân tích ở đây */}
-        </div>
+      <Box p={3}>
+        <LinearProgress />
+        <Box mt={3}>
+          <Grid container spacing={3}>
+            {[1, 2, 3, 4].map((i) => (
+              <Grid item xs={12} sm={6} md={3} key={i}>
+                <Card>
+                  <CardContent>
+                    <Skeleton variant="text" height={60} />
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      </Box>
     );
-};
-export default CEODashboard;
+  }
+
+  return (
+    <Box p={3}>
+      <Typography variant="h4" fontWeight={700} mb={3}>
+        Bảng điều khiển CEO
+      </Typography>
+
+      {/* KPI Cards */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            label="Doanh thu hôm nay"
+            value={kpis ? formatCurrency(kpis.today.revenue) : "0 ₫"}
+            icon={<AttachMoney />}
+            gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+            loading={loading}
+            subtitle={`${kpis?.today.orders || 0} đơn hàng`}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            label="Doanh thu tháng này"
+            value={kpis ? formatCurrency(kpis.thisMonth.revenue) : "0 ₫"}
+            icon={<TrendingUp />}
+            gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+            loading={loading}
+            subtitle={`${kpis?.thisMonth.orders || 0} đơn hàng`}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            label="Tổng doanh thu"
+            value={kpis ? formatCurrency(kpis.allTime.revenue) : "0 ₫"}
+            icon={<ShoppingCart />}
+            gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+            loading={loading}
+            subtitle={`${kpis?.allTime.orders || 0} đơn hàng`}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            label="Tổng số cửa hàng"
+            value={kpis ? formatNumber(kpis.stores.total) : "0"}
+            icon={<Store />}
+            gradient="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+            loading={loading}
+            subtitle="Đang hoạt động"
+          />
+        </Grid>
+      </Grid>
+
+      {/* Warehouse Orders Summary */}
+      {warehouseOrders && (
+        <Grid container spacing={3} mb={3}>
+          <Grid item xs={12} md={8} lg={8}>
+            <Card sx={{ width: "100%" }}>
+              <CardContent>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                    gap: 2,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Typography variant="h6">Doanh thu theo tháng</Typography>
+                  <TextField
+                    select
+                    size="small"
+                    label="Năm"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    sx={{ minWidth: 140 }}
+                  >
+                    {yearOptions.map((year) => (
+                      <MenuItem key={year} value={year}>
+                        {year}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+                {revenueChartData ? (
+                  <Box sx={{ height: { xs: 320, md: 420 }, width: "100%" }}>
+                    <Line
+                      data={revenueChartData}
+                      options={revenueChartOptions}
+                    />
+                  </Box>
+                ) : (
+                  <Skeleton variant="rectangular" height={360} />
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4} lg={4}>
+            <Card>
+              <CardContent>
+                <Typography
+                  variant="h6"
+                  mb={2}
+                  display="flex"
+                  alignItems="center"
+                  gap={1}
+                >
+                  <Assignment /> Đơn hàng kho
+                </Typography>
+                <Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Tổng đơn:</Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {formatNumber(warehouseOrders.total)}
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Đang chờ:</Typography>
+                    <Chip
+                      label={formatNumber(warehouseOrders.pending)}
+                      size="small"
+                      color="warning"
+                    />
+                  </Box>
+                  <Box display="flex" justifyContent="space-between" mb={1}>
+                    <Typography variant="body2">Đã xác nhận:</Typography>
+                    <Chip
+                      label={formatNumber(warehouseOrders.confirmed)}
+                      size="small"
+                      color="success"
+                    />
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2">Tổng giá trị:</Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {formatCurrency(warehouseOrders.totalAmount)}
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Store Performance & Top Products */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" mb={2}>
+                Hiệu suất cửa hàng (30 ngày)
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Cửa hàng</TableCell>
+                      <TableCell align="right">Đơn hàng</TableCell>
+                      <TableCell align="right">Doanh thu</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={3}>
+                          <Skeleton variant="text" />
+                        </TableCell>
+                      </TableRow>
+                    ) : storePerformance.length > 0 ? (
+                      storePerformance.map((store) => (
+                        <TableRow key={store.store_id}>
+                          <TableCell>{store.name}</TableCell>
+                          <TableCell align="right">
+                            {formatNumber(store.orders)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(store.revenue)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            Chưa có dữ liệu
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" mb={2}>
+                Sản phẩm bán chạy (30 ngày)
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Sản phẩm</TableCell>
+                      <TableCell align="right">Đã bán</TableCell>
+                      <TableCell align="right">Doanh thu</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={3}>
+                          <Skeleton variant="text" />
+                        </TableCell>
+                      </TableRow>
+                    ) : topProducts.length > 0 ? (
+                      topProducts.map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell>{product.name}</TableCell>
+                          <TableCell align="right">
+                            {formatNumber(product.sold)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(product.revenue)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            Chưa có dữ liệu
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Low Stock Alerts */}
+      {lowStock.length > 0 && (
+        <Card>
+          <CardContent>
+            <Typography
+              variant="h6"
+              mb={2}
+              display="flex"
+              alignItems="center"
+              gap={1}
+            >
+              <Warning color="warning" /> Cảnh báo tồn kho thấp
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Sản phẩm</TableCell>
+                    <TableCell>SKU</TableCell>
+                    <TableCell align="right">Tồn kho</TableCell>
+                    <TableCell align="right">Mức tối thiểu</TableCell>
+                    <TableCell>Vị trí</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {lowStock.map((item) => (
+                    <TableRow key={item.product_id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.sku}</TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={formatNumber(item.stock)}
+                          size="small"
+                          color="error"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatNumber(item.min_stock_level)}
+                      </TableCell>
+                      <TableCell>{item.location_detail}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
+}

@@ -292,3 +292,373 @@ export const getLowStockProducts = (storeId, limit = 5) => new Promise(async (re
     }
 });
 
+// =====================================================
+// DASHBOARD SERVICES FOR CEO (COMPANY-WIDE)
+// =====================================================
+
+// Get company-wide KPIs (all stores)
+export const getCompanyKPIs = () => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+        // Today's stats
+        const todayStats = await db.Transaction.findOne({
+            where: {
+                status: 'completed',
+                created_at: {
+                    [Op.gte]: today,
+                    [Op.lt]: tomorrow
+                }
+            },
+            attributes: [
+                [Sequelize.fn('COUNT', Sequelize.col('transaction_id')), 'orderCount'],
+                [Sequelize.fn('SUM', Sequelize.col('total_amount')), 'totalRevenue']
+            ],
+            raw: true
+        });
+
+        // This month's stats
+        const monthStats = await db.Transaction.findOne({
+            where: {
+                status: 'completed',
+                created_at: {
+                    [Op.gte]: thisMonth,
+                    [Op.lt]: nextMonth
+                }
+            },
+            attributes: [
+                [Sequelize.fn('COUNT', Sequelize.col('transaction_id')), 'orderCount'],
+                [Sequelize.fn('SUM', Sequelize.col('total_amount')), 'totalRevenue']
+            ],
+            raw: true
+        });
+
+        // All time stats
+        const allTimeStats = await db.Transaction.findOne({
+            where: {
+                status: 'completed'
+            },
+            attributes: [
+                [Sequelize.fn('COUNT', Sequelize.col('transaction_id')), 'orderCount'],
+                [Sequelize.fn('SUM', Sequelize.col('total_amount')), 'totalRevenue']
+            ],
+            raw: true
+        });
+
+        // New customers today
+        const newCustomersToday = await db.Customer.count({
+            where: {
+                created_at: {
+                    [Op.gte]: today,
+                    [Op.lt]: tomorrow
+                }
+            }
+        });
+
+        // Total stores
+        const totalStores = await db.Store.count({
+            where: { status: 'active' }
+        });
+
+        // Warehouse orders stats
+        const totalWarehouseOrders = await db.Order.count();
+        const pendingWarehouseOrders = await db.Order.count({
+            where: { status: 'pending' }
+        });
+
+        // Calculate total amount from OrderItems
+        const warehouseTotalQuery = `
+            SELECT COALESCE(SUM(oi.subtotal), 0) as totalAmount
+            FROM \`Order\` o
+            INNER JOIN OrderItem oi ON o.order_id = oi.order_id
+        `;
+        const warehouseTotalResult = await db.sequelize.query(warehouseTotalQuery, {
+            type: Sequelize.QueryTypes.SELECT
+        });
+        const warehouseTotalAmount = parseFloat(warehouseTotalResult[0]?.totalAmount || 0);
+
+        const result = {
+            today: {
+                revenue: parseFloat(todayStats?.totalRevenue || 0),
+                orders: parseInt(todayStats?.orderCount || 0),
+                newCustomers: newCustomersToday
+            },
+            thisMonth: {
+                revenue: parseFloat(monthStats?.totalRevenue || 0),
+                orders: parseInt(monthStats?.orderCount || 0)
+            },
+            allTime: {
+                revenue: parseFloat(allTimeStats?.totalRevenue || 0),
+                orders: parseInt(allTimeStats?.orderCount || 0)
+            },
+            stores: {
+                total: totalStores
+            },
+            warehouseOrders: {
+                total: totalWarehouseOrders,
+                pending: pendingWarehouseOrders,
+                totalAmount: warehouseTotalAmount
+            }
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get company-wide revenue for last 30 days
+export const getCompanyRevenueLast30Days = (year = null) => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const targetYear = Number(year) || today.getFullYear();
+        const startMonth = new Date(targetYear, 0, 1);
+        const endMonth = new Date(targetYear + 1, 0, 1);
+
+        const query = `
+            SELECT 
+                YEAR(created_at) as year,
+                MONTH(created_at) as month,
+                SUM(total_amount) as revenue
+            FROM Transaction
+            WHERE status = 'completed'
+                AND created_at >= :startDate
+                AND created_at < :endDate
+            GROUP BY YEAR(created_at), MONTH(created_at)
+            ORDER BY YEAR(created_at), MONTH(created_at)
+        `;
+
+        const rows = await db.sequelize.query(query, {
+            replacements: {
+                startDate: startMonth,
+                endDate: endMonth
+            },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const revenueMap = rows.reduce((acc, row) => {
+            const key = `${row.year}-${String(row.month).padStart(2, '0')}`;
+            acc[key] = parseFloat(row.revenue || 0);
+            return acc;
+        }, {});
+
+        const months = [];
+        for (let i = 0; i < 12; i++) {
+            const date = new Date(targetYear, i, 1);
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            months.push({
+                year: date.getFullYear(),
+                label: `T${date.getMonth() + 1}`,
+                name: `Tháng ${date.getMonth() + 1}`,
+                DoanhThu: revenueMap[key] || 0
+            });
+        }
+
+        const result = months;
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get top selling products company-wide
+export const getCompanyTopProducts = (limit = 10) => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const query = `
+            SELECT 
+                ti.product_id,
+                p.name,
+                p.sku,
+                SUM(ti.quantity) as totalSold,
+                SUM(ti.subtotal) as totalRevenue
+            FROM TransactionItem ti
+            INNER JOIN Transaction t ON ti.transaction_id = t.transaction_id
+            INNER JOIN Product p ON ti.product_id = p.product_id
+            WHERE t.status = 'completed'
+                AND t.created_at >= :startDate
+            GROUP BY ti.product_id, p.name, p.sku
+            ORDER BY totalRevenue DESC
+            LIMIT :limit
+        `;
+
+        const results = await db.sequelize.query(query, {
+            replacements: {
+                startDate: thirtyDaysAgo,
+                limit: parseInt(limit)
+            },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const result = results.map((item) => ({
+            id: item.product_id,
+            name: item.name || 'Unknown Product',
+            sku: item.sku || '',
+            sold: parseInt(item.totalSold || 0),
+            revenue: parseFloat(item.totalRevenue || 0)
+        }));
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get store performance
+export const getStorePerformance = () => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const query = `
+            SELECT 
+                s.store_id,
+                s.name as store_name,
+                COUNT(DISTINCT t.transaction_id) as total_orders,
+                SUM(t.total_amount) as total_revenue,
+                AVG(t.total_amount) as avg_order_value
+            FROM Store s
+            LEFT JOIN Transaction t ON s.store_id = t.store_id 
+                AND t.status = 'completed'
+                AND t.created_at >= :startDate
+            WHERE s.status = 'active'
+            GROUP BY s.store_id, s.name
+            ORDER BY total_revenue DESC
+        `;
+
+        const results = await db.sequelize.query(query, {
+            replacements: {
+                startDate: thirtyDaysAgo
+            },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const result = results.map((item) => ({
+            store_id: item.store_id,
+            name: item.store_name,
+            orders: parseInt(item.total_orders || 0),
+            revenue: parseFloat(item.total_revenue || 0),
+            avgOrderValue: parseFloat(item.avg_order_value || 0)
+        }));
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get warehouse orders summary
+export const getWarehouseOrdersSummary = () => new Promise(async (resolve, reject) => {
+    try {
+        const query = `
+            SELECT 
+                o.status,
+                COUNT(DISTINCT o.order_id) as count,
+                COALESCE(SUM(oi.subtotal), 0) as totalAmount
+            FROM \`Order\` o
+            LEFT JOIN OrderItem oi ON o.order_id = oi.order_id
+            GROUP BY o.status
+        `;
+
+        const results = await db.sequelize.query(query, {
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const summary = {
+            pending: 0,
+            confirmed: 0,
+            cancelled: 0,
+            total: 0,
+            totalAmount: 0
+        };
+
+        results.forEach(row => {
+            const count = parseInt(row.count || 0);
+            const amount = parseFloat(row.totalAmount || 0);
+            summary[row.status] = count;
+            summary.total += count;
+            summary.totalAmount += amount;
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: summary
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get low stock alerts (warehouse + stores)
+export const getCompanyLowStock = (limit = 10) => new Promise(async (resolve, reject) => {
+    try {
+        // Warehouse inventory
+        const warehouseLowStock = await db.WarehouseInventory.findAll({
+            where: {
+                base_quantity: {
+                    [Op.lte]: Sequelize.col('min_stock_level')
+                }
+            },
+            include: [
+                {
+                    model: db.Product,
+                    as: 'product',
+                    attributes: ['product_id', 'name', 'sku']
+                }
+            ],
+            order: [['base_quantity', 'ASC']],
+            limit: parseInt(limit),
+            raw: false
+        });
+
+        const result = warehouseLowStock.map(item => ({
+            product_id: item.product_id,
+            name: item.product?.name || 'Unknown',
+            sku: item.product?.sku || '',
+            stock: item.base_quantity,
+            min_stock_level: item.min_stock_level,
+            location: 'Warehouse',
+            location_detail: item.location || 'N/A'
+        }));
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
