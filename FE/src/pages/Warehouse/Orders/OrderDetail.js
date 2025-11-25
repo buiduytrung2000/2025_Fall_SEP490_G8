@@ -5,14 +5,11 @@ import {
   Paper,
   Stack,
   Typography,
+  Button,
   Chip,
-  Divider,
+  CircularProgress,
+  Alert,
   Grid,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   TextField,
   Button,
   CircularProgress,
@@ -25,6 +22,7 @@ import {
   updateWarehouseSupplierExpectedDelivery,
 } from "../../../api/warehouseOrderApi";
 
+// Three-stage status system
 const statusColors = {
   pending: "warning",
   confirmed: "info",
@@ -32,6 +30,12 @@ const statusColors = {
   shipped: "primary",
   delivered: "success",
   cancelled: "error",
+};
+
+const statusLabels = {
+  pending: 'Đang chờ',
+  confirmed: 'Đã xác nhận',
+  cancelled: 'Đã hủy'
 };
 
 const nextTransitions = {
@@ -51,6 +55,14 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
+
+  // Status update dialog
+  const [updateDialog, setUpdateDialog] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  // Product selector dialog
+  const [productDialog, setProductDialog] = useState(false);
 
   const loadDetail = async () => {
     setLoading(true);
@@ -99,7 +111,19 @@ export default function OrderDetail() {
   };
 
   const handleUpdateDelivery = async () => {
-    if (!order) return;
+    if (!deliveryDate) {
+      toast.error('Vui lòng chọn ngày giao hàng');
+      return;
+    }
+    if (order.status !== 'pending') {
+      toast.error('Chỉ có thể cập nhật ngày giao cho đơn hàng đang chờ');
+      return;
+    }
+    if (deliveryDate === originalDeliveryDate) {
+      toast.info('Ngày giao hàng không thay đổi');
+      return;
+    }
+
     setUpdatingDelivery(true);
     try {
       const res = await updateWarehouseSupplierExpectedDelivery(
@@ -135,6 +159,32 @@ export default function OrderDetail() {
   const orderCode =
     order.order_code || `ORD${String(order.order_id || "").padStart(3, "0")}`;
 
+  const handleAddProduct = async (newItem) => {
+    // Add the new item to existing items and save
+    const currentItems = order.orderItems.map(item => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: parseFloat(item.unit_price),
+      unit_id: item.unit_id
+    }));
+
+    const updatedItems = [...currentItems, {
+      product_id: newItem.product_id,
+      quantity: newItem.quantity,
+      unit_price: newItem.unit_price,
+      unit_id: newItem.unit_id
+    }];
+
+    await handleSaveOrderItems(updatedItems);
+  };
+
+  const isEditable = order?.status === 'pending';
+  const hasDeliveryDateChanges = deliveryDate !== originalDeliveryDate;
+
+  if (loading) return <Box p={2}><CircularProgress /></Box>;
+  if (error) return <Box p={2}><Alert severity="error">{error}</Alert></Box>;
+  if (!order) return <Box p={2}><Alert severity="info">Không tìm thấy đơn hàng</Alert></Box>;
+
   return (
     <Box p={2}>
       <Stack
@@ -148,7 +198,15 @@ export default function OrderDetail() {
         </Typography>
       </Stack>
 
+      {!isEditable && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Đơn hàng này đã được {order.status === 'confirmed' ? 'xác nhận' : 'hủy'} và không thể chỉnh sửa.
+        </Alert>
+      )}
+
+      {/* Order Information */}
       <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="h6" mb={2}>Thông tin đơn hàng</Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Typography>

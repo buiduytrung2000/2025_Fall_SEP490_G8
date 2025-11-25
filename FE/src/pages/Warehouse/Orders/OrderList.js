@@ -32,6 +32,7 @@ import {
   updateWarehouseSupplierOrderStatus,
 } from "../../../api/warehouseOrderApi";
 
+// Three-stage status system
 const statusColors = {
   pending: "warning",
   confirmed: "info",
@@ -72,6 +73,12 @@ export default function OrderList() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
+
+  // Status update dialog
+  const [updateDialog, setUpdateDialog] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -141,6 +148,10 @@ export default function OrderList() {
     } catch (e) {
       toast.error("Lỗi kết nối: " + e.message);
     }
+  };
+
+  const isOrderEditable = (orderStatus) => {
+    return orderStatus === 'pending';
   };
 
   return (
@@ -283,6 +294,44 @@ export default function OrderList() {
           }}
         />
       </Paper>
+
+      {/* Status Update Dialog */}
+      <Dialog open={updateDialog} onClose={() => !updating && setUpdateDialog(false)}>
+        <DialogTitle>Cập nhật trạng thái đơn hàng</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Đơn hàng #{selectedOrder?.order_id}
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            label="Trạng thái mới"
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
+            disabled={updating}
+          >
+            {(nextTransitions[selectedOrder?.status] || []).map(s => (
+              <MenuItem key={s} value={s}>{statusLabels[s]}</MenuItem>
+            ))}
+          </TextField>
+          {newStatus === 'confirmed' && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!
+            </Alert>
+          )}
+          {newStatus === 'cancelled' && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</Button>
+          <Button onClick={confirmUpdateStatus} variant="contained" disabled={updating || !newStatus}>
+            {updating ? 'Đang cập nhật...' : 'Xác nhận'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -38,6 +38,26 @@ module.exports = (sequelize, DataTypes) => {
         onDelete: 'SET NULL'
       });
     }
+
+    /**
+     * Check if order can be edited
+     * Only pending orders can be edited
+     */
+    isEditable() {
+      return this.status === 'pending';
+    }
+
+    /**
+     * Check if status transition is valid
+     */
+    canTransitionTo(newStatus) {
+      const validTransitions = {
+        'pending': ['confirmed', 'cancelled'],
+        'confirmed': [], // No transitions allowed from confirmed
+        'cancelled': []  // No transitions allowed from cancelled
+      };
+      return validTransitions[this.status]?.includes(newStatus) || false;
+    }
   }
   Order.init({
     order_id: {
@@ -67,8 +87,9 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     status: {
-      type: DataTypes.ENUM('pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'),
-      defaultValue: 'pending'
+      type: DataTypes.ENUM('pending', 'confirmed', 'cancelled'),
+      defaultValue: 'pending',
+      comment: 'Order status: pending (can edit), confirmed (read-only), cancelled (read-only)'
     },
     expected_delivery: {
       type: DataTypes.DATE,
@@ -84,4 +105,5 @@ module.exports = (sequelize, DataTypes) => {
   });
   return Order;
 };
+
 

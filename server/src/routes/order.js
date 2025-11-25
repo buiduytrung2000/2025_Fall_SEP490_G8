@@ -11,7 +11,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 // =====================================================
-// ORDER ROUTES - Warehouse to Supplier Orders
+// CREATE ROUTES - New Orders
 // =====================================================
 
 // Create batch warehouse orders (MUST BE BEFORE single order route)
@@ -29,8 +29,18 @@ router.get('/supplier/:supplierId', checkRole('Warehouse', 'CEO'), orderControll
 // Get orders by status
 router.get('/status/:status', checkRole('Warehouse', 'CEO'), orderController.getOrdersByStatus);
 
+// Get pending orders (MUST BE BEFORE /:orderId)
+router.get('/pending', orderController.getPendingOrders);
+
+// Get all orders with filters
+router.get('/', orderController.getAllOrders);
+
 // Get order detail by ID (MUST BE AFTER specific routes)
 router.get('/:orderId', checkRole('Warehouse', 'CEO', 'Supplier'), orderController.getOrderDetail);
+
+// =====================================================
+// UPDATE ROUTES - Modify Orders
+// =====================================================
 
 // Update order status
 router.patch('/:orderId/status', checkRole('Warehouse', 'CEO', 'Supplier'), orderController.updateOrderStatus);
