@@ -1,16 +1,15 @@
 // src/pages/Warehouse/ProductManagement.js
 import React, { useState, useEffect, useMemo } from 'react';
 import { Alert } from 'react-bootstrap';
-import { 
-    getAllProducts, createProduct, updateProduct, deleteProduct, getAllCategories, getAllSuppliers,
+import {
+    getAllProducts, createProduct, updateProduct, toggleProductStatus, getAllCategories, getAllSuppliers,
     getProductPriceHistory, createPricingRule, updatePricingRule, deletePricingRule, getProduct
 } from '../../api/productApi';
 import { getInventoryByProduct } from '../../api/inventoryApi';
-import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
 import { useNavigate } from 'react-router-dom';
-import { Box, IconButton, Button, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
-import { Edit, Delete, AttachMoney } from '@mui/icons-material';
+import { Box, IconButton, Button, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
+import { Edit, AttachMoney, CheckCircle, Cancel } from '@mui/icons-material';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -34,22 +33,25 @@ const ProductManagement = () => {
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
-    const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [showEditDialog, setShowEditDialog] = useState(false);
+    const [filterCategory, setFilterCategory] = useState('');
+    const [filterSupplier, setFilterSupplier] = useState('');
     const [editData, setEditData] = useState({
         product_id: null,
         sku: '',
         name: '',
         hq_price: '',
+        import_price: '',
         category_id: '',
         supplier_id: '',
-        description: ''
+        description: '',
+        is_active: true
     });
     const [isEditMode, setIsEditMode] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
-    
+
     // Price management states
     const [showPriceModal, setShowPriceModal] = useState(false);
     const [priceHistory, setPriceHistory] = useState([]);
@@ -59,14 +61,14 @@ const ProductManagement = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [editingRule, setEditingRule] = useState(null);
-    
+
     // Product detail modal states
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [productDetail, setProductDetail] = useState(null);
     const [productInventory, setProductInventory] = useState([]);
     const [productPriceHistory, setProductPriceHistory] = useState([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
-    
+
     // Price edit form in detail modal
     const [detailPriceType, setDetailPriceType] = useState('fixed_price');
     const [detailPriceValue, setDetailPriceValue] = useState('');
@@ -74,7 +76,7 @@ const ProductManagement = () => {
     const [detailEndDate, setDetailEndDate] = useState('');
     const [detailEditingRule, setDetailEditingRule] = useState(null);
     const [savingPrice, setSavingPrice] = useState(false);
-    
+
     // Get store_id from localStorage or default to 1
     const selectedStoreId = (() => {
         const stored = localStorage.getItem('store_id');
@@ -90,7 +92,8 @@ const ProductManagement = () => {
         setError(null);
         try {
             const [productsRes, categoriesRes, suppliersRes] = await Promise.all([
-                getAllProducts(),
+                // Load all products including inactive ones
+                getAllProducts({ include_inactive: true }),
                 getAllCategories(),
                 getAllSuppliers()
             ]);
@@ -113,32 +116,50 @@ const ProductManagement = () => {
         }
     };
 
-    const handleDeleteClick = (product) => {
-        setSelectedProduct(product);
-        setShowModal(true);
-    };
+    const handleToggleStatus = async (product) => {
+        // Confirm action
+        const action = product.is_active ? 'tắt' : 'kích hoạt';
+        const confirmMessage = `Bạn có chắc chắn muốn ${action} sản phẩm "${product.name}"?`;
 
-    const confirmDelete = async () => {
-        if (!selectedProduct) return;
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
 
         setError(null);
         setSuccess(null);
 
         try {
-            const result = await deleteProduct(selectedProduct.product_id);
+            const result = await toggleProductStatus(product.product_id);
             if (result.err === 0) {
-                setSuccess('Xóa sản phẩm thành công');
+                const newStatus = result.data?.is_active;
+                toast.success(
+                    newStatus
+                        ? `✓ Đã kích hoạt sản phẩm "${product.name}"`
+                        : `✓ Đã tắt sản phẩm "${product.name}"`
+                );
                 await loadData();
             } else {
-                setError(result.msg || 'Không thể xóa sản phẩm');
+                toast.error(result.msg || 'Không thể thay đổi trạng thái sản phẩm');
             }
         } catch (err) {
-            setError('Lỗi khi xóa sản phẩm: ' + err.message);
+            toast.error('Lỗi khi thay đổi trạng thái: ' + err.message);
+        }
+    };
+
+    // Filter products based on category and supplier
+    const filteredProducts = useMemo(() => {
+        let filtered = products;
+
+        if (filterCategory) {
+            filtered = filtered.filter(p => p.category_id === parseInt(filterCategory));
         }
 
-        setShowModal(false);
-        setSelectedProduct(null);
-    };
+        if (filterSupplier) {
+            filtered = filtered.filter(p => p.supplier_id === parseInt(filterSupplier));
+        }
+
+        return filtered;
+    }, [products, filterCategory, filterSupplier]);
 
     const handleOpenAdd = () => {
         setEditData({
@@ -199,9 +220,11 @@ const ProductManagement = () => {
                 sku: editData.sku.trim(),
                 name: editData.name.trim(),
                 hq_price: parseFloat(editData.hq_price) || 0,
+                import_price: parseFloat(editData.import_price) || 0,
                 category_id: editData.category_id || null,
                 supplier_id: editData.supplier_id || null,
-                description: editData.description?.trim() || null
+                description: editData.description?.trim() || null,
+                is_active: editData.is_active !== undefined ? editData.is_active : true
             };
 
             let result;
@@ -273,10 +296,10 @@ const ProductManagement = () => {
         setEditingRule(rule);
         setPriceType(rule.type);
         setPriceValue(rule.value.toString());
-        const startDateFormatted = rule.start_date 
+        const startDateFormatted = rule.start_date
             ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
             : new Date().toISOString().split('T')[0];
-        const endDateFormatted = rule.end_date 
+        const endDateFormatted = rule.end_date
             ? (rule.end_date.includes('T') ? rule.end_date.split('T')[0] : rule.end_date)
             : '';
         setStartDate(startDateFormatted);
@@ -357,7 +380,7 @@ const ProductManagement = () => {
 
     const handleDeleteRule = async (ruleId) => {
         if (!window.confirm('Bạn có chắc chắn muốn xóa quy tắc giá này?')) return;
-        
+
         try {
             const response = await deletePricingRule(ruleId);
             if (response.err === 0) {
@@ -388,7 +411,7 @@ const ProductManagement = () => {
         nextYear.setFullYear(nextYear.getFullYear() + 1);
         setDetailEndDate(nextYear.toISOString().split('T')[0]);
         setDetailEditingRule(null);
-        
+
         try {
             const [productRes, inventoryRes, priceHistoryRes] = await Promise.all([
                 getProduct(product.product_id),
@@ -431,7 +454,7 @@ const ProductManagement = () => {
         now.setHours(0, 0, 0, 0);
         const startDate = rule.start_date ? new Date(rule.start_date) : null;
         const endDate = rule.end_date ? new Date(rule.end_date) : null;
-        
+
         let isActive = false;
         if (startDate) {
             startDate.setHours(0, 0, 0, 0);
@@ -447,19 +470,19 @@ const ProductManagement = () => {
                 }
             }
         }
-        
+
         if (isActive) {
             toast.error('Không thể sửa giá đang áp dụng');
             return;
         }
-        
+
         setDetailEditingRule(rule);
         setDetailPriceType(rule.type);
         setDetailPriceValue(rule.value.toString());
-        const startDateFormatted = rule.start_date 
+        const startDateFormatted = rule.start_date
             ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
             : new Date().toISOString().split('T')[0];
-        const endDateFormatted = rule.end_date 
+        const endDateFormatted = rule.end_date
             ? (rule.end_date.includes('T') ? rule.end_date.split('T')[0] : rule.end_date)
             : '';
         setDetailStartDate(startDateFormatted);
@@ -500,7 +523,7 @@ const ProductManagement = () => {
             now.setHours(0, 0, 0, 0);
             const startDate = detailEditingRule.start_date ? new Date(detailEditingRule.start_date) : null;
             const endDate = detailEditingRule.end_date ? new Date(detailEditingRule.end_date) : null;
-            
+
             let isActive = false;
             if (startDate) {
                 startDate.setHours(0, 0, 0, 0);
@@ -516,7 +539,7 @@ const ProductManagement = () => {
                     }
                 }
             }
-            
+
             if (isActive) {
                 toast.error('Không thể sửa giá đang áp dụng');
                 return;
@@ -578,7 +601,7 @@ const ProductManagement = () => {
 
     const handleDeletePriceInDetail = async (ruleId) => {
         if (!window.confirm('Bạn có chắc chắn muốn xóa quy tắc giá này?')) return;
-        
+
         try {
             const response = await deletePricingRule(ruleId);
             if (response.err === 0) {
@@ -607,6 +630,12 @@ const ProductManagement = () => {
     const columns = useMemo(
         () => [
             {
+                accessorKey: 'stt',
+                header: 'STT',
+                size: 50,
+                Cell: ({ row }) => row.index + 1,
+            },
+            {
                 accessorKey: 'sku',
                 header: 'Mã SKU',
                 size: 120,
@@ -621,6 +650,26 @@ const ProductManagement = () => {
                 header: 'Giá HQ',
                 size: 120,
                 Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+            },
+            {
+                accessorKey: 'import_price',
+                header: 'Giá nhập',
+                size: 120,
+                Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+            },
+            {
+                accessorKey: 'is_active',
+                header: 'Trạng thái',
+                size: 120,
+                Cell: ({ cell }) => (
+                    <Chip
+                        icon={cell.getValue() ? <CheckCircle /> : <Cancel />}
+                        label={cell.getValue() ? 'Hoạt động' : 'Đã tắt'}
+                        color={cell.getValue() ? 'success' : 'default'}
+                        size="small"
+                        variant={cell.getValue() ? 'filled' : 'outlined'}
+                    />
+                ),
             },
             {
                 accessorKey: 'category.name',
@@ -674,7 +723,7 @@ const ProductManagement = () => {
                 Cell: ({ cell }) => {
                     const type = cell.getValue();
                     return (
-                        <Chip 
+                        <Chip
                             label={typeLabels[type] || type}
                             color={typeColors[type] || 'default'}
                             size="small"
@@ -689,7 +738,7 @@ const ProductManagement = () => {
                 Cell: ({ cell, row }) => {
                     const value = cell.getValue();
                     const type = row.original.type;
-                    const displayValue = type === 'fixed_price' 
+                    const displayValue = type === 'fixed_price'
                         ? formatCurrency(value || productDetail?.hq_price)
                         : formatCurrency(value || productDetail?.hq_price) + (type === 'markup' ? ' (+)' : ' (-)');
                     return (
@@ -721,10 +770,10 @@ const ProductManagement = () => {
                     now.setHours(0, 0, 0, 0);
                     const startDate = item.start_date ? new Date(item.start_date) : null;
                     const endDate = item.end_date ? new Date(item.end_date) : null;
-                    
+
                     let status = '';
                     let statusColor = 'default';
-                    
+
                     if (startDate) {
                         startDate.setHours(0, 0, 0, 0);
                         if (endDate) {
@@ -749,9 +798,9 @@ const ProductManagement = () => {
                             }
                         }
                     }
-                    
+
                     return (
-                        <Chip 
+                        <Chip
                             label={status}
                             color={statusColor}
                             size="small"
@@ -786,18 +835,60 @@ const ProductManagement = () => {
                 </Alert>
             )}
 
-            {/* Modal xác nhận xóa */}
-            <ConfirmationModal
-                show={showModal}
-                onHide={() => setShowModal(false)}
-                onConfirm={confirmDelete}
-                title="Xác nhận xóa"
-                message={`Bạn có chắc chắn muốn xóa sản phẩm "${selectedProduct?.name}" không?`}
-            />
+            {/* Bộ lọc */}
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <FormControl sx={{ minWidth: 200 }}>
+                    <InputLabel>Danh mục</InputLabel>
+                    <Select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        label="Danh mục"
+                    >
+                        <MenuItem value="">
+                            <em>Tất cả</em>
+                        </MenuItem>
+                        {categories.map((cat) => (
+                            <MenuItem key={cat.category_id} value={cat.category_id}>
+                                {cat.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <FormControl sx={{ minWidth: 200 }}>
+                    <InputLabel>Nhà cung cấp</InputLabel>
+                    <Select
+                        value={filterSupplier}
+                        onChange={(e) => setFilterSupplier(e.target.value)}
+                        label="Nhà cung cấp"
+                    >
+                        <MenuItem value="">
+                            <em>Tất cả</em>
+                        </MenuItem>
+                        {suppliers.map((sup) => (
+                            <MenuItem key={sup.supplier_id} value={sup.supplier_id}>
+                                {sup.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                {(filterCategory || filterSupplier) && (
+                    <Button
+                        variant="outlined"
+                        onClick={() => {
+                            setFilterCategory('');
+                            setFilterSupplier('');
+                        }}
+                    >
+                        Xóa bộ lọc
+                    </Button>
+                )}
+            </Box>
 
             <MaterialReactTable
                 columns={columns}
-                data={products}
+                data={filteredProducts}
                 enableRowActions
                 positionActionsColumn="last"
                 muiTableBodyRowProps={({ row }) => ({
@@ -818,15 +909,31 @@ const ProductManagement = () => {
                         onClick={handleOpenAdd}
                     >Thêm sản phẩm mới</Button>
                 )}
-                // Nút Sửa/Xóa ở mỗi hàng
+                // Nút Sửa và Toggle trạng thái ở mỗi hàng
                 renderRowActions={({ row }) => (
-                    <Box sx={{ display: 'flex', gap: '1rem' }}>
-                        <IconButton color="warning" onClick={(e) => { e.stopPropagation(); handleOpenEdit(row.original); }}>
-                            <Edit />
-                        </IconButton>
-                        <IconButton color="error" onClick={(e) => { e.stopPropagation(); handleDeleteClick(row.original); }}>
-                            <Delete />
-                        </IconButton>
+                    <Box sx={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <Tooltip title="Chỉnh sửa sản phẩm">
+                            <IconButton
+                                color="warning"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEdit(row.original);
+                                }}
+                            >
+                                <Edit />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title={row.original.is_active ? "Tắt sản phẩm" : "Bật sản phẩm"}>
+                            <Switch
+                                checked={row.original.is_active}
+                                onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleStatus(row.original);
+                                }}
+                                color={row.original.is_active ? "success" : "default"}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </Tooltip>
                     </Box>
                 )}
                 // Tùy chỉnh tiêu đề
@@ -882,7 +989,18 @@ const ProductManagement = () => {
                             onChange={handleEditField}
                             fullWidth
                             margin="normal"
-                            helperText="Giá tại trụ sở chính"
+                            helperText="Giá bán tại trụ sở chính"
+                        />
+                        <TextField
+                            label="Giá nhập (VND)"
+                            name="import_price"
+                            type="number"
+                            value={editData.import_price}
+                            inputProps={{ min: 0, step: 1000 }}
+                            onChange={handleEditField}
+                            fullWidth
+                            margin="normal"
+                            helperText="Giá vốn/giá nhập của sản phẩm"
                         />
                         <FormControl fullWidth margin="normal">
                             <InputLabel>Danh mục</InputLabel>
@@ -979,9 +1097,9 @@ const ProductManagement = () => {
                         </FormControl>
 
                         <TextField
-                            label={priceType === 'fixed_price' ? 'Giá cố định (₫)' : 
-                                   priceType === 'markup' ? 'Số tiền tăng (₫)' : 
-                                   'Số tiền giảm (₫)'}
+                            label={priceType === 'fixed_price' ? 'Giá cố định (₫)' :
+                                priceType === 'markup' ? 'Số tiền tăng (₫)' :
+                                    'Số tiền giảm (₫)'}
                             type="number"
                             inputProps={{ min: 0, step: 1000 }}
                             value={priceValue}
@@ -991,8 +1109,8 @@ const ProductManagement = () => {
                             required
                             helperText={
                                 priceType === 'fixed_price' ? 'Giá bán cố định cho sản phẩm' :
-                                priceType === 'markup' ? `Giá bán = Giá HQ + ${formatCurrency(parseFloat(priceValue) || 0)}` :
-                                `Giá bán = Giá HQ - ${formatCurrency(parseFloat(priceValue) || 0)}`
+                                    priceType === 'markup' ? `Giá bán = Giá HQ + ${formatCurrency(parseFloat(priceValue) || 0)}` :
+                                        `Giá bán = Giá HQ - ${formatCurrency(parseFloat(priceValue) || 0)}`
                             }
                         />
 
@@ -1052,14 +1170,14 @@ const ProductManagement = () => {
                                                 return (
                                                     <TableRow key={rule.rule_id} hover>
                                                         <TableCell>
-                                                            <Chip 
+                                                            <Chip
                                                                 label={typeLabels[rule.type] || rule.type}
                                                                 color={typeColors[rule.type] || 'default'}
                                                                 size="small"
                                                             />
                                                         </TableCell>
                                                         <TableCell align="right">
-                                                            {rule.type === 'fixed_price' 
+                                                            {rule.type === 'fixed_price'
                                                                 ? formatCurrency(rule.value)
                                                                 : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
                                                             }
@@ -1072,21 +1190,21 @@ const ProductManagement = () => {
                                                         </TableCell>
                                                         <TableCell align="center">
                                                             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                                <IconButton 
-                                                                    color="primary" 
+                                                                <IconButton
+                                                                    color="primary"
                                                                     size="small"
                                                                     onClick={() => handleEditRule(rule)}
                                                                     title="Chỉnh sửa"
                                                                 >
                                                                     <Edit fontSize="small" />
                                                                 </IconButton>
-                                                                <IconButton 
-                                                                    color="error" 
+                                                                <IconButton
+                                                                    color="error"
                                                                     size="small"
                                                                     onClick={() => handleDeleteRule(rule.rule_id)}
                                                                     title="Xóa"
                                                                 >
-                                                                    <Delete fontSize="small" />
+
                                                                 </IconButton>
                                                             </Box>
                                                         </TableCell>
@@ -1119,9 +1237,9 @@ const ProductManagement = () => {
             </Dialog>
 
             {/* Product Detail Modal */}
-            <Dialog 
-                open={showDetailModal} 
-                onClose={handleCloseDetailModal} 
+            <Dialog
+                open={showDetailModal}
+                onClose={handleCloseDetailModal}
                 maxWidth="lg"
                 PaperProps={{
                     sx: { maxHeight: '90vh' }
@@ -1139,331 +1257,331 @@ const ProductManagement = () => {
                         </Box>
                     ) : productDetail ? (
                         <>
-                        <Grid container spacing={3}>
-                            {/* LEFT COLUMN - Product Details */}
-                            <Grid item xs={12} md={8}>
-                                {/* Product Details Card */}
-                                <Card sx={{ mb: 3 }}>
-                                    <CardContent>
-                                        <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
-                                            {productDetail.name}
-                                        </Typography>
-                                        
-                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                                            <Box>
-                                                <Typography variant="body2" color="text.secondary" component="span">
-                                                    <strong>Mã sản phẩm:</strong>{' '}
-                                                </Typography>
-                                                <Typography variant="body1" component="span">
-                                                    {productDetail.sku}
-                                                </Typography>
-                                            </Box>
-                                            
-                                            <Box>
-                                                <Typography variant="body2" color="text.secondary" component="span">
-                                                    <strong>Giá bán:</strong>{' '}
-                                                </Typography>
-                                                <Typography variant="body1" color="success.main" component="span" sx={{ fontWeight: 600 }}>
-                                                    {formatCurrency(productDetail.hq_price || 0)}
-                                                </Typography>
-                                            </Box>
-                                            
-                                            <Box>
-                                                <Typography variant="body2" color="text.secondary" component="span">
-                                                    <strong>Danh mục:</strong>{' '}
-                                                </Typography>
-                                                <Typography variant="body1" component="span">
-                                                    {productDetail.category?.name || 'N/A'}
-                                                </Typography>
-                                            </Box>
-                                            
-                                            <Box>
-                                                <Typography variant="body2" color="text.secondary" component="span">
-                                                    <strong>Nhà cung cấp:</strong>{' '}
-                                                </Typography>
-                                                <Typography variant="body1" component="span">
-                                                    {productDetail.supplier?.name || 'N/A'}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                        
-                                        {productDetail.description && (
-                                            <Box sx={{ mt: 2 }}>
-                                                <Typography variant="body2" color="text.secondary" gutterBottom>
-                                                    <strong>Mô tả:</strong>
-                                                </Typography>
-                                                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                                                    {productDetail.description}
-                                                </Typography>
-                                            </Box>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </Grid>
+                            <Grid container spacing={3}>
+                                {/* LEFT COLUMN - Product Details */}
+                                <Grid item xs={12} md={8}>
+                                    {/* Product Details Card */}
+                                    <Card sx={{ mb: 3 }}>
+                                        <CardContent>
+                                            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+                                                {productDetail.name}
+                                            </Typography>
 
-                            {/* RIGHT COLUMN - Statistics & Inventory */}
-                            <Grid item xs={12} md={4}>
-                                <Grid container spacing={2}>
-                                    {/* Current Stock Card */}
-                                    <Grid item xs={12}>
-                                        <Card>
-                                            <CardContent sx={{ textAlign: 'center' }}>
-                                                <Typography variant="body2" color="text.secondary" gutterBottom>
-                                                    Số lượng tồn kho hiện tại
-                                                </Typography>
-                                                <Typography variant="h4" color="warning.main">
-                                                    {productInventory
-                                                        .filter(item => item.location_type !== 'Warehouse' && item.location_name !== 'Kho tổng')
-                                                        .reduce((sum, item) => sum + (item.stock || 0), 0)}
-                                                </Typography>
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
-
-                                    {/* Inventory by Store */}
-                                    <Grid item xs={12}>
-                                        <Card>
-                                            <CardContent>
-                                                <Typography variant="h6" gutterBottom>
-                                                    Tồn kho theo cửa hàng
-                                                </Typography>
-                                                <Divider sx={{ mb: 2 }} />
-                                                {productInventory.length > 0 ? (() => {
-                                                    // Lọc bỏ kho tổng, chỉ hiển thị cửa hàng
-                                                    const storeInventories = productInventory.filter(item => 
-                                                        item.location_type !== 'Warehouse' && 
-                                                        item.location_name !== 'Kho tổng'
-                                                    );
-                                                    return storeInventories.length > 0 ? (
-                                                        <List dense>
-                                                            {storeInventories.map((item, idx) => (
-                                                                <React.Fragment key={idx}>
-                                                                    <ListItem sx={{ px: 0 }}>
-                                                                        <ListItemText
-                                                                            primary={item.location_name || item.store?.name || 'N/A'}
-                                                                            secondary={`Số lượng: ${item.stock || 0}`}
-                                                                        />
-                                                                    </ListItem>
-                                                                    {idx < storeInventories.length - 1 && <Divider />}
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </List>
-                                                    ) : (
-                                                        <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
-                                                            Không có dữ liệu tồn kho tại cửa hàng
-                                                        </Typography>
-                                                    );
-                                                })() : (
-                                                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
-                                                        Không có dữ liệu tồn kho
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                <Box>
+                                                    <Typography variant="body2" color="text.secondary" component="span">
+                                                        <strong>Mã sản phẩm:</strong>{' '}
                                                     </Typography>
-                                                )}
-                                            </CardContent>
-                                        </Card>
+                                                    <Typography variant="body1" component="span">
+                                                        {productDetail.sku}
+                                                    </Typography>
+                                                </Box>
+
+                                                <Box>
+                                                    <Typography variant="body2" color="text.secondary" component="span">
+                                                        <strong>Giá bán:</strong>{' '}
+                                                    </Typography>
+                                                    <Typography variant="body1" color="success.main" component="span" sx={{ fontWeight: 600 }}>
+                                                        {formatCurrency(productDetail.hq_price || 0)}
+                                                    </Typography>
+                                                </Box>
+
+                                                <Box>
+                                                    <Typography variant="body2" color="text.secondary" component="span">
+                                                        <strong>Danh mục:</strong>{' '}
+                                                    </Typography>
+                                                    <Typography variant="body1" component="span">
+                                                        {productDetail.category?.name || 'N/A'}
+                                                    </Typography>
+                                                </Box>
+
+                                                <Box>
+                                                    <Typography variant="body2" color="text.secondary" component="span">
+                                                        <strong>Nhà cung cấp:</strong>{' '}
+                                                    </Typography>
+                                                    <Typography variant="body1" component="span">
+                                                        {productDetail.supplier?.name || 'N/A'}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+
+                                            {productDetail.description && (
+                                                <Box sx={{ mt: 2 }}>
+                                                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                        <strong>Mô tả:</strong>
+                                                    </Typography>
+                                                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                                                        {productDetail.description}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+
+                                {/* RIGHT COLUMN - Statistics & Inventory */}
+                                <Grid item xs={12} md={4}>
+                                    <Grid container spacing={2}>
+                                        {/* Current Stock Card */}
+                                        <Grid item xs={12}>
+                                            <Card>
+                                                <CardContent sx={{ textAlign: 'center' }}>
+                                                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                        Số lượng tồn kho hiện tại
+                                                    </Typography>
+                                                    <Typography variant="h4" color="warning.main">
+                                                        {productInventory
+                                                            .filter(item => item.location_type !== 'Warehouse' && item.location_name !== 'Kho tổng')
+                                                            .reduce((sum, item) => sum + (item.stock || 0), 0)}
+                                                    </Typography>
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+
+                                        {/* Inventory by Store */}
+                                        <Grid item xs={12}>
+                                            <Card>
+                                                <CardContent>
+                                                    <Typography variant="h6" gutterBottom>
+                                                        Tồn kho theo cửa hàng
+                                                    </Typography>
+                                                    <Divider sx={{ mb: 2 }} />
+                                                    {productInventory.length > 0 ? (() => {
+                                                        // Lọc bỏ kho tổng, chỉ hiển thị cửa hàng
+                                                        const storeInventories = productInventory.filter(item =>
+                                                            item.location_type !== 'Warehouse' &&
+                                                            item.location_name !== 'Kho tổng'
+                                                        );
+                                                        return storeInventories.length > 0 ? (
+                                                            <List dense>
+                                                                {storeInventories.map((item, idx) => (
+                                                                    <React.Fragment key={idx}>
+                                                                        <ListItem sx={{ px: 0 }}>
+                                                                            <ListItemText
+                                                                                primary={item.location_name || item.store?.name || 'N/A'}
+                                                                                secondary={`Số lượng: ${item.stock || 0}`}
+                                                                            />
+                                                                        </ListItem>
+                                                                        {idx < storeInventories.length - 1 && <Divider />}
+                                                                    </React.Fragment>
+                                                                ))}
+                                                            </List>
+                                                        ) : (
+                                                            <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                                                                Không có dữ liệu tồn kho tại cửa hàng
+                                                            </Typography>
+                                                        );
+                                                    })() : (
+                                                        <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                                                            Không có dữ liệu tồn kho
+                                                        </Typography>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
                                     </Grid>
                                 </Grid>
                             </Grid>
-                        </Grid>
 
-                        {/* Price Change Form Card - Separate Row */}
-                        <Grid container spacing={3} sx={{ mt: 2 }}>
-                            <Grid item xs={12}>
-                                <Card>
-                                    <CardContent>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                            <AttachMoney sx={{ mr: 1 }} />
-                                            <Typography variant="h6">
-                                                {detailEditingRule ? 'Sửa quy tắc giá' : 'Thêm quy tắc giá mới'}
-                                            </Typography>
-                                        </Box>
-                                        <Divider sx={{ mb: 2 }} />
-                                        
-                                        <form onSubmit={handleSavePriceInDetail}>
-                                            <Grid container spacing={2}>
-                                                <Grid item xs={12} sm={6} md={3}>
-                                                    <FormControl fullWidth required>
-                                                        <InputLabel>Loại quy tắc giá</InputLabel>
-                                                        <Select
-                                                            value={detailPriceType}
-                                                            label="Loại quy tắc giá"
-                                                            onChange={(e) => setDetailPriceType(e.target.value)}
-                                                        >
-                                                            <MenuItem value="fixed_price">Giá cố định</MenuItem>
-                                                            <MenuItem value="markup">Tăng giá (cộng thêm)</MenuItem>
-                                                            <MenuItem value="markdown">Giảm giá (trừ đi)</MenuItem>
-                                                        </Select>
-                                                    </FormControl>
-                                                </Grid>
+                            {/* Price Change Form Card - Separate Row */}
+                            <Grid container spacing={3} sx={{ mt: 2 }}>
+                                <Grid item xs={12}>
+                                    <Card>
+                                        <CardContent>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                                <AttachMoney sx={{ mr: 1 }} />
+                                                <Typography variant="h6">
+                                                    {detailEditingRule ? 'Sửa quy tắc giá' : 'Thêm quy tắc giá mới'}
+                                                </Typography>
+                                            </Box>
+                                            <Divider sx={{ mb: 2 }} />
 
-                                                <Grid item xs={12} sm={6} md={3}>
-                                                    <TextField
-                                                        label={detailPriceType === 'fixed_price' ? 'Giá cố định (₫)' : 
-                                                               detailPriceType === 'markup' ? 'Số tiền tăng (₫)' : 
-                                                               'Số tiền giảm (₫)'}
-                                                        type="number"
-                                                        inputProps={{ min: 0, step: 1000 }}
-                                                        value={detailPriceValue}
-                                                        onChange={(e) => setDetailPriceValue(e.target.value)}
-                                                        fullWidth
-                                                        required
-                                                        helperText={
-                                                            detailPriceType === 'fixed_price' ? 'Giá bán cố định' :
-                                                            detailPriceType === 'markup' ? `+ ${formatCurrency(parseFloat(detailPriceValue) || 0)}` :
-                                                            `- ${formatCurrency(parseFloat(detailPriceValue) || 0)}`
-                                                        }
-                                                    />
-                                                </Grid>
+                                            <form onSubmit={handleSavePriceInDetail}>
+                                                <Grid container spacing={2}>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <FormControl fullWidth required>
+                                                            <InputLabel>Loại quy tắc giá</InputLabel>
+                                                            <Select
+                                                                value={detailPriceType}
+                                                                label="Loại quy tắc giá"
+                                                                onChange={(e) => setDetailPriceType(e.target.value)}
+                                                            >
+                                                                <MenuItem value="fixed_price">Giá cố định</MenuItem>
+                                                                <MenuItem value="markup">Tăng giá (cộng thêm)</MenuItem>
+                                                                <MenuItem value="markdown">Giảm giá (trừ đi)</MenuItem>
+                                                            </Select>
+                                                        </FormControl>
+                                                    </Grid>
 
-                                                <Grid item xs={12} sm={6} md={3}>
-                                                    <TextField
-                                                        label="Ngày bắt đầu"
-                                                        type="date"
-                                                        value={detailStartDate}
-                                                        onChange={(e) => setDetailStartDate(e.target.value)}
-                                                        fullWidth
-                                                        InputLabelProps={{ shrink: true }}
-                                                        required
-                                                    />
-                                                </Grid>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <TextField
+                                                            label={detailPriceType === 'fixed_price' ? 'Giá cố định (₫)' :
+                                                                detailPriceType === 'markup' ? 'Số tiền tăng (₫)' :
+                                                                    'Số tiền giảm (₫)'}
+                                                            type="number"
+                                                            inputProps={{ min: 0, step: 1000 }}
+                                                            value={detailPriceValue}
+                                                            onChange={(e) => setDetailPriceValue(e.target.value)}
+                                                            fullWidth
+                                                            required
+                                                            helperText={
+                                                                detailPriceType === 'fixed_price' ? 'Giá bán cố định' :
+                                                                    detailPriceType === 'markup' ? `+ ${formatCurrency(parseFloat(detailPriceValue) || 0)}` :
+                                                                        `- ${formatCurrency(parseFloat(detailPriceValue) || 0)}`
+                                                            }
+                                                        />
+                                                    </Grid>
 
-                                                <Grid item xs={12} sm={6} md={3}>
-                                                    <TextField
-                                                        label="Ngày kết thúc (tùy chọn)"
-                                                        type="date"
-                                                        value={detailEndDate}
-                                                        onChange={(e) => setDetailEndDate(e.target.value)}
-                                                        fullWidth
-                                                        InputLabelProps={{ shrink: true }}
-                                                        inputProps={{ min: detailStartDate || undefined }}
-                                                        helperText="Để trống = vĩnh viễn"
-                                                    />
-                                                </Grid>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <TextField
+                                                            label="Ngày bắt đầu"
+                                                            type="date"
+                                                            value={detailStartDate}
+                                                            onChange={(e) => setDetailStartDate(e.target.value)}
+                                                            fullWidth
+                                                            InputLabelProps={{ shrink: true }}
+                                                            required
+                                                        />
+                                                    </Grid>
 
-                                                <Grid item xs={12}>
-                                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                                                        {detailEditingRule && (
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <TextField
+                                                            label="Ngày kết thúc (tùy chọn)"
+                                                            type="date"
+                                                            value={detailEndDate}
+                                                            onChange={(e) => setDetailEndDate(e.target.value)}
+                                                            fullWidth
+                                                            InputLabelProps={{ shrink: true }}
+                                                            inputProps={{ min: detailStartDate || undefined }}
+                                                            helperText="Để trống = vĩnh viễn"
+                                                        />
+                                                    </Grid>
+
+                                                    <Grid item xs={12}>
+                                                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                                                            {detailEditingRule && (
+                                                                <Button
+                                                                    variant="outlined"
+                                                                    color="secondary"
+                                                                    onClick={() => {
+                                                                        setDetailEditingRule(null);
+                                                                        setDetailPriceType('fixed_price');
+                                                                        setDetailPriceValue(productDetail?.hq_price || '0');
+                                                                        setDetailStartDate(new Date().toISOString().split('T')[0]);
+                                                                        const nextYear = new Date();
+                                                                        nextYear.setFullYear(nextYear.getFullYear() + 1);
+                                                                        setDetailEndDate(nextYear.toISOString().split('T')[0]);
+                                                                    }}
+                                                                >
+                                                                    Hủy
+                                                                </Button>
+                                                            )}
                                                             <Button
-                                                                variant="outlined"
-                                                                color="secondary"
-                                                                onClick={() => {
-                                                                    setDetailEditingRule(null);
-                                                                    setDetailPriceType('fixed_price');
-                                                                    setDetailPriceValue(productDetail?.hq_price || '0');
-                                                                    setDetailStartDate(new Date().toISOString().split('T')[0]);
-                                                                    const nextYear = new Date();
-                                                                    nextYear.setFullYear(nextYear.getFullYear() + 1);
-                                                                    setDetailEndDate(nextYear.toISOString().split('T')[0]);
-                                                                }}
+                                                                type="submit"
+                                                                variant="contained"
+                                                                color="primary"
+                                                                disabled={savingPrice}
+                                                                startIcon={savingPrice ? <CircularProgress size={20} /> : null}
                                                             >
-                                                                Hủy
+                                                                {savingPrice ? 'Đang lưu...' : (detailEditingRule ? 'Cập nhật' : 'Tạo mới')}
                                                             </Button>
-                                                        )}
-                                                        <Button
-                                                            type="submit"
-                                                            variant="contained"
-                                                            color="primary"
-                                                            disabled={savingPrice}
-                                                            startIcon={savingPrice ? <CircularProgress size={20} /> : null}
-                                                        >
-                                                            {savingPrice ? 'Đang lưu...' : (detailEditingRule ? 'Cập nhật' : 'Tạo mới')}
-                                                        </Button>
-                                                    </Box>
+                                                        </Box>
+                                                    </Grid>
                                                 </Grid>
-                                            </Grid>
-                                        </form>
-                                    </CardContent>
-                                </Card>
+                                            </form>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
                             </Grid>
-                        </Grid>
 
-                        {/* Price History Card - Separate Row */}
-                        <Grid container sx={{ mt: 2 }}>
-                            <Grid item xs={12}>
-                                <Card>
-                                    <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, px: 2, pt: 2 }}>
-                                            <AttachMoney sx={{ mr: 1 }} />
-                                            <Typography variant="h6">
-                                                Lịch sử thay đổi giá
-                                            </Typography>
-                                        </Box>
-                                        <Divider sx={{ mb: 2 }} />
+                            {/* Price History Card - Separate Row */}
+                            <Grid container sx={{ mt: 2 }}>
+                                <Grid item xs={12}>
+                                    <Card>
+                                        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, px: 2, pt: 2 }}>
+                                                <AttachMoney sx={{ mr: 1 }} />
+                                                <Typography variant="h6">
+                                                    Lịch sử thay đổi giá
+                                                </Typography>
+                                            </Box>
+                                            <Divider sx={{ mb: 2 }} />
 
-                                        <Box sx={{ px: 2, pb: 2 }}>
-                                            <MaterialReactTable
-                                                columns={priceHistoryColumns}
-                                                data={productPriceHistory}
-                                                enableRowActions
-                                                positionActionsColumn="last"
-                                                enableColumnActions={false}
-                                                enableColumnFilters={false}
-                                                enableSorting={false}
-                                                enableTopToolbar={false}
-                                                enableBottomToolbar={false}
-                                                enablePagination={false}
-                                                muiTableContainerProps={{
-                                                    sx: { maxHeight: 400 }
-                                                }}
-                                                muiTablePaperProps={{
-                                                    elevation: 0,
-                                                    sx: { boxShadow: 'none' }
-                                                }}
-                                                renderRowActions={({ row }) => {
-                                                    const item = row.original;
-                                                    // Xác định trạng thái để disable nút sửa/xóa
-                                                    const now = new Date();
-                                                    now.setHours(0, 0, 0, 0);
-                                                    const startDate = item.start_date ? new Date(item.start_date) : null;
-                                                    const endDate = item.end_date ? new Date(item.end_date) : null;
-                                                    
-                                                    let isActive = false;
-                                                    
-                                                    if (startDate) {
-                                                        startDate.setHours(0, 0, 0, 0);
-                                                        if (endDate) {
-                                                            endDate.setHours(23, 59, 59, 999);
-                                                            if (now >= startDate && now <= endDate) {
-                                                                isActive = true;
-                                                            }
-                                                        } else {
-                                                            if (now >= startDate) {
-                                                                isActive = true;
+                                            <Box sx={{ px: 2, pb: 2 }}>
+                                                <MaterialReactTable
+                                                    columns={priceHistoryColumns}
+                                                    data={productPriceHistory}
+                                                    enableRowActions
+                                                    positionActionsColumn="last"
+                                                    enableColumnActions={false}
+                                                    enableColumnFilters={false}
+                                                    enableSorting={false}
+                                                    enableTopToolbar={false}
+                                                    enableBottomToolbar={false}
+                                                    enablePagination={false}
+                                                    muiTableContainerProps={{
+                                                        sx: { maxHeight: 400 }
+                                                    }}
+                                                    muiTablePaperProps={{
+                                                        elevation: 0,
+                                                        sx: { boxShadow: 'none' }
+                                                    }}
+                                                    renderRowActions={({ row }) => {
+                                                        const item = row.original;
+                                                        // Xác định trạng thái để disable nút sửa/xóa
+                                                        const now = new Date();
+                                                        now.setHours(0, 0, 0, 0);
+                                                        const startDate = item.start_date ? new Date(item.start_date) : null;
+                                                        const endDate = item.end_date ? new Date(item.end_date) : null;
+
+                                                        let isActive = false;
+
+                                                        if (startDate) {
+                                                            startDate.setHours(0, 0, 0, 0);
+                                                            if (endDate) {
+                                                                endDate.setHours(23, 59, 59, 999);
+                                                                if (now >= startDate && now <= endDate) {
+                                                                    isActive = true;
+                                                                }
+                                                            } else {
+                                                                if (now >= startDate) {
+                                                                    isActive = true;
+                                                                }
                                                             }
                                                         }
-                                                    }
-                                                    
-                                                    return (
-                                                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                            <IconButton 
-                                                                size="small" 
-                                                                color="warning"
-                                                                onClick={() => handleEditPriceInDetail(item)}
-                                                                title="Sửa"
-                                                                disabled={isActive}
-                                                            >
-                                                                <Edit fontSize="small" />
-                                                            </IconButton>
-                                                            <IconButton 
-                                                                size="small" 
-                                                                color="error"
-                                                                onClick={() => handleDeletePriceInDetail(item.rule_id)}
-                                                                title="Xóa"
-                                                                disabled={isActive}
-                                                            >
-                                                                <Delete fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    );
-                                                }}
-                                                localization={{
-                                                    noRecordsToDisplay: 'Chưa có lịch sử thay đổi giá'
-                                                }}
-                                            />
-                                        </Box>
-                                    </CardContent>
-                                </Card>
+
+                                                        return (
+                                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="warning"
+                                                                    onClick={() => handleEditPriceInDetail(item)}
+                                                                    title="Sửa"
+                                                                    disabled={isActive}
+                                                                >
+                                                                    <Edit fontSize="small" />
+                                                                </IconButton>
+                                                                {/* <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => handleDeletePriceInDetail(item.rule_id)}
+                                                                    title="Xóa"
+                                                                    disabled={isActive}
+                                                                >
+                                                                    <Delete fontSize="small" />
+                                                                </IconButton> */}
+                                                            </Box>
+                                                        );
+                                                    }}
+                                                    localization={{
+                                                        noRecordsToDisplay: 'Chưa có lịch sử thay đổi giá'
+                                                    }}
+                                                />
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
                             </Grid>
-                        </Grid>
                         </>
                     ) : (
                         <Alert severity="warning">Không tìm thấy thông tin sản phẩm</Alert>

@@ -4,11 +4,16 @@ import { Op } from 'sequelize'
 // GET ALL PRODUCTS
 export const getAll = (query) => new Promise(async (resolve, reject) => {
     try {
-        const { category_id, supplier_id, search } = query || {}
+        const { category_id, supplier_id, search, include_inactive = false } = query || {}
         let where = {}
 
         if (category_id) where.category_id = category_id
         if (supplier_id) where.supplier_id = supplier_id
+
+        // By default, only show active products unless explicitly requested
+        if (!include_inactive) {
+            where.is_active = true
+        }
 
         const response = await db.Product.findAll({
             where,
@@ -47,10 +52,17 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
 })
 
 // GET ONE PRODUCT
-export const getOne = (product_id) => new Promise(async (resolve, reject) => {
+export const getOne = (product_id, include_inactive = false) => new Promise(async (resolve, reject) => {
     try {
+        let where = { product_id }
+
+        // By default, only show active products unless explicitly requested
+        if (!include_inactive) {
+            where.is_active = true
+        }
+
         const response = await db.Product.findOne({
-            where: { product_id },
+            where,
             include: [
                 {
                     model: db.Category,
@@ -78,7 +90,7 @@ export const getOne = (product_id) => new Promise(async (resolve, reject) => {
 // CREATE PRODUCT
 export const create = (body) => new Promise(async (resolve, reject) => {
     try {
-        // Check if SKU already exists
+        // Check if SKU already exists (including inactive products)
         const existingProduct = await db.Product.findOne({
             where: { sku: body.sku }
         })
@@ -97,8 +109,11 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             sku: body.sku,
             category_id: body.category_id || null,
             supplier_id: body.supplier_id || null,
+            base_unit_id: body.base_unit_id,
             hq_price: body.hq_price || 0.00,
-            description: body.description
+            import_price: body.import_price || 0.00,
+            description: body.description,
+            is_active: true  // New products are active by default
         })
         resolve({
             err: 0,
@@ -132,15 +147,20 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
             }
         }
 
+        // Build update object with only provided fields
+        const updateData = {}
+        if (body.name !== undefined) updateData.name = body.name
+        if (body.sku !== undefined) updateData.sku = body.sku
+        if (body.category_id !== undefined) updateData.category_id = body.category_id
+        if (body.supplier_id !== undefined) updateData.supplier_id = body.supplier_id
+        if (body.base_unit_id !== undefined) updateData.base_unit_id = body.base_unit_id
+        if (body.hq_price !== undefined) updateData.hq_price = body.hq_price
+        if (body.import_price !== undefined) updateData.import_price = body.import_price
+        if (body.description !== undefined) updateData.description = body.description
+        if (body.is_active !== undefined) updateData.is_active = body.is_active
+
         const [affectedRows] = await db.Product.update(
-            {
-                name: body.name,
-                sku: body.sku,
-                category_id: body.category_id,
-                supplier_id: body.supplier_id,
-                hq_price: body.hq_price,
-                description: body.description
-            },
+            updateData,
             {
                 where: { product_id }
             }
@@ -155,15 +175,17 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
     }
 })
 
-// DELETE PRODUCT
+// SOFT DELETE PRODUCT
 export const remove = (product_id) => new Promise(async (resolve, reject) => {
     try {
-        const affectedRows = await db.Product.destroy({
-            where: { product_id }
-        })
+        // Soft delete: set is_active to false instead of destroying the record
+        const [affectedRows] = await db.Product.update(
+            { is_active: false },
+            { where: { product_id, is_active: true } }
+        )
         resolve({
             err: affectedRows > 0 ? 0 : 1,
-            msg: affectedRows > 0 ? 'Product deleted successfully' : 'Product not found',
+            msg: affectedRows > 0 ? 'Product deleted successfully' : 'Product not found or already deleted',
             data: affectedRows > 0
         })
     } catch (error) {
@@ -171,8 +193,82 @@ export const remove = (product_id) => new Promise(async (resolve, reject) => {
     }
 })
 
+// RESTORE PRODUCT (undo soft delete)
+export const restore = (product_id) => new Promise(async (resolve, reject) => {
+    try {
+        const [affectedRows] = await db.Product.update(
+            { is_active: true },
+            { where: { product_id, is_active: false } }
+        )
+        resolve({
+            err: affectedRows > 0 ? 0 : 1,
+            msg: affectedRows > 0 ? 'Product restored successfully' : 'Product not found or already active',
+            data: affectedRows > 0
+        })
+    } catch (error) {
+        reject(error)
+    }
+})
+
+// HARD DELETE PRODUCT (permanent deletion - use with caution)
+export const hardDelete = (product_id) => new Promise(async (resolve, reject) => {
+    try {
+        const affectedRows = await db.Product.destroy({
+            where: { product_id }
+        })
+        resolve({
+            err: affectedRows > 0 ? 0 : 1,
+            msg: affectedRows > 0 ? 'Product permanently deleted' : 'Product not found',
+            data: affectedRows > 0
+        })
+    } catch (error) {
+        reject(error)
+    }
+})
+
+// TOGGLE PRODUCT STATUS (switch between active and inactive)
+export const toggleStatus = (product_id) => new Promise(async (resolve, reject) => {
+    try {
+        // First, get the current status
+        const product = await db.Product.findOne({
+            where: { product_id },
+            attributes: ['product_id', 'is_active', 'name']
+        })
+
+        if (!product) {
+            resolve({
+                err: 1,
+                msg: 'Product not found',
+                data: null
+            })
+            return
+        }
+
+        // Toggle the status
+        const newStatus = !product.is_active
+        const [affectedRows] = await db.Product.update(
+            { is_active: newStatus },
+            { where: { product_id } }
+        )
+
+        resolve({
+            err: affectedRows > 0 ? 0 : 1,
+            msg: affectedRows > 0
+                ? `Product ${newStatus ? 'activated' : 'deactivated'} successfully`
+                : 'Failed to update product status',
+            data: {
+                product_id: product.product_id,
+                name: product.name,
+                is_active: newStatus
+            }
+        })
+    } catch (error) {
+        reject(error)
+    }
+})
+
 // GET PRODUCTS BY STORE
-export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
+export const getByStore = (store_id, include_inactive = false) => new Promise(async (resolve, reject) => {
     try {
         const inventories = await db.Inventory.findAll({
             where: { store_id },
@@ -180,6 +276,7 @@ export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
                 {
                     model: db.Product,
                     as: 'product',
+                    where: include_inactive ? {} : { is_active: true },
                     include: [
                         {
                             model: db.Category,
@@ -193,7 +290,7 @@ export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
         })
 
         const now = new Date()
-        
+
         // Get all active pricing rules for this store
         const activeRules = await db.PricingRule.findAll({
             where: {
@@ -218,7 +315,7 @@ export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
             // Convert Sequelize instance to plain object to avoid circular references
             const invPlain = inv.get ? inv.get({ plain: true }) : JSON.parse(JSON.stringify(inv))
             const product = invPlain.product || {}
-            
+
             // Extract category data safely
             const category = product.category ? {
                 category_id: product.category.category_id,
@@ -273,12 +370,17 @@ export const getByStore = (store_id) => new Promise(async (resolve, reject) => {
 // GET PRODUCTS FOR PRICE MANAGEMENT (with current pricing info)
 export const getForPriceManagement = (query) => new Promise(async (resolve, reject) => {
     try {
-        const { store_id, search, category_id, supplier_id } = query || {}
-        
+        const { store_id, search, category_id, supplier_id, include_inactive = false } = query || {}
+
         // Get all products
         let where = {}
         if (category_id) where.category_id = category_id
         if (supplier_id) where.supplier_id = supplier_id
+
+        // By default, only show active products
+        if (!include_inactive) {
+            where.is_active = true
+        }
 
         const products = await db.Product.findAll({
             where,
@@ -312,7 +414,7 @@ export const getForPriceManagement = (query) => new Promise(async (resolve, reje
             filteredProducts.map(async (product) => {
                 // Convert Sequelize instance to plain object to avoid circular references
                 const productPlain = product.get ? product.get({ plain: true }) : JSON.parse(JSON.stringify(product))
-                
+
                 let currentPrice = parseFloat(productPlain.hq_price || 0)
                 let activePricingRule = null
                 let priceSource = 'hq_price'
@@ -341,7 +443,7 @@ export const getForPriceManagement = (query) => new Promise(async (resolve, reje
                     if (activeRule) {
                         // Convert activeRule to plain object
                         const activeRulePlain = activeRule.get ? activeRule.get({ plain: true }) : JSON.parse(JSON.stringify(activeRule))
-                        
+
                         activePricingRule = {
                             rule_id: activeRulePlain.rule_id,
                             type: activeRulePlain.type,
