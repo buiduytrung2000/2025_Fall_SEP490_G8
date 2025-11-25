@@ -58,7 +58,7 @@ const InventoryManagement = () => {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
-  
+
   // Khôi phục dữ liệu đơn nhập từ localStorage khi component mount (chỉ đọc một lần)
   const getInitialOrderData = (() => {
     let cached = null;
@@ -111,7 +111,7 @@ const InventoryManagement = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
-  
+
   // Lưu dữ liệu đơn nhập vào localStorage mỗi khi thay đổi
   useEffect(() => {
     try {
@@ -202,7 +202,7 @@ const InventoryManagement = () => {
         setLines(prev => {
           // Xóa các dòng trống trước khi thêm sản phẩm mới
           const filteredLines = prev.filter(l => !(l.sku === '' && l.name === ''));
-          
+
           const sku = row.sku || '';
           const name = row.name || '';
           const price = Number(row.package_price || row.cost_price || row.price || 0) || 0;
@@ -345,13 +345,13 @@ const InventoryManagement = () => {
         }
       }
       const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
-      
+
       // Khi nhập SKU hoặc tên hàng, tự động xóa các dòng trống khác
       if (key === 'sku' || key === 'name') {
         const currentLine = updated[idx];
-        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') || 
-                       (currentLine.name && currentLine.name.trim() !== '');
-        
+        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') ||
+          (currentLine.name && currentLine.name.trim() !== '');
+
         if (hasData) {
           // Giữ dòng hiện tại và các dòng có dữ liệu, xóa các dòng trống khác
           const filtered = updated.filter((l, i) => {
@@ -367,17 +367,17 @@ const InventoryManagement = () => {
   };
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
-  
+
   // Đếm số sản phẩm hợp lệ trong đơn nhập (có SKU hoặc tên hàng)
   const orderItemsCount = useMemo(() => {
     return lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')).length;
   }, [lines]);
 
   const handleCreateOrder = async () => {
-      if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
-        toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
-        return;
-      }
+    if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
+      toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+      return;
+    }
     if (!target || target.trim() === '') {
       toast.error('Vui lòng nhập tên kho nhận hàng');
       return;
@@ -432,7 +432,7 @@ const InventoryManagement = () => {
       };
 
       const result = await createStoreOrder(payload);
-      
+
       if (result.err === 0) {
         toast.success('Tạo đơn hàng thành công!');
         // Reset đơn nhập
@@ -460,11 +460,11 @@ const InventoryManagement = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'flex-start', sm: 'center' }, 
-        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        justifyContent: 'space-between',
         mb: 2,
         gap: 2
       }}>
@@ -484,12 +484,12 @@ const InventoryManagement = () => {
                 color="primary"
                 size={isMobile ? 'small' : 'medium'}
                 onClick={() => {
-                if (selected.size === 0 && orderItemsCount === 0) {
-                  toast.warn('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
-                  return;
-                }
-                setOpenCreateOrderModal(true);
-              }}
+                  if (selected.size === 0 && orderItemsCount === 0) {
+                    toast.warn('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
+                    return;
+                  }
+                  setOpenCreateOrderModal(true);
+                }}
               >
                 Lên đơn nhập {orderItemsCount > 0 ? `(${orderItemsCount})` : ''}
               </Button>
@@ -589,31 +589,31 @@ const InventoryManagement = () => {
         <DialogContent dividers>
           <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
-              <TextField 
-                label="Kho nhận" 
-                size="small" 
-                value={target} 
-                onChange={(e) => setTarget(e.target.value)} 
-                sx={{ width: { xs: '100%', sm: 280, md: 320 } }} 
+              <TextField
+                label="Kho nhận"
+                size="small"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 280, md: 320 } }}
               />
-              <TextField 
-                select 
-                size="small" 
-                label="Hàng tươi sống?" 
-                value={perishable ? 'Yes' : 'No'} 
-                onChange={(e) => setPerishable(e.target.value === 'Yes')} 
+              <TextField
+                select
+                size="small"
+                label="Hàng tươi sống?"
+                value={perishable ? 'Yes' : 'No'}
+                onChange={(e) => setPerishable(e.target.value === 'Yes')}
                 sx={{ width: { xs: '100%', sm: 180 } }}
               >
                 <MenuItem value="No">No</MenuItem>
                 <MenuItem value="Yes">Yes</MenuItem>
               </TextField>
               {perishable && (
-                <TextField 
-                  label="Nhà cung cấp tươi sống" 
-                  size="small" 
-                  value={supplier} 
-                  onChange={(e) => setSupplier(e.target.value)} 
-                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }} 
+                <TextField
+                  label="Nhà cung cấp tươi sống"
+                  size="small"
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }}
                 />
               )}
             </Stack>
@@ -638,40 +638,40 @@ const InventoryManagement = () => {
                 {lines.map((l, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        value={l.sku} 
-                        onChange={(e) => updateLine(idx, 'sku', e.target.value)} 
+                      <TextField
+                        size="small"
+                        value={l.sku}
+                        onChange={(e) => updateLine(idx, 'sku', e.target.value)}
                         sx={{ width: { xs: 100, sm: 120 } }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        fullWidth 
-                        value={l.name} 
-                        onChange={(e) => updateLine(idx, 'name', e.target.value)} 
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={l.name}
+                        onChange={(e) => updateLine(idx, 'name', e.target.value)}
                         sx={{ minWidth: { xs: 150, sm: 200 } }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.qty} 
-                        onChange={(e) => updateLine(idx, 'qty', e.target.value)} 
-                        sx={{ width: { xs: 80, sm: 120 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.qty}
+                        onChange={(e) => updateLine(idx, 'qty', e.target.value)}
+                        sx={{ width: { xs: 80, sm: 120 } }}
                         inputProps={{ min: 0, step: 1 }}
                         placeholder="Thùng"
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.price} 
-                        onChange={(e) => updateLine(idx, 'price', e.target.value)} 
-                        sx={{ width: { xs: 100, sm: 160 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.price}
+                        onChange={(e) => updateLine(idx, 'price', e.target.value)}
+                        sx={{ width: { xs: 100, sm: 160 } }}
                         placeholder="Giá 1 thùng"
                         InputProps={{
                           inputProps: { min: 0, step: 1000 },
@@ -713,6 +713,8 @@ const InventoryManagement = () => {
     </Box>
   );
 };
+
+
 
 function exportCsv(rows) {
   const header = oldColumns.filter(c => c.key !== 'actions' && c.key !== 'select').map(c => c.label).join(',');
