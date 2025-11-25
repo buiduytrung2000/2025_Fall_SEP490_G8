@@ -4,8 +4,7 @@ import {
     isOrderEditable,
     isValidStatusTransition,
     validateOrderEditPermission,
-    validateStatusTransition,
-    VALID_STATUSES
+    validateStatusTransition
 } from './orderValidation';
 
 const buildPackageMetaMap = async (productIds = []) => {
@@ -84,7 +83,7 @@ export const createBatchOrders = (batchData) => new Promise(async (resolve, reje
         for (let i = 0; i < orders.length; i++) {
             const orderData = orders[i];
             try {
-                const result = await createOrder(orderData);
+                const result = await createOrder(orderData, orderData.supplier_id);
 
                 if (result.err === 0) {
                     results.successful.push({
@@ -155,13 +154,15 @@ export const createBatchOrders = (batchData) => new Promise(async (resolve, reje
 /**
  * Create warehouse-to-supplier order
  */
-export const createOrder = (orderData) => new Promise(async (resolve, reject) => {
+export const createOrder = (orderData, defaultSupplierId = null) => new Promise(async (resolve, reject) => {
     const transaction = await db.sequelize.transaction();
     try {
         const { supplier_id, items, created_by, expected_delivery } = orderData;
 
         // Validate required fields
-        if (!supplier_id || !items || items.length === 0 || !created_by) {
+        const effectiveSupplierId = supplier_id || defaultSupplierId;
+
+        if (!effectiveSupplierId || !items || items.length === 0 || !created_by) {
             await transaction.rollback();
             return resolve({
                 err: 1,
@@ -170,24 +171,16 @@ export const createOrder = (orderData) => new Promise(async (resolve, reject) =>
         }
 
         // Verify supplier exists
-        const supplier = await db.Supplier.findByPk(supplier_id);
+        const supplier = await db.Supplier.findByPk(effectiveSupplierId);
         if (!supplier) {
             await transaction.rollback();
             return resolve({ err: 1, msg: 'Supplier not found' });
         }
 
-        // Calculate total amount
-        let total = 0;
-        for (const item of items) {
-            const quantity = parseInt(item.quantity);
-            const unitPrice = parseFloat(item.unit_price);
-            total += quantity * unitPrice;
-        }
-
         // Create order
         const orderCode = await generateOrderCode();
         const order = await db.Order.create({
-            supplier_id,
+            supplier_id: effectiveSupplierId,
             created_by,
             order_code: orderCode,
             status: 'pending',

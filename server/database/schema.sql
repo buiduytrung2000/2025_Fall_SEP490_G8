@@ -35,12 +35,15 @@ CREATE TABLE IF NOT EXISTS Unit (
 
 CREATE TABLE IF NOT EXISTS Supplier (
     supplier_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NULL,
     name VARCHAR(255) NOT NULL,
     contact VARCHAR(255),
     email VARCHAR(255),
     address TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    UNIQUE KEY uq_supplier_user (user_id),
     INDEX idx_supplier_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -1,4 +1,5 @@
 import * as orderService from '../services/order';
+import { VALID_STATUSES } from '../services/orderValidation';
 import db from '../models';
 import { Op } from 'sequelize';
 
@@ -47,16 +48,32 @@ const ensureSupplierLinked = async (req, res) => {
  */
 export const createBatchOrders = async (req, res) => {
     try {
-        const batchData = req.body;
+        const { orders = [], expected_delivery, notes } = req.body;
 
-        if (!batchData.orders || !Array.isArray(batchData.orders)) {
+        if (!Array.isArray(orders) || orders.length === 0) {
             return res.status(400).json({
                 err: 1,
                 msg: 'Invalid request: orders array is required'
             });
         }
 
-        const response = await orderService.createBatchOrders(batchData);
+        const createdBy = req.user?.user_id || req.user?.id;
+        if (!createdBy) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'User not authenticated or missing user_id'
+            });
+        }
+
+        const preparedOrders = orders.map(order => ({
+            supplier_id: order.supplier_id,
+            items: order.items,
+            expected_delivery: order.expected_delivery || expected_delivery || null,
+            notes: order.notes || notes || null,
+            created_by: createdBy
+        }));
+
+        const response = await orderService.createBatchOrders({ orders: preparedOrders });
         return res.status(response.err === 0 ? 200 : 400).json(response);
     } catch (error) {
         return res.status(500).json({

@@ -1,15 +1,5 @@
-    -- =====================================================
-    -- CCMS Database - Sample Data
-    -- =====================================================
-    -- This file contains sample INSERT statements for testing
-    -- =====================================================
 
     USE CCMS_DB;
-
-    -- =====================================================
-    -- INSERT SAMPLE DATA
-    -- =====================================================
-
     -- 1. Insert Stores
     INSERT INTO Store (name, address, phone, status) VALUES
     ('Store Central', '123 Main Street, City A', '0123456789', 'active'),
@@ -27,10 +17,10 @@
     ('Vệ sinh nhà cửa', 2);           -- 7
 
     -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
-    INSERT INTO Supplier (name, contact, email, address) VALUES
-    ('Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
-    ('Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
-    ('Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
+INSERT INTO Supplier (user_id, name, contact, email, address) VALUES
+(7, 'Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
+(8, 'Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
+(9, 'Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
 
 -- 4. Insert Units & Product Units for multi-level conversion
 INSERT INTO Unit (name, symbol, level) VALUES
@@ -40,7 +30,8 @@ INSERT INTO Unit (name, symbol, level) VALUES
 ('Chai', 'chai', 3),            -- 4
 ('Gói', 'goi', 3),              -- 5
 ('Thùng', 'thung', 1),          -- 6
-('Bao', 'bao', 2);              -- 7
+('Bịch', 'bich', 1),          -- 7
+('Bao', 'bao', 2);              -- 8
 
     -- Note: includes phone column
     -- Passwords are hashed using bcrypt (password: '123')
@@ -51,7 +42,9 @@ INSERT INTO Unit (name, symbol, level) VALUES
     ('cashier_store1_2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
     ('cashier_store1_3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
     ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
-    ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
+    ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
+    ('supplier_rep2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier2@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
+    ('supplier_rep3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier3@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
 -- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
 INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, description) VALUES
@@ -64,18 +57,12 @@ INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price
 
 -- 5b. Insert Product Units & conversion ratios
 INSERT INTO ProductUnit (product_id, unit_id, conversion_to_base) VALUES
-(1, 1, 1),  -- Kilogram (base)
-(1, 7, 5),  -- Bao 5kg
-(2, 2, 1),  -- Liter (base)
-(2, 4, 1),  -- Chai 1L
-(3, 3, 1),  -- Milliliter (base)
-(3, 4, 750),-- Chai 750ml
-(4, 5, 1),  -- Gói (base)
-(4, 6, 30), -- Thùng 30 gói
-(5, 1, 1),  -- Kilogram (base)
-(5, 7, 1),  -- Bao 1kg
-(6, 4, 1),  -- Chai 500ml (base)
-(6, 6, 24); -- Thùng 24 chai
+(1, 7, 5),  
+(2, 4, 8),  
+(3, 4, 10),  
+(4, 6, 30), 
+(5, 5, 30), 
+(6, 6, 24); 
 
 -- 6. Insert Inventory (base_quantity = đơn vị cơ sở, reserved_quantity = 0)
 INSERT INTO Inventory (store_id, product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point) VALUES
@@ -114,43 +101,7 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
     ('Mary Shopper', '0902345678', 'mary.shopper@email.com', 150, 'silver'),
     ('Bob Buyer', '0903456789', 'bob.buyer@email.com', 50, 'bronze');
 
-    -- 8. Insert Orders (Warehouse-to-Supplier Orders)
-    -- Note: Order table is now for warehouse orders (no store_id)
-    INSERT INTO `Order` (supplier_id, created_by, status, expected_delivery) VALUES
-    (1, 2, 'confirmed', '2024-12-20 10:00:00'),
-    (2, 2, 'pending', '2024-12-25 14:00:00'),
-    (3, 2, 'delivered', '2024-12-15 09:00:00');
-
-    -- 9. Insert Order Items
-INSERT INTO OrderItem (order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base) VALUES
-(1, 1, 10, 999.99, 9999.90, 7, 50),
-(1, 2, 5, 899.99, 4499.95, 4, 5),
-(2, 4, 50, 19.99, 999.50, 6, 1500),
-(2, 5, 30, 49.99, 1499.70, 7, 30),
-(3, 6, 100, 12.99, 1299.00, 6, 2400);
-
-    -- 10. Insert Payments
-    INSERT INTO Payment (method, amount, status, paid_at) VALUES
-    ('card', 1099.98, 'completed', '2024-12-10 15:30:00'),
-    ('cash', 599.97, 'completed', '2024-12-11 10:15:00'),
-    ('mobile_payment', 2499.99, 'completed', '2024-12-12 14:45:00'),
-    ('card', 129.90, 'completed', '2024-12-13 16:20:00');
-
-    -- 11. Insert Transactions (Sales)
-    INSERT INTO Transaction (order_id, customer_id, payment_id, store_id, total_amount, status) VALUES
-    (NULL, 1, 1, 1, 1099.98, 'completed'),
-    (NULL, 2, 2, 1, 599.97, 'completed'),
-    (NULL, 1, 3, 1, 2499.99, 'completed'),
-    (NULL, 3, 4, 1, 129.90, 'completed');
-
-    -- 12. Insert Transaction Items
-INSERT INTO TransactionItem (transaction_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base) VALUES
-(1, 1, 1, 1099.98, 1099.98, 7, 5),
-(2, 2, 1, 599.97, 599.97, 4, 1),
-(3, 3, 1, 2499.99, 2499.99, 4, 750),
-(4, 4, 5, 25.98, 129.90, 5, 5),
-(4, 5, 1, 49.99, 49.99, 7, 1);
-
+   
     -- =====================================================
     -- SCHEDULE MANAGEMENT DATA
     -- =====================================================
@@ -160,44 +111,6 @@ INSERT INTO TransactionItem (transaction_id, product_id, quantity, unit_price, s
     ('Ca Sáng', '06:00:00', '14:00:00', 'Ca làm việc buổi sáng từ 6h đến 14h', TRUE),
     ('Ca Tối', '14:00:00', '22:00:00', 'Ca làm việc buổi tối từ 14h đến 22h', TRUE),
     ('Ca Đêm', '22:00:00', '06:00:00', 'Ca làm việc đêm từ 22h đến 6h sáng hôm sau', TRUE);
-
-    -- 14. Insert Schedules (Phân công lịch làm việc)
-    -- Lịch làm việc tuần từ 2024-12-16 đến 2024-12-22 (Tuần 51)
-    INSERT INTO Schedule (store_id, user_id, shift_template_id, work_date, status, notes, created_by) VALUES
-    -- Thứ Hai (2024-12-16)
-    (1, 3, 1, '2024-12-16', 'confirmed', 'Ca sáng thứ hai', 2),
-    (1, 4, 2, '2024-12-16', 'confirmed', 'Ca tối thứ hai', 2),
-    -- Thứ Ba (2024-12-17)
-    (1, 3, 1, '2024-12-17', 'confirmed', 'Ca sáng thứ ba', 2),
-    (1, 5, 2, '2024-12-17', 'confirmed', 'Ca tối thứ ba', 2),
-    -- Thứ Tư (2024-12-18)
-    (1, 4, 1, '2024-12-18', 'confirmed', 'Ca sáng thứ tư', 2),
-    (1, 3, 2, '2024-12-18', 'confirmed', 'Ca tối thứ tư', 2),
-    -- Thứ Năm (2024-12-19)
-    (1, 5, 1, '2024-12-19', 'confirmed', 'Ca sáng thứ năm', 2),
-    (1, 4, 2, '2024-12-19', 'confirmed', 'Ca tối thứ năm', 2),
-    -- Thứ Sáu (2024-12-20)
-    (1, 3, 1, '2024-12-20', 'confirmed', 'Ca sáng thứ sáu', 2),
-    (1, 5, 2, '2024-12-20', 'confirmed', 'Ca tối thứ sáu', 2),
-    -- Thứ Bảy (2024-12-21)
-    (1, 4, 1, '2024-12-21', 'confirmed', 'Ca sáng thứ bảy', 2),
-    (1, 3, 2, '2024-12-21', 'confirmed', 'Ca tối thứ bảy', 2),
-    -- Chủ Nhật (2024-12-22)
-    (1, 5, 1, '2024-12-22', 'confirmed', 'Ca sáng chủ nhật', 2),
-    (1, 4, 2, '2024-12-22', 'draft', 'Ca tối chủ nhật - chưa xác nhận', 2);
-
-    -- 15. Insert Shift Change Requests (Yêu cầu đổi ca)
-    INSERT INTO ShiftChangeRequest (store_id, from_schedule_id, from_user_id, to_user_id, to_schedule_id, to_work_date, to_shift_template_id, request_type, reason, status, reviewed_by, reviewed_at) VALUES
-    -- Yêu cầu đổi ca đã được duyệt (swap với schedule có sẵn)
-    (1, 5, 4, 3, 6, NULL, NULL, 'swap', 'Có việc đột xuất vào buổi sáng thứ tư', 'approved', 2, '2024-12-15 10:30:00'),
-    -- Yêu cầu đổi ca đang chờ duyệt (give away - để quản lý tự phân công)
-    (1, 14, 4, NULL, NULL, NULL, NULL, 'give_away', 'Không thể làm ca tối chủ nhật', 'pending', NULL, NULL),
-    -- Yêu cầu đổi ca bị từ chối (swap với schedule có sẵn)
-    (1, 12, 5, 3, 8, NULL, NULL, 'swap', 'Muốn đổi ca để đi chơi', 'rejected', 2, '2024-12-15 14:20:00'),
-    -- Yêu cầu đổi ca với ca trống (swap với ca trống - ví dụ)
-    (1, 3, 3, NULL, NULL, '2024-12-25', 2, 'swap', 'Muốn đổi sang ca tối ngày 25/12', 'pending', NULL, NULL);
-
-
 
 -- Thêm các mẫu voucher theo mức điểm
 INSERT INTO VoucherTemplate (voucher_code_prefix, voucher_name, discount_type, discount_value, min_purchase_amount, max_discount_amount, required_loyalty_points, validity_days, is_active) VALUES
