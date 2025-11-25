@@ -1,4 +1,5 @@
 import * as orderService from '../services/order';
+import { VALID_STATUSES } from '../services/orderValidation';
 
 // =====================================================
 // ORDER CONTROLLERS - Warehouse to Supplier Orders
@@ -10,95 +11,21 @@ import * as orderService from '../services/order';
  */
 export const createBatchOrders = async (req, res) => {
     try {
-        const { orders, expected_delivery, notes } = req.body;
+        const batchData = req.body;
 
-        console.log('Create batch warehouse orders request:', {
-            ordersCount: orders?.length,
-            user: req.user
-        });
-
-        // Get created_by from user token
-        const createdBy = req.user?.user_id || req.user?.id || req.body.created_by;
-
-        if (!createdBy) {
+        if (!batchData.orders || !Array.isArray(batchData.orders)) {
             return res.status(400).json({
                 err: 1,
-                msg: 'User not authenticated or missing user_id'
+                msg: 'Invalid request: orders array is required'
             });
         }
-
-        // Validation: Check orders array
-        if (!orders || !Array.isArray(orders) || orders.length === 0) {
-            return res.status(400).json({
-                err: 1,
-                msg: 'Must provide at least one order'
-            });
-        }
-
-        // Validate each order
-        for (let i = 0; i < orders.length; i++) {
-            const order = orders[i];
-
-            if (!order.supplier_id) {
-                return res.status(400).json({
-                    err: 1,
-                    msg: `Order ${i + 1}: supplier_id is required`
-                });
-            }
-
-            if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
-                return res.status(400).json({
-                    err: 1,
-                    msg: `Order ${i + 1}: Must have at least one item`
-                });
-            }
-
-            // Validate items in each order
-            for (let j = 0; j < order.items.length; j++) {
-                const item = order.items[j];
-
-                if (!item.product_id && !item.sku) {
-                    return res.status(400).json({
-                        err: 1,
-                        msg: `Order ${i + 1}, Item ${j + 1}: Either product_id or sku is required`
-                    });
-                }
-
-                const quantity = parseInt(item.quantity);
-                if (isNaN(quantity) || quantity <= 0) {
-                    return res.status(400).json({
-                        err: 1,
-                        msg: `Order ${i + 1}, Item ${j + 1}: Quantity must be greater than 0`
-                    });
-                }
-
-                const unitPrice = parseFloat(item.unit_price);
-                if (isNaN(unitPrice) || unitPrice <= 0) {
-                    return res.status(400).json({
-                        err: 1,
-                        msg: `Order ${i + 1}, Item ${j + 1}: Unit price must be greater than 0`
-                    });
-                }
-            }
-        }
-
-        // Prepare batch data
-        const batchData = {
-            orders: orders.map(order => ({
-                supplier_id: parseInt(order.supplier_id),
-                created_by: parseInt(createdBy),
-                items: order.items,
-                expected_delivery: order.expected_delivery || expected_delivery || null,
-                notes: order.notes || notes || null
-            }))
-        };
 
         const response = await orderService.createBatchOrders(batchData);
-        return res.status(response.err === 0 ? 201 : 400).json(response);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed at batch order controller: ' + error.message
+            msg: 'Failed at order controller: ' + error.message
         });
     }
 };
@@ -109,77 +36,17 @@ export const createBatchOrders = async (req, res) => {
  */
 export const createOrder = async (req, res) => {
     try {
-        const { supplier_id, items, expected_delivery, notes } = req.body;
-
-        console.log('Create warehouse order request:', {
-            body: req.body,
-            user: req.user
-        });
-
-        // Get created_by from user token
-        const createdBy = req.user?.user_id || req.user?.id || req.body.created_by;
-
-        if (!createdBy) {
-            return res.status(400).json({
-                err: 1,
-                msg: 'User not authenticated or missing user_id'
-            });
-        }
-
-        // Validation: Check supplier_id
-        if (!supplier_id) {
-            return res.status(400).json({
-                err: 1,
-                msg: 'supplier_id is required for warehouse orders'
-            });
-        }
-
-        // Validation: Check items
-        if (!items || !Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({
-                err: 1,
-                msg: 'Order must have at least one item'
-            });
-        }
-
-        // Validation: Check each item
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-
-            // Validate product_id or sku
-            if (!item.product_id && !item.sku) {
-                return res.status(400).json({
-                    err: 1,
-                    msg: `Item ${i + 1}: Either product_id or sku is required`
-                });
-            }
-
-            // Validate quantity
-            const quantity = parseInt(item.quantity);
-            if (isNaN(quantity) || quantity <= 0) {
-                return res.status(400).json({
-                    err: 1,
-                    msg: `Item ${i + 1}: Quantity is required and must be greater than 0`
-                });
-            }
-
-            // Validate unit_price
-            const unitPrice = parseFloat(item.unit_price);
-            if (isNaN(unitPrice) || unitPrice <= 0) {
-                return res.status(400).json({
-                    err: 1,
-                    msg: `Item ${i + 1}: Unit price is required and must be greater than 0`
-                });
-            }
-        }
-
         const orderData = {
-            supplier_id: parseInt(supplier_id),
-            created_by: parseInt(createdBy),
-            items: items,
-            expected_delivery: expected_delivery || null,
-            notes: notes || null
+            ...req.body,
+            created_by: req.user?.user_id || req.user?.id
         };
+
+        if (!orderData.supplier_id || !orderData.items || orderData.items.length === 0) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required fields: supplier_id and items'
+            });
+        }
 
         const response = await orderService.createOrder(orderData);
         return res.status(response.err === 0 ? 201 : 400).json(response);
@@ -192,18 +59,26 @@ export const createOrder = async (req, res) => {
 };
 
 /**
- * Get all warehouse orders with filters
+ * Get all orders with filters and pagination
  * GET /api/v1/order
  */
 export const getAllOrders = async (req, res) => {
     try {
         const { page = 1, limit = 10, status, supplierId, search } = req.query;
 
+        // Validate status if provided
+        if (status && !VALID_STATUSES.includes(status)) {
+            return res.status(400).json({
+                err: 1,
+                msg: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
+            });
+        }
+
         const response = await orderService.getAllOrders({
             page: parseInt(page),
             limit: parseInt(limit),
             status,
-            supplierId,
+            supplierId: supplierId ? parseInt(supplierId) : undefined,
             search
         });
 
@@ -242,7 +117,7 @@ export const getOrderDetail = async (req, res) => {
 };
 
 /**
- * Update order status
+ * Update order status with validation
  * PATCH /api/v1/order/:orderId/status
  */
 export const updateOrderStatus = async (req, res) => {
@@ -257,17 +132,110 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
-        if (!validStatuses.includes(status)) {
+        // Validate status using the three-state system
+        if (!VALID_STATUSES.includes(status)) {
             return res.status(400).json({
                 err: 1,
-                msg: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+                msg: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
             });
         }
 
         const response = await orderService.updateOrderStatus({
             orderId: parseInt(orderId),
             status,
+            updatedBy: req.user?.user_id
+        });
+
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at order controller: ' + error.message
+        });
+    }
+};
+
+/**
+ * Update order details (only for pending orders)
+ * PUT /api/v1/order/:orderId
+ */
+export const updateOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const orderData = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing order ID'
+            });
+        }
+
+        const response = await orderService.updateOrder({
+            orderId: parseInt(orderId),
+            orderData,
+            updatedBy: req.user?.user_id
+        });
+
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at order controller: ' + error.message
+        });
+    }
+};
+
+/**
+ * Update order items (only for pending orders)
+ * PUT /api/v1/order/:orderId/items
+ */
+export const updateOrderItems = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { items } = req.body;
+
+        if (!orderId || !items || !Array.isArray(items)) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required inputs: order ID and items array'
+            });
+        }
+
+        const response = await orderService.updateOrderItems({
+            orderId: parseInt(orderId),
+            items,
+            updatedBy: req.user?.user_id
+        });
+
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at order controller: ' + error.message
+        });
+    }
+};
+
+/**
+ * Update expected delivery date (only for pending orders)
+ * PATCH /api/v1/order/:orderId/delivery
+ */
+export const updateExpectedDelivery = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { expected_delivery } = req.body;
+
+        if (!orderId || !expected_delivery) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required inputs: order ID and expected_delivery'
+            });
+        }
+
+        const response = await orderService.updateExpectedDelivery({
+            orderId: parseInt(orderId),
+            expectedDelivery: expected_delivery,
             updatedBy: req.user?.user_id
         });
 
@@ -312,6 +280,29 @@ export const getOrdersBySupplier = async (req, res) => {
 };
 
 /**
+ * Get pending orders
+ * GET /api/v1/order/pending
+ */
+export const getPendingOrders = async (req, res) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+
+        const response = await orderService.getOrdersByStatus({
+            status: 'pending',
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at order controller: ' + error.message
+        });
+    }
+};
+
+/**
  * Get orders by status
  * GET /api/v1/order/status/:status
  */
@@ -320,11 +311,10 @@ export const getOrdersByStatus = async (req, res) => {
         const { status } = req.params;
         const { page = 1, limit = 10 } = req.query;
 
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
-        if (!validStatuses.includes(status)) {
+        if (!VALID_STATUSES.includes(status)) {
             return res.status(400).json({
                 err: 1,
-                msg: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+                msg: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
             });
         }
 
@@ -344,7 +334,7 @@ export const getOrdersByStatus = async (req, res) => {
 };
 
 /**
- * Delete order
+ * Delete order (only pending or cancelled orders)
  * DELETE /api/v1/order/:orderId
  */
 export const deleteOrder = async (req, res) => {

@@ -12,31 +12,55 @@ router.use(verifyToken);
 router.use(checkRole('Warehouse', 'CEO'));
 
 // =====================================================
-// ORDER ROUTES - Warehouse to Supplier Orders
+// CREATE ROUTES - New Orders
 // =====================================================
 
-// Create batch warehouse orders (MUST BE BEFORE single order route)
+// Create batch orders
 router.post('/batch', orderController.createBatchOrders);
 
-// Create warehouse order
+// Create single order
 router.post('/', orderController.createOrder);
+
+// =====================================================
+// QUERY ROUTES - Get Orders
+// =====================================================
+
+// Get orders by supplier (MUST BE BEFORE /:orderId)
+router.get('/supplier/:supplierId', orderController.getOrdersBySupplier);
+
+// Get orders by status (MUST BE BEFORE /:orderId)
+router.get('/status/:status', orderController.getOrdersByStatus);
+
+// Get pending orders (MUST BE BEFORE /:orderId)
+router.get('/pending', orderController.getPendingOrders);
 
 // Get all orders with filters
 router.get('/', orderController.getAllOrders);
 
-// Get orders by supplier
-router.get('/supplier/:supplierId', orderController.getOrdersBySupplier);
-
-// Get orders by status
-router.get('/status/:status', orderController.getOrdersByStatus);
-
 // Get order detail by ID (MUST BE AFTER specific routes)
 router.get('/:orderId', orderController.getOrderDetail);
+
+// =====================================================
+// UPDATE ROUTES - Modify Orders
+// =====================================================
 
 // Update order status
 router.patch('/:orderId/status', orderController.updateOrderStatus);
 
-// Delete order
+// Update expected delivery date
+router.patch('/:orderId/delivery', orderController.updateExpectedDelivery);
+
+// Update order details
+router.put('/:orderId', orderController.updateOrder);
+
+// Update order items
+router.put('/:orderId/items', orderController.updateOrderItems);
+
+// =====================================================
+// DELETE ROUTES - Remove Orders
+// =====================================================
+
+// Delete order (only pending orders)
 router.delete('/:orderId', orderController.deleteOrder);
 
 export default router;

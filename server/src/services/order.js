@@ -1,5 +1,12 @@
-import db from '../models';
+﻿import db from '../models';
 import { Op } from 'sequelize';
+import {
+    isOrderEditable,
+    isValidStatusTransition,
+    validateOrderEditPermission,
+    validateStatusTransition,
+    VALID_STATUSES
+} from './orderValidation';
 
 // =====================================================
 // ORDER SERVICES - Warehouse to Supplier Orders
@@ -99,11 +106,15 @@ export const createBatchOrders = (batchData) => new Promise(async (resolve, reje
 export const createOrder = (orderData) => new Promise(async (resolve, reject) => {
     const transaction = await db.sequelize.transaction();
     try {
-        const { supplier_id, created_by, items, expected_delivery, notes } = orderData;
+        const { supplier_id, items, created_by, expected_delivery } = orderData;
 
-        if (!supplier_id || !created_by || !items || items.length === 0) {
+        // Validate required fields
+        if (!supplier_id || !items || items.length === 0 || !created_by) {
             await transaction.rollback();
-            return resolve({ err: 1, msg: 'Missing required fields: supplier_id, created_by, items' });
+            return resolve({
+                err: 1,
+                msg: 'Missing required fields: supplier_id, items, created_by'
+            });
         }
 
         // Verify supplier exists
@@ -113,60 +124,37 @@ export const createOrder = (orderData) => new Promise(async (resolve, reject) =>
             return resolve({ err: 1, msg: 'Supplier not found' });
         }
 
-        // Calculate total amount
-        let total = 0;
-        for (const item of items) {
-            const quantity = parseInt(item.quantity);
-            const unitPrice = parseFloat(item.unit_price);
-            total += quantity * unitPrice;
-        }
-
-        // Create order
+        // Create order with default status 'pending'
         const order = await db.Order.create({
             supplier_id,
             created_by,
-            status: 'pending',
+            status: 'pending', // Always start as pending
             expected_delivery: expected_delivery || null
         }, { transaction });
 
+        let total = 0;
+
         // Create order items
         for (const item of items) {
-            const quantity = parseInt(item.quantity);
-            const unitPrice = parseFloat(item.unit_price);
-            const subtotal = quantity * unitPrice;
+            const { product_id, quantity, unit_price, unit_id } = item;
 
-            // Get product info
-            let product = null;
-            if (item.product_id) {
-                product = await db.Product.findByPk(item.product_id, {
-                    include: [
-                        {
-                            model: db.Unit,
-                            as: 'baseUnit',
-                            attributes: ['unit_id', 'name', 'symbol']
-                        }
-                    ]
-                });
-            } else if (item.sku) {
-                product = await db.Product.findOne({
-                    where: { sku: item.sku },
-                    include: [
-                        {
-                            model: db.Unit,
-                            as: 'baseUnit',
-                            attributes: ['unit_id', 'name', 'symbol']
-                        }
-                    ]
-                });
-            }
-
-            if (!product) {
+            if (!product_id || !quantity || !unit_price) {
                 await transaction.rollback();
                 return resolve({
                     err: 1,
-                    msg: `Product not found: ${item.product_id || item.sku}`
+                    msg: 'Each item must have product_id, quantity, and unit_price'
                 });
             }
+
+            // Verify product exists
+            const product = await db.Product.findByPk(product_id);
+            if (!product) {
+                await transaction.rollback();
+                return resolve({ err: 1, msg: `Product with ID ${product_id} not found` });
+            }
+
+            const subtotal = quantity * unit_price;
+            total += subtotal;
 
             // Get unit info
             let unitId = item.unit_id || product.base_unit_id;
@@ -191,7 +179,7 @@ export const createOrder = (orderData) => new Promise(async (resolve, reject) =>
                 order_id: order.order_id,
                 product_id: product.product_id,
                 quantity,
-                unit_price: unitPrice,
+                unit_price: unit_price,
                 subtotal,
                 unit_id: unitId,
                 quantity_in_base: quantityInBase
@@ -273,7 +261,8 @@ export const getAllOrders = async ({ page, limit, status, supplierId, search }) 
             return {
                 ...orderData,
                 totalItems,
-                totalAmount: parseFloat(totalAmount.toFixed(2))
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                isEditable: isOrderEditable(orderData.status) // Add editable flag
             };
         });
 
@@ -353,7 +342,8 @@ export const getOrderDetail = async (orderId) => {
             data: {
                 ...orderData,
                 totalItems,
-                totalAmount: parseFloat(totalAmount.toFixed(2))
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                isEditable: isOrderEditable(orderData.status) // Add editable flag
             }
         };
     } catch (error) {
@@ -362,7 +352,7 @@ export const getOrderDetail = async (orderId) => {
 };
 
 /**
- * Update order status
+ * Update order status with validation
  */
 export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
     const transaction = await db.sequelize.transaction();
@@ -376,6 +366,13 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
 
         const currentStatus = order.status;
 
+        // Validate status transition
+        const transitionValidation = validateStatusTransition(currentStatus, status);
+        if (!transitionValidation.isValid) {
+            await transaction.rollback();
+            return { err: 1, msg: transitionValidation.message };
+        }
+
         // Only run inventory logic when status changes to 'confirmed'
         if (status === 'confirmed' && currentStatus !== 'confirmed') {
             const orderItems = await db.OrderItem.findAll({ where: { order_id: orderId }, transaction });
@@ -386,12 +383,12 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
 
                 if (inventory) {
                     // Use the correct field name 'stock'
-                    await inventory.increment('stock', { by: item.quantity, transaction });
+                    await inventory.increment('stock', { by: item.quantity_in_base, transaction });
                 } else {
                     // Create a new WarehouseInventory record if it doesn't exist
                     await db.WarehouseInventory.create({
                         product_id: item.product_id,
-                        stock: item.quantity, // Use the correct field name 'stock'
+                        stock: item.quantity_in_base, // Use quantity_in_base for accurate inventory
                     }, { transaction });
                 }
             }
@@ -405,7 +402,7 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
         return {
             err: 0,
             msg: 'Order status updated successfully',
-            data: { order_id: orderId, status }
+            data: { order_id: orderId, status, previousStatus: currentStatus }
         };
     } catch (error) {
         await transaction.rollback();
@@ -414,6 +411,175 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy }) => {
     }
 };
 
+/**
+ * Update order details (only for pending orders)
+ */
+export const updateOrder = async ({ orderId, orderData, updatedBy }) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const order = await db.Order.findByPk(orderId, { transaction });
+
+        if (!order) {
+            await transaction.rollback();
+            return { err: 1, msg: 'Order not found' };
+        }
+
+        // Check if order can be edited
+        const editValidation = validateOrderEditPermission(order);
+        if (!editValidation.isValid) {
+            await transaction.rollback();
+            return { err: 1, msg: editValidation.message };
+        }
+
+        // Update order fields (only allow updating certain fields)
+        const allowedFields = ['expected_delivery'];
+        const updateData = {};
+
+        allowedFields.forEach(field => {
+            if (orderData[field] !== undefined) {
+                updateData[field] = orderData[field];
+            }
+        });
+
+        if (Object.keys(updateData).length > 0) {
+            await order.update(updateData, { transaction });
+        }
+
+        await transaction.commit();
+
+        return {
+            err: 0,
+            msg: 'Order updated successfully',
+            data: { order_id: orderId }
+        };
+    } catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+};
+
+/**
+ * Update order items (only for pending orders)
+ */
+export const updateOrderItems = async ({ orderId, items, updatedBy }) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const order = await db.Order.findByPk(orderId, { transaction });
+
+        if (!order) {
+            await transaction.rollback();
+            return { err: 1, msg: 'Order not found' };
+        }
+
+        // Check if order can be edited
+        const editValidation = validateOrderEditPermission(order);
+        if (!editValidation.isValid) {
+            await transaction.rollback();
+            return { err: 1, msg: editValidation.message };
+        }
+
+        // Delete existing order items
+        await db.OrderItem.destroy({ where: { order_id: orderId }, transaction });
+
+        // Create new order items
+        for (const item of items) {
+            const { product_id, quantity, unit_price, unit_id } = item;
+
+            if (!product_id || !quantity || !unit_price) {
+                await transaction.rollback();
+                return {
+                    err: 1,
+                    msg: 'Each item must have product_id, quantity, and unit_price'
+                };
+            }
+
+            // Verify product exists
+            const product = await db.Product.findByPk(product_id);
+            if (!product) {
+                await transaction.rollback();
+                return { err: 1, msg: `Product with ID ${product_id} not found` };
+            }
+
+            const subtotal = quantity * unit_price;
+
+            // Get unit info
+            let unitId = item.unit_id || product.base_unit_id;
+            let conversionToBase = 1;
+
+            if (item.unit_id && item.unit_id !== product.base_unit_id) {
+                const productUnit = await db.ProductUnit.findOne({
+                    where: {
+                        product_id: product.product_id,
+                        unit_id: item.unit_id
+                    }
+                });
+
+                if (productUnit) {
+                    conversionToBase = parseFloat(productUnit.conversion_to_base);
+                }
+            }
+
+            const quantityInBase = quantity * conversionToBase;
+
+            await db.OrderItem.create({
+                order_id: orderId,
+                product_id: product.product_id,
+                quantity,
+                unit_price: unit_price,
+                subtotal,
+                unit_id: unitId,
+                quantity_in_base: quantityInBase
+            }, { transaction });
+        }
+
+        await transaction.commit();
+
+        return {
+            err: 0,
+            msg: 'Order items updated successfully',
+            data: { order_id: orderId }
+        };
+    } catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+};
+
+/**
+ * Update expected delivery date (only for pending orders)
+ */
+export const updateExpectedDelivery = async ({ orderId, expectedDelivery, updatedBy }) => {
+    try {
+        const order = await db.Order.findByPk(orderId);
+
+        if (!order) {
+            return { err: 1, msg: 'Order not found' };
+        }
+
+        // Check if order can be edited
+        const editValidation = validateOrderEditPermission(order);
+        if (!editValidation.isValid) {
+            return { err: 1, msg: editValidation.message };
+        }
+
+        // Update expected delivery date
+        await order.update({
+            expected_delivery: expectedDelivery,
+            updated_at: new Date()
+        });
+
+        return {
+            err: 0,
+            msg: 'Expected delivery date updated successfully',
+            data: {
+                order_id: orderId,
+                expected_delivery: expectedDelivery
+            }
+        };
+    } catch (error) {
+        throw error;
+    }
+};
 
 /**
  * Get orders by supplier
@@ -445,7 +611,8 @@ export const getOrdersBySupplier = async ({ supplierId, page, limit }) => {
             const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
             return {
                 ...orderData,
-                totalAmount: parseFloat(totalAmount.toFixed(2))
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                isEditable: isOrderEditable(orderData.status)
             };
         });
 
@@ -497,7 +664,8 @@ export const getOrdersByStatus = async ({ status, page, limit }) => {
             const totalAmount = orderData.orderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
             return {
                 ...orderData,
-                totalAmount: parseFloat(totalAmount.toFixed(2))
+                totalAmount: parseFloat(totalAmount.toFixed(2)),
+                isEditable: isOrderEditable(orderData.status)
             };
         });
 
@@ -520,7 +688,7 @@ export const getOrdersByStatus = async ({ status, page, limit }) => {
 };
 
 /**
- * Delete order
+ * Delete order (only pending or cancelled orders)
  */
 export const deleteOrder = async (orderId) => {
     const transaction = await db.sequelize.transaction();
@@ -554,4 +722,3 @@ export const deleteOrder = async (orderId) => {
         throw error;
     }
 };
-
