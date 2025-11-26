@@ -255,7 +255,26 @@ const InventoryManagement = () => {
     {
       accessorKey: 'name',
       header: 'Tên hàng',
-      size: 200,
+      size: 240,
+      Cell: ({ row }) => {
+        const original = row.original;
+        const isPerishable = !!original.is_perishable;
+        return (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography fontWeight={600}>{original.name}</Typography>
+              <Chip
+                size="small"
+                color={isPerishable ? 'warning' : 'default'}
+                label={isPerishable ? 'Tươi sống' : 'Thường'}
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              {original.sku}
+            </Typography>
+          </Box>
+        );
+      },
     },
     {
       accessorKey: 'category',
@@ -368,10 +387,76 @@ const InventoryManagement = () => {
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
   
+  // Map SKU -> { supplierName, isPerishable } (từ dữ liệu tồn kho hiện có)
+  const supplierBySku = useMemo(() => {
+    const map = {};
+    (data || []).forEach((row) => {
+      const sku = row.sku || row.product?.sku;
+      const supplierName =
+        row.supplier?.name ||
+        row.product?.supplier?.name ||
+        row.product?.supplier_name ||
+        '';
+      const isPerishable =
+        !!row.is_perishable ||
+        !!row.product?.is_perishable;
+
+      if (sku && supplierName) {
+        map[String(sku).trim()] = {
+          name: supplierName,
+          isPerishable
+        };
+      }
+    });
+    return map;
+  }, [data]);
+
+  // Danh sách nhà cung cấp có trong các dòng hiện tại
+  const perishableSuppliers = useMemo(() => {
+    const set = new Set();
+    lines.forEach((l) => {
+      const sku = (l.sku || '').trim();
+      if (!sku) return;
+      const meta = supplierBySku[sku];
+      if (meta?.isPerishable && meta.name) {
+        set.add(meta.name);
+      }
+    });
+    return Array.from(set);
+  }, [lines, supplierBySku]);
+  
   // Đếm số sản phẩm hợp lệ trong đơn nhập (có SKU hoặc tên hàng)
   const orderItemsCount = useMemo(() => {
     return lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')).length;
   }, [lines]);
+
+  // Tự động bật/tắt cờ perishable theo danh sách sản phẩm trong đơn
+  useEffect(() => {
+    try {
+      const hasPerishable = lines.some((line) => {
+        const sku = (line.sku || '').trim();
+        const name = (line.name || '').trim();
+        if (!sku && !name) return false;
+        const invRow = data.find(
+          (row) =>
+            (row.sku && row.sku === sku) ||
+            (row.name && row.name === name)
+        );
+        return !!invRow?.is_perishable;
+      });
+
+      setPerishable(hasPerishable);
+    } catch {
+      // ignore
+    }
+  }, [lines, data]);
+
+  // Khi là đơn hàng tươi sống, đồng bộ state supplier theo danh sách nhà cung cấp thực tế
+  useEffect(() => {
+    if (perishable) {
+      setSupplier(perishableSuppliers.join(', '));
+    }
+  }, [perishable, perishableSuppliers]);
 
   const handleCreateOrder = async () => {
       if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
@@ -384,6 +469,7 @@ const InventoryManagement = () => {
     }
 
     const validItems = [];
+    let hasPerishableItem = false;
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       if ((!l.sku || l.sku.trim() === '') && (!l.name || l.name.trim() === '') && (!l.qty || l.qty === '') && (!l.price || l.price === '')) {
@@ -407,11 +493,25 @@ const InventoryManagement = () => {
         toast.error(`Dòng ${i + 1}: Đơn giá mỗi thùng phải lớn hơn 0`);
         return;
       }
+      const skuTrimmed = (l.sku || '').trim();
+      const nameTrimmed = (l.name || '').trim();
+
+      const invRow = data.find(
+        (row) =>
+          (row.sku && row.sku === skuTrimmed) ||
+          (row.name && row.name === nameTrimmed)
+      );
+      const isPerishableLine = !!invRow?.is_perishable;
+      if (isPerishableLine) {
+        hasPerishableItem = true;
+      }
+
       validItems.push({
-        sku: (l.sku || '').trim(),
-        name: (l.name || '').trim(),
+        sku: skuTrimmed,
+        name: nameTrimmed,
         quantity: qty,
-        unit_price: price
+        unit_price: price,
+        is_perishable: isPerishableLine
       });
     }
 
@@ -427,7 +527,8 @@ const InventoryManagement = () => {
         target_warehouse: target.trim(),
         supplier_id: null,
         items: validItems,
-        perishable: perishable,
+        // Tự động đánh dấu đơn là tươi sống nếu có ít nhất 1 sản phẩm tươi sống
+        perishable: hasPerishableItem,
         notes: null
       };
 
@@ -611,9 +712,10 @@ const InventoryManagement = () => {
                 <TextField 
                   label="Nhà cung cấp tươi sống" 
                   size="small" 
-                  value={supplier} 
-                  onChange={(e) => setSupplier(e.target.value)} 
-                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }} 
+                  value={perishableSuppliers.length ? perishableSuppliers.join(', ') : '—'} 
+                  InputProps={{ readOnly: true }}
+                  helperText={perishableSuppliers.length ? '' : 'Nhập SKU của sản phẩm để hệ thống tự xác định nhà cung cấp'}
+                  sx={{ width: { xs: '100%', sm: 260, md: 300 } }} 
                 />
               )}
             </Stack>

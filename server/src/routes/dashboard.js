@@ -38,6 +38,9 @@ router.get('/ceo/revenue-last-30-days', dashboardController.getCompanyRevenueLas
 // Get company top products
 router.get('/ceo/top-products', dashboardController.getCompanyTopProducts);
 
+// Get revenue mix
+router.get('/ceo/revenue-mix', dashboardController.getCompanyRevenueMix);
+
 // Get store performance
 router.get('/ceo/store-performance', dashboardController.getStorePerformance);
 

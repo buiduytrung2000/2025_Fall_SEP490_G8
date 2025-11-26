@@ -80,12 +80,12 @@ export async function getStoreOrders(filters = {}) {
 }
 
 // Update store order status (for store to mark as delivered)
-export async function updateStoreOrderStatus(orderId, status) {
+export async function updateStoreOrderStatus(orderId, status, notes = '') {
     try {
         const res = await fetch(`${API_BASE}/store-order/${orderId}/status`, {
             method: 'PATCH',
             headers: getHeaders(),
-            body: JSON.stringify({ status })
+            body: JSON.stringify({ status, notes })
         });
         
         if (!res.ok) {

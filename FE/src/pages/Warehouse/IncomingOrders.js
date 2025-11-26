@@ -23,7 +23,6 @@ const STATUS_OPTIONS = [
   { value: 'All', label: 'Tất cả' },
   { value: 'pending', label: 'Chờ duyệt' },
   { value: 'confirmed', label: 'Đã duyệt' },
-  { value: 'preparing', label: 'Đang chuẩn bị' },
   { value: 'shipped', label: 'Đã xuất kho' },
   { value: 'delivered', label: 'Cửa hàng đã nhận' },
   { value: 'cancelled', label: 'Đã hủy' }
@@ -32,7 +31,6 @@ const STATUS_OPTIONS = [
 const STATUS_META = {
   pending: { label: 'Chờ duyệt', color: 'warning' },
   confirmed: { label: 'Đã duyệt', color: 'info' },
-  preparing: { label: 'Đang chuẩn bị', color: 'info' },
   shipped: { label: 'Đã xuất kho', color: 'primary' },
   delivered: { label: 'Cửa hàng đã nhận', color: 'success' },
   cancelled: { label: 'Đã hủy', color: 'default' }
@@ -40,8 +38,7 @@ const STATUS_META = {
 
 const STATUS_ACTIONS = {
   pending: { label: 'Duyệt đơn', nextStatus: 'confirmed' },
-  confirmed: { label: 'Chuẩn bị hàng', nextStatus: 'preparing' },
-  preparing: { label: 'Xuất kho', nextStatus: 'shipped' }
+  confirmed: { label: 'Xuất kho', nextStatus: 'shipped' }
 };
 
 const IncomingOrders = () => {
@@ -158,7 +155,7 @@ const IncomingOrders = () => {
             {filtered.map(r => {
               const statusKey = r.status?.toLowerCase();
               const action = STATUS_ACTIONS[statusKey];
-              const canCancel = ['pending', 'confirmed', 'preparing'].includes(statusKey);
+              const canCancel = ['pending', 'confirmed'].includes(statusKey);
               const items = r.orderItems || r.storeOrderItems || [];
               return (
                 <TableRow key={r.store_order_id} hover>

@@ -126,7 +126,7 @@ export const getOrdersByStatus = async (req, res) => {
         const { status } = req.params;
         const { page = 1, limit = 10 } = req.query;
 
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
+        const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 err: 1,
@@ -244,7 +244,7 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
+        const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 err: 1,

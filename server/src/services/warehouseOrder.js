@@ -1,5 +1,135 @@
 import db from '../models';
 import { Op } from 'sequelize';
+import { generateOrderCode } from './order';
+
+/**
+ * Tạo các đơn NCC giao thẳng cho cửa hàng dựa trên StoreOrder đồ tươi sống.
+ * - Nhóm sản phẩm theo supplier của Product.
+ * - Mỗi supplier tạo 1 bản ghi trong bảng Order + các OrderItem tương ứng.
+ * - Đánh dấu Order.direct_to_store = true và lưu target_store_id = store_id của đơn.
+ */
+const createDirectSupplierOrdersForPerishable = async (storeOrder, transaction) => {
+    // Load toàn bộ item kèm thông tin Product
+    const items = await db.StoreOrderItem.findAll({
+        where: { store_order_id: storeOrder.store_order_id },
+        include: [
+            {
+                model: db.Product,
+                as: 'product',
+                attributes: ['product_id', 'name', 'sku', 'supplier_id', 'base_unit_id', 'import_price', 'is_perishable']
+            },
+            {
+                model: db.Unit,
+                as: 'unit',
+                attributes: ['unit_id', 'name', 'symbol']
+            }
+        ],
+        transaction
+    });
+
+    if (!items.length) return;
+
+    const itemsBySupplier = {};
+    const perishableItemIds = [];
+
+    for (const item of items) {
+        const product = item.product;
+
+        // Chỉ tách các sản phẩm tươi sống sang đơn NCC
+        if (!product?.is_perishable) {
+            continue;
+        }
+        const supplierId = product?.supplier_id;
+        if (!supplierId) {
+            // Bỏ qua sản phẩm không có NCC
+            continue;
+        }
+
+        if (!itemsBySupplier[supplierId]) {
+            itemsBySupplier[supplierId] = [];
+        }
+
+        const quantity = Number(item.quantity || 0);
+        const unitPrice = Number(item.unit_price || product?.import_price || 0);
+        const subtotal = quantity * unitPrice;
+        const quantityInBase = item.quantity_in_base || quantity;
+        const unitId = item.unit_id || product?.base_unit_id;
+
+        itemsBySupplier[supplierId].push({
+            product_id: product?.product_id || null,
+            quantity,
+            unit_price: unitPrice,
+            subtotal,
+            unit_id: unitId,
+            quantity_in_base: quantityInBase
+        });
+
+        perishableItemIds.push(item.store_order_item_id);
+    }
+
+    const supplierIds = Object.keys(itemsBySupplier);
+    if (!supplierIds.length) return;
+
+    // 1. Tạo các đơn NCC giao thẳng cho cửa hàng
+    for (const supplierId of supplierIds) {
+        const orderItems = itemsBySupplier[supplierId];
+        if (!orderItems.length) continue;
+
+        const orderCode = await generateOrderCode();
+
+        const order = await db.Order.create({
+            order_code: orderCode,
+            supplier_id: supplierId,
+            created_by: storeOrder.created_by,
+            status: 'pending',
+            expected_delivery: storeOrder.expected_delivery || null,
+            direct_to_store: true,
+            target_store_id: storeOrder.store_id
+        }, { transaction });
+
+        for (const oi of orderItems) {
+            await db.OrderItem.create({
+                order_id: order.order_id,
+                product_id: oi.product_id,
+                quantity: oi.quantity,
+                unit_price: oi.unit_price,
+                subtotal: oi.subtotal,
+                unit_id: oi.unit_id,
+                quantity_in_base: oi.quantity_in_base
+            }, { transaction });
+        }
+    }
+
+    // 2. Xóa các dòng tươi sống khỏi StoreOrder (đã chuyển sang NCC)
+    if (perishableItemIds.length > 0) {
+        await db.StoreOrderItem.destroy({
+            where: { store_order_item_id: perishableItemIds },
+            transaction
+        });
+
+        // 3. Tính lại tổng tiền cho đơn còn lại sau khi xóa hàng tươi sống
+        const remainingItems = await db.StoreOrderItem.findAll({
+            where: { store_order_id: storeOrder.store_order_id },
+            transaction
+        });
+
+        const newTotal = remainingItems.reduce(
+            (sum, item) => sum + parseFloat(item.subtotal || 0),
+            0
+        );
+
+        await storeOrder.update(
+            {
+                total_amount: newTotal,
+                // Đơn còn lại chỉ chứa hàng thường nên bỏ cờ perishable
+                perishable: false
+            },
+            { transaction }
+        );
+    }
+};
+
+const normalizeOrderStatus = (status) => (status === 'preparing' ? 'confirmed' : status);
 
 // =====================================================
 // QUERY SERVICES - Get Orders
@@ -105,9 +235,11 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
 
             const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
 
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
@@ -334,12 +466,14 @@ export const getOrderDetailService = async (orderId) => {
 
         const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
         const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+        const normalizedStatus = normalizeOrderStatus(orderData.status);
 
         return {
             err: 0,
             msg: 'Get order detail successfully',
             data: {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
@@ -384,8 +518,10 @@ export const getOrdersByStoreService = async ({ storeId, page, limit }) => {
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -443,8 +579,10 @@ export const getOrdersBySupplierService = async ({ supplierId, page, limit }) =>
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -476,8 +614,12 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
     try {
         const offset = (page - 1) * limit;
 
+        const statusFilter = status === 'confirmed'
+            ? { [Op.in]: ['confirmed', 'preparing'] }
+            : status;
+
         const { count, rows } = await db.StoreOrder.findAndCountAll({
-            where: { status },
+            where: { status: statusFilter },
             include: [
                 {
                     model: db.Store,
@@ -502,8 +644,10 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -576,8 +720,10 @@ export const getOrdersByDateRangeService = async ({ startDate, endDate, page, li
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -616,7 +762,7 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             };
         }
 
-        const statusCounts = await db.StoreOrder.findAll({
+        const rawStatusCounts = await db.StoreOrder.findAll({
             where: whereConditions,
             attributes: [
                 'status',
@@ -625,6 +771,18 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             group: ['status'],
             raw: true
         });
+
+        const statusCounts = rawStatusCounts.reduce((acc, row) => {
+            const normalized = normalizeOrderStatus(row.status);
+            const countValue = Number(row.count || 0);
+            const existing = acc.find(item => item.status === normalized);
+            if (existing) {
+                existing.count += countValue;
+            } else {
+                acc.push({ status: normalized, count: countValue });
+            }
+            return acc;
+        }, []);
 
         const storeCounts = await db.StoreOrder.findAll({
             where: whereConditions,
@@ -682,11 +840,12 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
 /**
  * Update order status with inventory management
  * LOGIC:
- * - preparing → shipped: TRỪ actual_quantity từ inventory của kho.
- * - shipped → preparing/cancelled: CỘNG lại actual_quantity vào inventory.
+ * - confirmed → shipped: TRỪ actual_quantity từ inventory của kho.
+ * - shipped → confirmed/cancelled: CỘNG lại actual_quantity vào inventory.
+ * - shipped → delivered: bổ sung tồn kho tại cửa hàng.
  * - delivered: KHÔNG CHO SỬA.
  */
-export const updateOrderStatusService = async ({ orderId, status, updatedBy }) => {
+export const updateOrderStatusService = async ({ orderId, status, updatedBy, notes }) => {
     const transaction = await db.sequelize.transaction();
 
     try {
@@ -697,7 +856,7 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
             return { err: 1, msg: 'Order not found' };
         }
 
-        const currentStatus = order.status;
+        let currentStatus = normalizeOrderStatus(order.status);
 
         // KHÔNG CHO SỬA NẾU ĐÃ GIAO
         if (currentStatus === 'delivered') {
@@ -710,9 +869,10 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
 
         const validTransitions = {
             'pending': ['confirmed', 'cancelled'],
-            'confirmed': ['pending', 'preparing', 'cancelled'],
-            'preparing': ['confirmed', 'shipped', 'cancelled'],
-            'shipped': ['preparing', 'delivered', 'cancelled'],
+            // Cho phép confirmed -> shipped để supplier/warehouse cập nhật tiến trình,
+            // nhưng luồng xuất kho sẽ bị bỏ qua cho đơn perishable.
+            'confirmed': ['pending', 'shipped', 'cancelled'],
+            'shipped': ['confirmed', 'delivered', 'cancelled'],
             'delivered': [],
             'cancelled': ['pending']
         };
@@ -729,25 +889,44 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
         // INVENTORY MANAGEMENT LOGIC
         // =====================================================
 
-        // 1. TRỪ TỒN KHO KHI GIAO HÀNG
-        if (currentStatus === 'preparing' && status === 'shipped') {
+        const isPerishableOrder = !!order.perishable;
+
+        // 1. Nếu đơn được đánh dấu là tươi sống và từ pending -> confirmed,
+        // tách các sản phẩm tươi sống sang đơn NCC giao thẳng cho cửa hàng
+        if (isPerishableOrder && currentStatus === 'pending' && status === 'confirmed') {
+            await createDirectSupplierOrdersForPerishable(order, transaction);
+        }
+
+        // 2. TRỪ TỒN KHO KHI GIAO HÀNG (chỉ áp dụng cho phần hàng thường trong đơn)
+        if (currentStatus === 'confirmed' && status === 'shipped') {
             await shipInventoryFromWarehouse(orderId, transaction);
         }
 
-        // 2. HOÀN LẠI TỒN KHO KHI HỦY
-        if (currentStatus === 'shipped' && (status === 'preparing' || status === 'cancelled')) {
+        // 3. HOÀN LẠI TỒN KHO KHI HỦY (chỉ áp dụng cho phần hàng thường trong đơn)
+        if (currentStatus === 'shipped' && (status === 'confirmed' || status === 'cancelled')) {
             await returnInventoryToWarehouse(orderId, transaction);
         }
 
-        // 3. CỘNG TỒN KHO TẠI CỬA HÀNG KHI NHẬN HÀNG
+        // 4. CỘNG TỒN KHO TẠI CỬA HÀNG KHI NHẬN HÀNG (áp dụng cho cả hai loại)
         if (currentStatus === 'shipped' && status === 'delivered') {
             await receiveInventoryAtStore(orderId, transaction);
         }
 
-        await order.update({
+        // Build update data
+        const updateData = {
             status,
             updated_at: new Date()
-        }, { transaction });
+        };
+
+        // Append notes if provided (when marking as delivered)
+        if (notes && status === 'delivered') {
+            const existingNotes = order.notes || '';
+            updateData.notes = existingNotes
+                ? `${existingNotes}\n[Ghi chú nhận hàng]: ${notes}`
+                : `[Ghi chú nhận hàng]: ${notes}`;
+        }
+
+        await order.update(updateData, { transaction });
 
         await transaction.commit();
 
@@ -926,6 +1105,10 @@ const shipInventoryFromWarehouse = async (orderId, transaction) => {
         if (!order) return;
 
         for (const item of order.storeOrderItems) {
+            // Bỏ qua các sản phẩm tươi sống (đã giao thẳng từ NCC đến cửa hàng)
+            if (item.product?.is_perishable) {
+                continue;
+            }
             if (!item.product_id) {
                 throw new Error(`Sản phẩm "${item.product_name}" chưa được liên kết với sản phẩm trong hệ thống`);
             }
@@ -983,6 +1166,10 @@ const returnInventoryToWarehouse = async (orderId, transaction) => {
         if (!order) return;
 
         for (const item of order.storeOrderItems) {
+            // Bỏ qua các sản phẩm tươi sống (không hoàn kho về kho tổng)
+            if (item.product?.is_perishable) {
+                continue;
+            }
             if (!item.product_id) {
                 console.warn(`⚠️ Item ${item.store_order_item_id} không có product_id, bỏ qua hoàn kho`);
                 continue;

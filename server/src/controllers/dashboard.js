@@ -227,6 +227,24 @@ export const getCompanyTopProducts = async (req, res) => {
     }
 };
 
+// Get revenue mix by category
+export const getCompanyRevenueMix = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const { days } = req.query;
+        const response = await dashboardService.getCompanyRevenueMix(days);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
 // Get store performance
 export const getStorePerformance = async (req, res) => {
     try {

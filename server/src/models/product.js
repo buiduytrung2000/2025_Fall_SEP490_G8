@@ -115,6 +115,12 @@ module.exports = (sequelize, DataTypes) => {
             defaultValue: 0.00,
             comment: 'Giá nhập/giá vốn của sản phẩm'
         },
+        is_perishable: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            comment: 'Hàng tươi sống (true) hay hàng thông thường (false)'
+        },
         description: {
             type: DataTypes.TEXT,
             allowNull: true

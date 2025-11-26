@@ -32,7 +32,6 @@ import { getWarehouseSupplierOrders } from '../../api/warehouseOrderApi';
 const statusLabels = {
   pending: 'Đang chờ',
   confirmed: 'Đã xác nhận',
-  preparing: 'Đang chuẩn bị',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy',
@@ -41,7 +40,6 @@ const statusLabels = {
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
-  preparing: 'default',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error',
@@ -222,11 +220,17 @@ const SupplierPortal = () => {
                     <TableCell>{order.quantityLabel}</TableCell>
                     <TableCell align="right">{formatCurrency(order.totalAmount)}</TableCell>
                     <TableCell>
-                      <Chip
-                        size="small"
-                        color={statusColors[order.status] || 'default'}
-                        label={statusLabels[order.status] || order.status}
-                      />
+                      {(() => {
+                        const normalizedStatus =
+                          order.status === 'preparing' ? 'confirmed' : order.status;
+                        return (
+                          <Chip
+                            size="small"
+                            color={statusColors[normalizedStatus] || 'default'}
+                            label={statusLabels[normalizedStatus] || normalizedStatus}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell align="center">
                       <IconButton onClick={() => navigate(`/supplier/orders/${order.order_id}`)}>

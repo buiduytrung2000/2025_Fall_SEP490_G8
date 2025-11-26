@@ -60,6 +60,11 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                             model: db.Category,
                             as: 'category',
                             attributes: ['category_id', 'name']
+                        },
+                        {
+                            model: db.Supplier,
+                            as: 'supplier',
+                            attributes: ['supplier_id', 'name', 'contact']
                         }
                     ]
                 }
@@ -100,6 +105,12 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 name: product.category.name
             } : null;
 
+            const supplier = product.supplier ? {
+                supplier_id: product.supplier.supplier_id,
+                name: product.supplier.name,
+                contact: product.supplier.contact
+            } : null;
+
             const hqPrice = parseFloat(product.hq_price || 0);
             let currentPrice = hqPrice;
             const activeRule = ruleMap[product.product_id];
@@ -131,7 +142,9 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 reorder_point: invPlain.reorder_point,
                 sku: product.sku || '',
                 name: product.name || '',
+                is_perishable: !!product.is_perishable,
                 category: category ? category.name : '',
+                supplier, // full supplier object for FE
                 unit: 'Cái', // Default unit, can be added to Product table later
                 price: Math.round(currentPrice),
                 package_conversion: packageConversion,

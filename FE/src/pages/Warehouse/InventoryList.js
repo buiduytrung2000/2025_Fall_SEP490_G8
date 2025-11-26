@@ -516,6 +516,7 @@ const InventoryList = () => {
                     onChange={handleSelectAll}
                   />
                 </TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 50 }}>STT</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
@@ -528,13 +529,13 @@ const InventoryList = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : inventory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
                     <Alert severity="info">Không có dữ liệu</Alert>
                   </TableCell>
                 </TableRow>
@@ -553,28 +554,40 @@ const InventoryList = () => {
                       <TableCell padding="checkbox">
                         <Checkbox color="primary" checked={selected} />
                       </TableCell>
+                      <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>{item.product?.sku}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600}>{item.product?.name}</Typography>
-                        {item.product?.description && (
-                          <Typography variant="caption" color="text.secondary">
-                            {item.product.description}
-                          </Typography>
-                        )}
+                        <Stack spacing={0.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                            <Typography variant="body2" fontWeight={600}>{item.product?.name}</Typography>
+                            {item.product?.is_perishable !== undefined && (
+                              <Chip
+                                size="small"
+                                color={item.product.is_perishable ? 'warning' : 'default'}
+                                label={item.product.is_perishable ? 'Tươi sống' : 'Thường'}
+                              />
+                            )}
+                          </Stack>
+                          {item.product?.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {item.product.description}
+                            </Typography>
+                          )}
+                        </Stack>
                       </TableCell>
                       <TableCell>
                         <Chip size="small" label={item.product?.category?.name || 'N/A'} variant="outlined" />
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="h6" fontWeight={700}>
+                        <Typography variant="body2">
                           {formatQty(item.stock)} {item.product?.base_unit_label || ''}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right"> 
                         {item.stock_in_packages ? (
-                          <Typography variant="h6" fontWeight={700}>
+                          <Typography variant="body2">
                             {formatQty(item.stock_in_packages)} {item.package_unit_label || ''}
                           </Typography>
                         ) : (

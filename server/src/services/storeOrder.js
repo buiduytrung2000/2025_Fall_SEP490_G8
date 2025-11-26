@@ -2,6 +2,24 @@ import db from '../models';
 import { Op } from 'sequelize';
 import { updateOrderStatusService as updateWarehouseOrderStatus } from './warehouseOrder';
 
+const ORDER_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+const generateStoreOrderCode = async () => {
+    let code = '';
+    let exists = true;
+
+    while (exists) {
+        code = Array.from({ length: 6 }, () =>
+            ORDER_CODE_CHARS[Math.floor(Math.random() * ORDER_CODE_CHARS.length)]
+        ).join('');
+
+        const count = await db.StoreOrder.count({ where: { order_code: code } });
+        exists = count > 0;
+    }
+
+    return code;
+};
+
 const packageUnitCache = new Map();
 
 const getPreferredPackageUnit = async (productId) => {
@@ -94,7 +112,10 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
             return sum + (quantity * unitPrice);
         }, 0);
 
+        const orderCode = await generateStoreOrderCode();
+
         const order = await db.StoreOrder.create({
+            order_code: orderCode,
             store_id,
             created_by,
             order_type: order_type || 'ToWarehouse',
@@ -152,6 +173,7 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
             msg: 'Order created successfully',
             data: {
                 order_id: order.store_order_id,
+                order_code: order.order_code,
                 total_amount: total
             }
         });
@@ -234,12 +256,13 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
 });
 
 // Update store order status (for store to mark as delivered)
-export const updateStoreOrderStatus = ({ orderId, status, updatedBy }) => new Promise(async (resolve, reject) => {
+export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes }) => new Promise(async (resolve, reject) => {
     try {
         const response = await updateWarehouseOrderStatus({
             orderId,
             status,
-            updatedBy
+            updatedBy,
+            notes
         });
         resolve(response);
     } catch (error) {

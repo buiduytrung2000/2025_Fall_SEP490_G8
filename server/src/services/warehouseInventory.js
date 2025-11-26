@@ -109,7 +109,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                 ? packageMetaMap[itemData.product.product_id]
                 : null;
             const packageConversion = packageMeta?.conversion_to_base || null;
-            const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+            const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.name || packageMeta.unit.symbol) : null;
             const packageUnitId = packageMeta?.unit ? packageMeta.unit.unit_id : null;
             const stockInPackages = packageConversion
                 ? Number((itemData.stock / packageConversion).toFixed(2))
@@ -117,7 +117,7 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
 
             // Add base_unit_label to product
             if (itemData.product && itemData.product.baseUnit) {
-                itemData.product.base_unit_label = itemData.product.baseUnit.symbol || itemData.product.baseUnit.name;
+                itemData.product.base_unit_label = itemData.product.baseUnit.name || itemData.product.baseUnit.symbol;
             }
 
             return {
@@ -196,7 +196,7 @@ export const getWarehouseInventoryDetailService = async (inventoryId) => {
             ? packageMetaMap[itemData.product.product_id]
             : null;
         const packageConversion = packageMeta?.conversion_to_base || null;
-        const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
+        const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.name || packageMeta.unit.symbol) : null;
         const packageUnitId = packageMeta?.unit ? packageMeta.unit.unit_id : null;
         const stockInPackages = packageConversion
             ? Number((itemData.stock / packageConversion).toFixed(2))

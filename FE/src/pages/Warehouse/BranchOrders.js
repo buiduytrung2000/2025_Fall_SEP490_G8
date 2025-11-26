@@ -32,7 +32,6 @@ import { getAllWarehouseOrders } from '../../api/warehouseOrderApi';
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
-  preparing: 'secondary',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error'
@@ -41,7 +40,6 @@ const statusColors = {
 const statusLabels = {
   pending: 'Chờ xử lý',
   confirmed: 'Đã xác nhận',
-  preparing: 'Chuẩn bị hàng',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
@@ -58,6 +56,12 @@ const formatDate = (dateString) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+const getOrderCode = (order) => {
+  if (!order) return '';
+  if (order.order_code) return order.order_code;
+  return `ORD${String(order.order_id || '').padStart(3, '0')}`;
 };
 
 const BranchOrders = () => {
@@ -167,7 +171,6 @@ const BranchOrders = () => {
             <MenuItem value="">Tất cả</MenuItem>
             <MenuItem value="pending">Chờ xử lý</MenuItem>
             <MenuItem value="confirmed">Đã xác nhận</MenuItem>
-            <MenuItem value="preparing">Chuẩn bị hàng</MenuItem>
             <MenuItem value="shipped">Đang giao</MenuItem>
             <MenuItem value="delivered">Đã giao</MenuItem>
             <MenuItem value="cancelled">Đã hủy</MenuItem>
@@ -198,9 +201,10 @@ const BranchOrders = () => {
         <Table sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
+              <TableCell sx={{ fontWeight: 700, width: 50 }}>STT</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Mã đơn</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Nhà cung cấp</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Loại đơn</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Ngày tạo</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Dự kiến giao</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Số lượng</TableCell>
@@ -223,21 +227,29 @@ const BranchOrders = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((order) => (
+              orders.map((order, index) => {
+                const orderCode = getOrderCode(order);
+                return (
                 <TableRow key={order.order_id} hover>
-                  <TableCell>#{order.order_id}</TableCell>
+                  <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                  <TableCell>#{orderCode}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
                       {order.store?.name}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {order.store?.phone}
-                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="caption" color="text.secondary">
+                        {order.store?.phone}
+                      </Typography>
+                      
+                    </Stack>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {order.supplier?.name}
-                    </Typography>
+                    <Chip
+                      size="small"
+                      color={order.perishable ? 'warning' : 'default'}
+                      label={order.perishable ? 'Đơn tươi sống' : 'Đơn thường'}
+                    />
                   </TableCell>
                   <TableCell>{formatDate(order.created_at)}</TableCell>
                   <TableCell>{formatDate(order.expected_delivery)}</TableCell>
@@ -248,11 +260,17 @@ const BranchOrders = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      size="small"
-                      color={statusColors[order.status]}
-                      label={statusLabels[order.status]}
-                    />
+                    {(() => {
+                      const normalizedStatus =
+                        order.status === 'preparing' ? 'confirmed' : order.status;
+                      return (
+                        <Chip
+                          size="small"
+                          color={statusColors[normalizedStatus]}
+                          label={statusLabels[normalizedStatus]}
+                        />
+                      );
+                    })()}
                   </TableCell>
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
@@ -265,7 +283,9 @@ const BranchOrders = () => {
                           <ViewIcon />
                         </IconButton>
                       </Tooltip>
-                      {['confirmed', 'preparing', 'shipped'].includes(order.status) && (
+                      {['confirmed', 'shipped'].includes(
+                        order.status === 'preparing' ? 'confirmed' : order.status
+                      ) && (
                         <Tooltip title="Xuất đơn hàng">
                           <IconButton
                             size="small"
@@ -279,7 +299,8 @@ const BranchOrders = () => {
                     </Stack>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>

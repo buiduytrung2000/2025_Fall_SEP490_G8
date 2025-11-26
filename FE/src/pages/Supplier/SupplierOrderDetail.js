@@ -26,7 +26,6 @@ import { toast } from "react-toastify";
 const statusColors = {
   pending: "warning",
   confirmed: "info",
-  preparing: "default",
   shipped: "primary",
   delivered: "success",
   cancelled: "error",
@@ -35,7 +34,6 @@ const statusColors = {
 const statusLabels = {
   pending: "Đang chờ",
   confirmed: "Đã xác nhận",
-  preparing: "Đang chuẩn bị",
   shipped: "Đang giao",
   delivered: "Đã giao",
   cancelled: "Đã hủy",
@@ -54,7 +52,9 @@ const SupplierOrderDetail = () => {
     try {
       const res = await getWarehouseSupplierOrderDetail(orderId);
       if (res.err === 0) {
-        setOrder(res.data);
+        const normalizedStatus =
+          res.data.status === "preparing" ? "confirmed" : res.data.status;
+        setOrder({ ...res.data, status: normalizedStatus });
       } else setError(res.msg || "Không tìm thấy đơn hàng");
     } catch (e) {
       setError("Lỗi kết nối: " + e.message);
@@ -215,18 +215,19 @@ const SupplierOrderDetail = () => {
                   {Number(it.display_unit_price ?? it.unit_price).toLocaleString("vi-VN")} đ
                 </TableCell>
                 <TableCell align="center">
-                  <Chip
-                    size="small"
-                    color={
-                      statusColors[it.status || order.status] || "default"
-                    }
-                    label={
-                      statusLabels[it.status || order.status] ||
-                      it.status ||
-                      order.status ||
-                      "—"
-                    }
-                  />
+                  {(() => {
+                    const resolvedStatus =
+                      it.status === "preparing"
+                        ? "confirmed"
+                        : it.status || order.status;
+                    return (
+                      <Chip
+                        size="small"
+                        color={statusColors[resolvedStatus] || "default"}
+                        label={statusLabels[resolvedStatus] || resolvedStatus || "—"}
+                      />
+                    );
+                  })()}
                 </TableCell>
                 <TableCell align="right">
                   {Number(it.subtotal).toLocaleString("vi-VN")} đ

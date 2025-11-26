@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS Product (
     base_unit_id INT NOT NULL,
     hq_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     import_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT 'Giá nhập/giá vốn của sản phẩm',
+    is_perishable TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = hàng tươi sống',
     description TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Trạng thái hoạt động của sản phẩm (TRUE = hoạt động, FALSE = đã xóa/vô hiệu hóa)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -166,13 +167,18 @@ CREATE TABLE IF NOT EXISTS `Order` (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('pending', 'confirmed', 'cancelled') DEFAULT 'pending',
     expected_delivery DATETIME NULL,
+    direct_to_store TINYINT(1) NOT NULL DEFAULT 0,
+    target_store_id INT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (supplier_id) REFERENCES Supplier(supplier_id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES User(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_store_id) REFERENCES Store(store_id) ON DELETE SET NULL,
     INDEX idx_order_supplier (supplier_id),
     INDEX idx_order_created_by (created_by),
     INDEX idx_order_status (status),
-    INDEX idx_order_created_at (created_at)
+    INDEX idx_order_created_at (created_at),
+    INDEX idx_order_direct_store (direct_to_store),
+    INDEX idx_order_target_store (target_store_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS OrderItem (
@@ -324,13 +330,14 @@ CREATE TABLE IF NOT EXISTS ShiftChangeRequest (
 
 CREATE TABLE IF NOT EXISTS StoreOrder (
     store_order_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_code VARCHAR(10) NOT NULL UNIQUE,
     store_id INT NOT NULL,
     created_by INT NOT NULL,
     order_type ENUM('ToWarehouse', 'ToSupplier') NOT NULL DEFAULT 'ToWarehouse',
     target_warehouse VARCHAR(255) NULL COMMENT 'Warehouse name for ToWarehouse orders',
     supplier_id INT NULL COMMENT 'Supplier ID for ToSupplier orders',
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-    status ENUM('pending', 'approved', 'rejected', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+    status ENUM('pending', 'approved', 'rejected', 'confirmed', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     perishable BOOLEAN DEFAULT FALSE COMMENT 'For fresh goods',
     notes TEXT NULL,
     expected_delivery DATETIME NULL COMMENT 'Expected delivery date for the order',
