@@ -17,6 +17,7 @@ import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, gen
 import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
 import CashPaymentModal from '../../components/CashPaymentModal';
+import BarcodeInput from '../../components/BarcodeInput';
 import { toast } from 'react-toastify';
 
 // Hàm helper để format tiền tệ
@@ -70,12 +71,23 @@ const POS = () => {
     const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
     const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
 
+    // Barcode Scanner Config
+    const [posConfig] = useState({
+        allowOversell: false, // Không cho phép oversell
+        beepOnScan: true, // Phát beep khi quét
+        enableCameraScan: false, // Tắt camera scan (tùy chọn bật sau)
+        debounceDelay: 200, // ms
+        throttleInterval: 150, // ms
+        clearInputAfterScan: true,
+        validateFormat: true
+    })
+
     // Load trạng thái ca từ API (open shift) và check schedule attendance_status
     useEffect(() => {
         const fetchOpenShift = async () => {
             const storedStoreId = (() => {
                 if (user && user.store_id) return user.store_id;
-                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
                 return 1;
             })();
             const resp = await getMyOpenShift(storedStoreId);
@@ -128,58 +140,58 @@ const POS = () => {
                         // Lấy tất cả các ca của ngày hôm nay
                         const todaySchedules = scheduleResp.data.filter(s => s.work_date === today);
                         console.log('Today schedules:', todaySchedules);
-                        
-                    if (todaySchedules.length > 0) {
-                        // Ưu tiên: checked_in > null/chưa check-in > checked_out > absent
-                        // Tìm ca đang active (checked_in) trước
-                        let selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
-                        
-                        // Nếu không có ca đang active, tìm ca chưa check-in (null hoặc không có status) - ưu tiên cao hơn checked_out
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => 
-                                !s.attendance_status || 
-                                s.attendance_status === null || 
-                                s.attendance_status === ''
-                            );
-                        }
-                        
-                        // Nếu không có ca chưa check-in, tìm ca đã checkout
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
-                        }
-                        
-                        // Nếu tất cả các ca đều absent, mới coi là absent
-                        if (!selectedSchedule) {
-                            const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
-                            if (allAbsent) {
-                                console.log('All schedules are absent');
-                                setHasTodaySchedule(false);
-                                setScheduleAttendanceStatus('absent');
-                            } else {
-                                // Có ít nhất 1 ca không phải absent, tìm ca không phải absent đầu tiên
-                                selectedSchedule = todaySchedules.find(s => s.attendance_status !== 'absent');
-                                if (selectedSchedule) {
-                                    console.log('Using first non-absent schedule:', selectedSchedule);
-                                    setHasTodaySchedule(true);
-                                    setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
+
+                        if (todaySchedules.length > 0) {
+                            // Ưu tiên: checked_in > null/chưa check-in > checked_out > absent
+                            // Tìm ca đang active (checked_in) trước
+                            let selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
+
+                            // Nếu không có ca đang active, tìm ca chưa check-in (null hoặc không có status) - ưu tiên cao hơn checked_out
+                            if (!selectedSchedule) {
+                                selectedSchedule = todaySchedules.find(s =>
+                                    !s.attendance_status ||
+                                    s.attendance_status === null ||
+                                    s.attendance_status === ''
+                                );
+                            }
+
+                            // Nếu không có ca chưa check-in, tìm ca đã checkout
+                            if (!selectedSchedule) {
+                                selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
+                            }
+
+                            // Nếu tất cả các ca đều absent, mới coi là absent
+                            if (!selectedSchedule) {
+                                const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
+                                if (allAbsent) {
+                                    console.log('All schedules are absent');
+                                    setHasTodaySchedule(false);
+                                    setScheduleAttendanceStatus('absent');
                                 } else {
-                                    // Fallback: lấy ca đầu tiên
-                                    selectedSchedule = todaySchedules[0];
-                                    console.log('Using first schedule (fallback):', selectedSchedule);
-                                    setHasTodaySchedule(true);
+                                    // Có ít nhất 1 ca không phải absent, tìm ca không phải absent đầu tiên
+                                    selectedSchedule = todaySchedules.find(s => s.attendance_status !== 'absent');
+                                    if (selectedSchedule) {
+                                        console.log('Using first non-absent schedule:', selectedSchedule);
+                                        setHasTodaySchedule(true);
+                                        setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
+                                    } else {
+                                        // Fallback: lấy ca đầu tiên
+                                        selectedSchedule = todaySchedules[0];
+                                        console.log('Using first schedule (fallback):', selectedSchedule);
+                                        setHasTodaySchedule(true);
+                                        setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
+                                    }
+                                }
+                            } else {
+                                console.log('Selected schedule:', selectedSchedule);
+                                setHasTodaySchedule(true);
+                                if (selectedSchedule.attendance_status === 'checked_out') {
+                                    setScheduleAttendanceStatus('checked_out');
+                                } else {
                                     setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
                                 }
                             }
                         } else {
-                            console.log('Selected schedule:', selectedSchedule);
-                            setHasTodaySchedule(true);
-                            if (selectedSchedule.attendance_status === 'checked_out') {
-                                setScheduleAttendanceStatus('checked_out');
-                            } else {
-                                setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                            }
-                        }
-                    } else {
                             console.log('No schedule found for today');
                             setHasTodaySchedule(false);
                             setScheduleAttendanceStatus(null);
@@ -202,7 +214,7 @@ const POS = () => {
     const refreshOpenShift = useCallback(async () => {
         const storedStoreId = (() => {
             if (user && user.store_id) return user.store_id;
-            try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+            try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
             return 1;
         })();
         const resp = await getMyOpenShift(storedStoreId);
@@ -259,25 +271,25 @@ const POS = () => {
                 if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
                     // Lấy tất cả các ca của ngày hôm nay
                     const todaySchedules = scheduleResp.data.filter(s => s.work_date === today);
-                    
+
                     if (todaySchedules.length > 0) {
                         // Ưu tiên: checked_in > null/chưa check-in > checked_out > absent
                         let selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
-                        
+
                         // Nếu không có ca đang active, tìm ca chưa check-in (null hoặc không có status) - ưu tiên cao hơn checked_out
                         if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => 
-                                !s.attendance_status || 
-                                s.attendance_status === null || 
+                            selectedSchedule = todaySchedules.find(s =>
+                                !s.attendance_status ||
+                                s.attendance_status === null ||
                                 s.attendance_status === ''
                             );
                         }
-                        
+
                         // Nếu không có ca chưa check-in, tìm ca đã checkout
                         if (!selectedSchedule) {
                             selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
                         }
-                        
+
                         if (!selectedSchedule) {
                             const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
                             if (allAbsent) {
@@ -322,7 +334,7 @@ const POS = () => {
     // Auto-refresh shift data mỗi 10 giây để cập nhật realtime
     useEffect(() => {
         if (!isShiftActive) return; // Chỉ refresh khi đang trong ca
-        
+
         const interval = setInterval(() => {
             refreshOpenShift();
         }, 10000); // Refresh mỗi 10 giây
@@ -339,7 +351,7 @@ const POS = () => {
                 try {
                     const persisted = localStorage.getItem('store_id');
                     if (persisted) return Number(persisted);
-                } catch {}
+                } catch { }
                 return 1; // fallback test
             })();
 
@@ -424,6 +436,85 @@ const POS = () => {
     const handleRemoveFromCart = (productId) => {
         setCart(currentCart => currentCart.filter(item => item.id !== productId));
     };
+
+    /**
+     * Xử lý khi quét barcode thành công
+     * productData từ API: { product_id, name, sku, unit_id, unit_name, conversion_to_base, current_price, available_quantity, ... }
+     */
+    const handleBarcodeScanned = useCallback((productData) => {
+        if (!isShiftActive) {
+            toast.error('⚠️ Vui lòng bắt đầu ca làm việc trước');
+            return
+        }
+
+        const storeId = user?.store_id || Number(localStorage.getItem('store_id')) || 1
+
+        // Extract data
+        const {
+            product_id,
+            name,
+            sku,
+            unit_id,
+            unit_name,
+            conversion_to_base,
+            current_price,
+            base_quantity,
+            available_quantity,
+            matched_by
+        } = productData
+
+        // Kiểm tra tồn kho
+        if (!posConfig.allowOversell && available_quantity <= 0) {
+            toast.error('❌ Sản phẩm hết tồn kho')
+            return
+        }
+
+        // Build cart item (tương tự như handleAddToCart nhưng với dữ liệu từ barcode)
+        const cartItem = {
+            id: product_id,
+            product_id: product_id,
+            name: name,
+            sku: sku,
+            price: current_price,
+            unit_id: unit_id,
+            unit_name: unit_name,
+            conversion_to_base: conversion_to_base,
+            base_quantity: base_quantity,
+            available_quantity: available_quantity,
+            matched_by: matched_by,
+            stock: available_quantity // Dùng cho UI
+        }
+
+        // Thêm vào giỏ
+        setCart(currentCart => {
+            const itemInCart = currentCart.find(item => item.id === product_id)
+
+            if (itemInCart) {
+                // Sản phẩm đã có trong giỏ, tăng quantity
+                const newQty = itemInCart.qty + 1
+
+                // Check tồn kho lần nữa
+                if (!posConfig.allowOversell && newQty * conversion_to_base > base_quantity) {
+                    toast.warning(`⚠️ Chỉ còn ${available_quantity} ${unit_name}`)
+                    return currentCart
+                }
+
+                toast.info(`📦 Đã thêm ${name} (${unit_name}) - số lượng: ${newQty}`)
+                return currentCart.map(item =>
+                    item.id === product_id ? { ...item, qty: newQty } : item
+                )
+            } else {
+                // Sản phẩm mới, thêm vào
+                toast.success(`✅ Đã thêm ${name} (${unit_name}) x1`)
+                return [...currentCart, { ...cartItem, qty: 1 }]
+            }
+        })
+    }, [user, isShiftActive, posConfig])
+
+    // Xóa khỏi giỏ
+    // const handleRemoveFromCart = (productId) => {
+    //     setCart(currentCart => currentCart.filter(item => item.id !== productId));
+    // };
 
     // Tính toán tiền
     const subtotal = useMemo(() => {
@@ -859,18 +950,24 @@ const POS = () => {
 
                 {/* Search */}
                 <div className="pos-search">
-                    <InputGroup>
-                        <InputGroup.Text><FaSearch /></InputGroup.Text>
-                        <Form.Control
-                            type="text"
-                            placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <Button variant="light" className="btn-scan">
-                            <FaQrcode className="me-2" /> Quét mã
-                        </Button>
-                    </InputGroup>
+                    <BarcodeInput
+                        onProductScanned={handleBarcodeScanned}
+                        onError={(errorMsg) => console.error('Barcode error:', errorMsg)}
+                        storeId={user?.store_id || Number(localStorage.getItem('store_id')) || 1}
+                        config={posConfig}
+                        placeholder="Quét mã vạch hoặc nhập SKU..."
+                    />
+                    <div style={{ marginTop: '8px' }}>
+                        <InputGroup>
+                            <InputGroup.Text><FaSearch /></InputGroup.Text>
+                            <Form.Control
+                                type="text"
+                                placeholder="Hoặc tìm kiếm sản phẩm theo tên..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </InputGroup>
+                    </div>
                 </div>
 
                 {/* Product List */}
@@ -1387,7 +1484,7 @@ const POS = () => {
                                 setShowCheckinModal(false);
                                 return;
                             }
-                            
+
                             const open = Number(openingCashInput);
                             if (isNaN(open) || open < 0) {
                                 toast.error('Vui lòng nhập số tiền hợp lệ');
@@ -1395,7 +1492,7 @@ const POS = () => {
                             }
                             const storedStoreId = (() => {
                                 if (user && user.store_id) return user.store_id;
-                                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
                                 return 1;
                             })();
                             const resp = await checkinShift({ store_id: storedStoreId, opening_cash: open });
@@ -1407,10 +1504,10 @@ const POS = () => {
                                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
                                 setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
                                 setTotalSales(Number(resp.data.total_sales || 0));
-                                
+
                                 // Refresh lại để đảm bảo có data mới nhất
                                 await refreshOpenShift();
-                                
+
                                 setShowCheckinModal(false);
                                 setOpeningCashInput(''); // Reset input cho lần mở modal sau
                                 toast.success('Bắt đầu ca thành công!');

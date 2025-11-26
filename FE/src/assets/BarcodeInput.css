@@ -1,0 +1,85 @@
+/**
+ * BarcodeInput Component Styles
+ */
+
+.barcode-input-wrapper {
+    width: 100%;
+}
+
+.barcode-input-group {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    overflow: hidden;
+    background: white;
+}
+
+.barcode-icon {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #495057;
+    font-size: 16px;
+    padding: 0.75rem;
+}
+
+.barcode-input {
+    border: 1px solid #dee2e6;
+    border-left: none;
+    font-size: 14px;
+    padding: 0.75rem 12px;
+    transition: all 0.2s ease;
+}
+
+.barcode-input:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    background-color: #fff;
+}
+
+.barcode-input:disabled {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.barcode-spinner-btn,
+.barcode-clear-btn,
+.barcode-hint-btn {
+    border: 1px solid #dee2e6;
+    border-left: none;
+    padding: 0.75rem 12px;
+    font-size: 13px;
+    color: #495057;
+    white-space: nowrap;
+}
+
+.barcode-spinner-btn {
+    background: #f8f9fa;
+}
+
+.barcode-clear-btn:hover {
+    background-color: #fff3cd;
+}
+
+.barcode-hint-btn {
+    background: #e9ecef;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .barcode-input {
+        font-size: 13px;
+        padding: 0.6rem 10px;
+    }
+
+    .barcode-icon {
+        padding: 0.6rem;
+        font-size: 14px;
+    }
+
+    .barcode-spinner-btn,
+    .barcode-clear-btn,
+    .barcode-hint-btn {
+        padding: 0.6rem 10px;
+        font-size: 12px;
+    }
+}
