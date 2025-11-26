@@ -133,6 +133,37 @@ const UserManagement = () => {
         return filtered;
     }, [users, globalFilter, roleFilter]);
 
+    // Calculate role statistics
+    const roleStats = useMemo(() => {
+        const stats = {
+            'Admin': 0,
+            'CEO': 0,
+            'Store_Manager': 0,
+            'Cashier': 0,
+            'Warehouse': 0,
+            'Supplier': 0,
+            'Total': users.length
+        };
+
+        users.forEach(user => {
+            if (stats.hasOwnProperty(user.role)) {
+                stats[user.role]++;
+            }
+        });
+
+        return stats;
+    }, [users]);
+
+    // Role display names and colors
+    const roleConfig = {
+        'Admin': { label: 'Admin', color: '#dc3545', icon: '👤' },
+        'CEO': { label: 'CEO', color: '#007bff', icon: '👨‍💼' },
+        'Store_Manager': { label: 'Manager', color: '#28a745', icon: '🏪' },
+        'Cashier': { label: 'Cashier', color: '#ffc107', icon: '💳' },
+        'Warehouse': { label: 'Kho', color: '#17a2b8', icon: '📦' },
+        'Supplier': { label: 'NCC', color: '#6f42c1', icon: '🚚' }
+    };
+
     const columns = useMemo(
         () => [
             {
@@ -340,6 +371,29 @@ const UserManagement = () => {
                     {error}
                 </Alert>
             )}
+
+            {/* Role Statistics Section */}
+            <div className="stats-section">
+                <div className="stats-title">Thống kê tài khoản</div>
+                <div className="stats-grid">
+                    {Object.keys(roleConfig).map(role => (
+                        <div key={role} className="stat-card" style={{ borderLeftColor: roleConfig[role].color }}>
+                            <div className="stat-icon">{roleConfig[role].icon}</div>
+                            <div className="stat-info">
+                                <div className="stat-label">{roleConfig[role].label}</div>
+                                <div className="stat-value">{roleStats[role]}</div>
+                            </div>
+                        </div>
+                    ))}
+                    <div key="total" className="stat-card stat-card-total">
+                        <div className="stat-icon">📊</div>
+                        <div className="stat-info">
+                            <div className="stat-label">Tổng cộng</div>
+                            <div className="stat-value">{roleStats['Total']}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div className="filters-section">
                 <input
