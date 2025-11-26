@@ -17,7 +17,10 @@ import {
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
 const navLinks = {
-    Admin: [{ to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" }],
+    Admin: [
+        { to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" },
+        { to: "/admin/users", icon: <FaUserFriends />, text: "Quản lý Người dùng" }
+    ],
     Manager: [
         { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },
         { to: "/manager/inventory", icon: <FaWarehouse />, text: "Quản lý Tồn kho" },

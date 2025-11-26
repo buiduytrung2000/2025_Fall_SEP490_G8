@@ -53,7 +53,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.ENUM('CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Supplier'),
+      type: DataTypes.ENUM('Admin', 'CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Supplier'),
       allowNull: false
     },
     store_id: {
@@ -75,6 +75,14 @@ module.exports = (sequelize, DataTypes) => {
     address: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    full_name: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
     },
     status: {
       type: DataTypes.ENUM('active', 'inactive', 'suspended'),

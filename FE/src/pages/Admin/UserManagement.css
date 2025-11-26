@@ -1,0 +1,165 @@
+.user-management-container {
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    min-height: 100vh;
+}
+
+.user-management-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.user-management-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.user-management-header p {
+    margin: 8px 0 0 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.header-actions button {
+    white-space: nowrap;
+}
+
+.filters-section {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    background-color: white;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-input,
+.filter-select {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.filter-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+.filter-select {
+    min-width: 150px;
+}
+
+/* Material React Table Styles */
+.material-react-table {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.material-react-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.material-react-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+    padding: 16px 12px;
+    text-align: left;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.material-react-table td {
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.material-react-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Chip Styles */
+.MuiChip-root {
+    margin: 4px;
+}
+
+/* Action Buttons */
+.MuiButton-outlined {
+    border-color: #ddd;
+    color: #333;
+}
+
+.MuiButton-outlined:hover {
+    background-color: #f8f9fa;
+    border-color: #999;
+}
+
+.MuiButton-contained {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.MuiButton-contained:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Pagination Styles */
+.MuiTablePagination-root {
+    border-top: 1px solid #dee2e6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .user-management-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .filters-section {
+        flex-direction: column;
+    }
+
+    .filter-input,
+    .filter-select {
+        width: 100%;
+    }
+
+    .material-react-table {
+        font-size: 12px;
+    }
+
+    .material-react-table th,
+    .material-react-table td {
+        padding: 8px 4px;
+    }
+}

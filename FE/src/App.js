@@ -20,6 +20,7 @@ import Unauthorized from "./pages/public/Unauthorized";
 import POS from "./pages/Cashier/POS";
 import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
 import AdminPermissions from "./pages/Admin/AdminPermissions";
+import UserManagement from "./pages/Admin/UserManagement";
 import CEODashboard from "./pages/CEO/CEODashboard";
 import InventoryManagement from "./pages/Warehouse/InventoryManagement";
 import SupplierPortal from "./pages/Supplier/SupplierPortal";
@@ -75,6 +76,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <AdminPermissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <UserManagement />
                 </ProtectedRoute>
               }
             />

@@ -20,4 +20,4 @@ const checkRole = (...allowedRoles) => {
     };
 };
 
-export default checkRole;
+module.exports = checkRole;
