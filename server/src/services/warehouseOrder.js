@@ -1,6 +1,8 @@
 import db from '../models';
 import { Op } from 'sequelize';
 
+const normalizeOrderStatus = (status) => (status === 'preparing' ? 'confirmed' : status);
+
 // =====================================================
 // QUERY SERVICES - Get Orders
 // =====================================================
@@ -105,9 +107,11 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
 
             const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
 
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
@@ -334,12 +338,14 @@ export const getOrderDetailService = async (orderId) => {
 
         const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
         const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+        const normalizedStatus = normalizeOrderStatus(orderData.status);
 
         return {
             err: 0,
             msg: 'Get order detail successfully',
             data: {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalItems,
@@ -384,8 +390,10 @@ export const getOrdersByStoreService = async ({ storeId, page, limit }) => {
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -443,8 +451,10 @@ export const getOrdersBySupplierService = async ({ supplierId, page, limit }) =>
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -476,8 +486,12 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
     try {
         const offset = (page - 1) * limit;
 
+        const statusFilter = status === 'confirmed'
+            ? { [Op.in]: ['confirmed', 'preparing'] }
+            : status;
+
         const { count, rows } = await db.StoreOrder.findAndCountAll({
-            where: { status },
+            where: { status: statusFilter },
             include: [
                 {
                     model: db.Store,
@@ -502,8 +516,10 @@ export const getOrdersByStatusService = async ({ status, page, limit }) => {
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -576,8 +592,10 @@ export const getOrdersByDateRangeService = async ({ startDate, endDate, page, li
         const ordersWithTotals = rows.map(order => {
             const orderData = order.toJSON();
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
+            const normalizedStatus = normalizeOrderStatus(orderData.status);
             return {
                 ...orderData,
+                status: normalizedStatus,
                 order_id: orderData.store_order_id, // Map for frontend compatibility
                 orderItems: orderData.storeOrderItems, // Map for frontend compatibility
                 totalAmount: parseFloat(totalAmount.toFixed(2))
@@ -616,7 +634,7 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             };
         }
 
-        const statusCounts = await db.StoreOrder.findAll({
+        const rawStatusCounts = await db.StoreOrder.findAll({
             where: whereConditions,
             attributes: [
                 'status',
@@ -625,6 +643,18 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
             group: ['status'],
             raw: true
         });
+
+        const statusCounts = rawStatusCounts.reduce((acc, row) => {
+            const normalized = normalizeOrderStatus(row.status);
+            const countValue = Number(row.count || 0);
+            const existing = acc.find(item => item.status === normalized);
+            if (existing) {
+                existing.count += countValue;
+            } else {
+                acc.push({ status: normalized, count: countValue });
+            }
+            return acc;
+        }, []);
 
         const storeCounts = await db.StoreOrder.findAll({
             where: whereConditions,
@@ -682,11 +712,12 @@ export const getOrderStatisticsService = async ({ startDate, endDate }) => {
 /**
  * Update order status with inventory management
  * LOGIC:
- * - preparing → shipped: TRỪ actual_quantity từ inventory của kho.
- * - shipped → preparing/cancelled: CỘNG lại actual_quantity vào inventory.
+ * - confirmed → shipped: TRỪ actual_quantity từ inventory của kho.
+ * - shipped → confirmed/cancelled: CỘNG lại actual_quantity vào inventory.
+ * - shipped → delivered: bổ sung tồn kho tại cửa hàng.
  * - delivered: KHÔNG CHO SỬA.
  */
-export const updateOrderStatusService = async ({ orderId, status, updatedBy }) => {
+export const updateOrderStatusService = async ({ orderId, status, updatedBy, notes }) => {
     const transaction = await db.sequelize.transaction();
 
     try {
@@ -697,7 +728,7 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
             return { err: 1, msg: 'Order not found' };
         }
 
-        const currentStatus = order.status;
+        let currentStatus = normalizeOrderStatus(order.status);
 
         // KHÔNG CHO SỬA NẾU ĐÃ GIAO
         if (currentStatus === 'delivered') {
@@ -710,9 +741,8 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
 
         const validTransitions = {
             'pending': ['confirmed', 'cancelled'],
-            'confirmed': ['pending', 'preparing', 'cancelled'],
-            'preparing': ['confirmed', 'shipped', 'cancelled'],
-            'shipped': ['preparing', 'delivered', 'cancelled'],
+            'confirmed': ['pending', 'shipped', 'cancelled'],
+            'shipped': ['confirmed', 'delivered', 'cancelled'],
             'delivered': [],
             'cancelled': ['pending']
         };
@@ -730,12 +760,12 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
         // =====================================================
 
         // 1. TRỪ TỒN KHO KHI GIAO HÀNG
-        if (currentStatus === 'preparing' && status === 'shipped') {
+        if (currentStatus === 'confirmed' && status === 'shipped') {
             await shipInventoryFromWarehouse(orderId, transaction);
         }
 
         // 2. HOÀN LẠI TỒN KHO KHI HỦY
-        if (currentStatus === 'shipped' && (status === 'preparing' || status === 'cancelled')) {
+        if (currentStatus === 'shipped' && (status === 'confirmed' || status === 'cancelled')) {
             await returnInventoryToWarehouse(orderId, transaction);
         }
 
@@ -744,10 +774,21 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy }) =
             await receiveInventoryAtStore(orderId, transaction);
         }
 
-        await order.update({
+        // Build update data
+        const updateData = {
             status,
             updated_at: new Date()
-        }, { transaction });
+        };
+
+        // Append notes if provided (when marking as delivered)
+        if (notes && status === 'delivered') {
+            const existingNotes = order.notes || '';
+            updateData.notes = existingNotes
+                ? `${existingNotes}\n[Ghi chú nhận hàng]: ${notes}`
+                : `[Ghi chú nhận hàng]: ${notes}`;
+        }
+
+        await order.update(updateData, { transaction });
 
         await transaction.commit();
 

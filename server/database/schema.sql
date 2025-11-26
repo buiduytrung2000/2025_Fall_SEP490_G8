@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS StoreOrder (
     target_warehouse VARCHAR(255) NULL COMMENT 'Warehouse name for ToWarehouse orders',
     supplier_id INT NULL COMMENT 'Supplier ID for ToSupplier orders',
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
-    status ENUM('pending', 'approved', 'rejected', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
+    status ENUM('pending', 'approved', 'rejected', 'confirmed', 'shipped', 'delivered', 'cancelled') DEFAULT 'pending',
     perishable BOOLEAN DEFAULT FALSE COMMENT 'For fresh goods',
     notes TEXT NULL,
     expected_delivery DATETIME NULL COMMENT 'Expected delivery date for the order',

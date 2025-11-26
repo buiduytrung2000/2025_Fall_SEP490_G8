@@ -528,6 +528,57 @@ export const getCompanyTopProducts = (limit = 10) => new Promise(async (resolve,
     }
 });
 
+// Get revenue mix by product category
+export const getCompanyRevenueMix = (days = 30) => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const lookbackDays = Number(days) > 0 ? Number(days) : 30;
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - (lookbackDays - 1));
+
+        const query = `
+            SELECT 
+                COALESCE(c.category_id, 0) as category_id,
+                COALESCE(c.name, 'Khác') as category_name,
+                COALESCE(SUM(ti.subtotal), 0) as totalRevenue
+            FROM TransactionItem ti
+            INNER JOIN Transaction t ON ti.transaction_id = t.transaction_id
+            LEFT JOIN Product p ON ti.product_id = p.product_id
+            LEFT JOIN Category c ON p.category_id = c.category_id
+            WHERE t.status = 'completed'
+                AND t.created_at >= :startDate
+            GROUP BY category_id, category_name
+            ORDER BY totalRevenue DESC
+        `;
+
+        const rows = await db.sequelize.query(query, {
+            replacements: { startDate },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const totalRevenue = rows.reduce((sum, row) => sum + parseFloat(row.totalRevenue || 0), 0);
+
+        const result = rows.map(row => {
+            const revenue = parseFloat(row.totalRevenue || 0);
+            return {
+                category_id: row.category_id,
+                name: row.category_name,
+                revenue,
+                percentage: totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0
+            };
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
 // Get store performance
 export const getStorePerformance = () => new Promise(async (resolve, reject) => {
     try {

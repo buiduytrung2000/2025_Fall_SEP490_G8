@@ -20,7 +20,7 @@ import {
   TextField,
   MenuItem,
 } from "@mui/material";
-import { Bar, Line } from "react-chartjs-2";
+import { Bar, Line, Doughnut } from "react-chartjs-2";
 import {
   TrendingUp,
   AttachMoney,
@@ -38,6 +38,7 @@ import {
   BarElement,
   LineElement,
   PointElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -46,6 +47,7 @@ import {
   getCompanyKPIs,
   getCompanyRevenueLast30Days,
   getCompanyTopProducts,
+  getCompanyRevenueMix,
   getStorePerformance,
   getWarehouseOrdersSummary,
   getCompanyLowStock,
@@ -58,6 +60,7 @@ ChartJS.register(
   BarElement,
   LineElement,
   PointElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -163,6 +166,7 @@ export default function CEODashboard() {
   const [storePerformance, setStorePerformance] = useState([]);
   const [warehouseOrders, setWarehouseOrders] = useState(null);
   const [lowStock, setLowStock] = useState([]);
+  const [revenueMix, setRevenueMix] = useState([]);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const yearOptions = Array.from({ length: 5 }, (_, idx) => currentYear - idx);
@@ -173,6 +177,7 @@ export default function CEODashboard() {
       const [
         kpisRes,
         revenueRes,
+        revenueMixRes,
         productsRes,
         storesRes,
         warehouseRes,
@@ -180,6 +185,7 @@ export default function CEODashboard() {
       ] = await Promise.all([
         getCompanyKPIs(),
         getCompanyRevenueLast30Days(year),
+        getCompanyRevenueMix(),
         getCompanyTopProducts(10),
         getStorePerformance(),
         getWarehouseOrdersSummary(),
@@ -188,6 +194,7 @@ export default function CEODashboard() {
 
       if (kpisRes.err === 0) setKpis(kpisRes.data);
       if (revenueRes.err === 0) setRevenueData(revenueRes.data);
+      if (revenueMixRes.err === 0) setRevenueMix(revenueMixRes.data);
       if (productsRes.err === 0) setTopProducts(productsRes.data);
       if (storesRes.err === 0) setStorePerformance(storesRes.data);
       if (warehouseRes.err === 0) setWarehouseOrders(warehouseRes.data);
@@ -252,10 +259,121 @@ export default function CEODashboard() {
     scales: {
       y: {
         beginAtZero: true,
+        title: {
+          display: true,
+          text: "Đơn vị: k",
+        },
         ticks: {
           callback: function (value) {
-            return (value / 1000000).toFixed(1) + "M";
+            const scaled = value / 1000;
+            return `${scaled.toLocaleString("vi-VN")}k`;
           },
+        },
+      },
+    },
+  };
+
+  const colorPalette = [
+    "#4e79a7",
+    "#f28e2b",
+    "#e15759",
+    "#76b7b2",
+    "#59a14f",
+    "#edc948",
+    "#b07aa1",
+    "#ff9da7",
+    "#9c755f",
+    "#bab0ab",
+  ];
+
+  const revenueMixChartData =
+    revenueMix && revenueMix.length
+      ? {
+          labels: revenueMix.map((item) => item.name || "Khác"),
+          datasets: [
+            {
+              label: "Doanh thu",
+              data: revenueMix.map((item) => item.revenue),
+              backgroundColor: revenueMix.map(
+                (_, idx) => colorPalette[idx % colorPalette.length]
+              ),
+              borderWidth: 1,
+            },
+          ],
+        }
+      : null;
+
+  const revenueMixChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "60%",
+    plugins: {
+      legend: {
+        position: "right",
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            const total =
+              context.dataset.data?.reduce?.(
+                (sum, val) => sum + Number(val || 0),
+                0
+              ) || 0;
+            const value = context.parsed;
+            const percent = total ? ((value / total) * 100).toFixed(1) : 0;
+            return `${context.label}: ${formatCurrency(value)} (${percent}%)`;
+          },
+        },
+      },
+    },
+  };
+
+  const topStores = storePerformance.slice(0, 5);
+  const topStoreChartData =
+    topStores && topStores.length
+      ? {
+          labels: topStores.map((store) => store.name),
+          datasets: [
+            {
+              label: "Doanh thu (VNĐ)",
+              data: topStores.map((store) => store.revenue),
+              backgroundColor: topStores.map(
+                (_, idx) => colorPalette[idx % colorPalette.length]
+              ),
+              borderRadius: 8,
+              barThickness: 24,
+            },
+          ],
+        }
+      : null;
+
+  const topStoreChartOptions = {
+    indexAxis: "y",
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            return formatCurrency(context.parsed.x);
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          callback: (value) => {
+            const scaled = Number(value) / 1000;
+            return `${scaled.toLocaleString("vi-VN")}k`;
+          },
+        },
+      },
+      y: {
+        ticks: {
+          autoSkip: false,
+          font: { weight: 600 },
         },
       },
     },
@@ -332,103 +450,139 @@ export default function CEODashboard() {
         </Grid>
       </Grid>
 
-      {/* Warehouse Orders Summary */}
-      {warehouseOrders && (
-        <Grid container spacing={3} mb={3}>
-          <Grid item xs={12} md={8} lg={8}>
-            <Card sx={{ width: "100%" }}>
-              <CardContent>
+      {/* Revenue Trend & Mix */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12} md={8} lg={8}>
+          <Card sx={{ width: "600px" }}>
+            <CardContent>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 2,
+                  gap: 2,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Typography variant="h6">Doanh thu theo tháng</Typography>
+                <TextField
+                  select
+                  size="small"
+                  label="Năm"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  sx={{ minWidth: 140 }}
+                >
+                  {yearOptions.map((year) => (
+                    <MenuItem key={year} value={year}>
+                      {year}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+              {revenueChartData ? (
+                <Box sx={{ height: { xs: 320, md: 420 }, width: "100%" }}>
+                  <Line data={revenueChartData} options={revenueChartOptions} />
+                </Box>
+              ) : (
+                <Skeleton variant="rectangular" height={360} />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4} lg={4}>
+          <Card sx={{ width: "600px", height: "516px" }}>
+            <CardContent>
+              <Typography variant="h6" mb={2}>
+                Cơ cấu doanh thu (30 ngày)
+              </Typography>
+              {revenueMixChartData && revenueMix.length > 0 ? (
                 <Box
                   sx={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    flexDirection: { xs: "column", sm: "row" },
+                    gap: 3,
                     alignItems: "center",
-                    mb: 2,
-                    gap: 2,
-                    flexWrap: "wrap",
+                    minHeight: 280,
                   }}
                 >
-                  <Typography variant="h6">Doanh thu theo tháng</Typography>
-                  <TextField
-                    select
-                    size="small"
-                    label="Năm"
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(Number(e.target.value))}
-                    sx={{ minWidth: 140 }}
-                  >
-                    {yearOptions.map((year) => (
-                      <MenuItem key={year} value={year}>
-                        {year}
-                      </MenuItem>
+                  <Box sx={{ flex: 1, minHeight: 240 }}>
+                    <Doughnut
+                      data={revenueMixChartData}
+                      options={revenueMixChartOptions}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    {revenueMix.map((item, idx) => (
+                      <Box
+                        key={`${item.name}-${idx}`}
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          mb: 1.5,
+                          pb: 1.5,
+                          borderBottom:
+                            idx === revenueMix.length - 1
+                              ? "none"
+                              : "1px dashed #eee",
+                        }}
+                      >
+                        <Box>
+                          <Typography fontWeight={600}>{item.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.percentage.toFixed(1)}%
+                          </Typography>
+                        </Box>
+                        <Typography>{formatCurrency(item.revenue)}</Typography>
+                      </Box>
                     ))}
-                  </TextField>
-                </Box>
-                {revenueChartData ? (
-                  <Box sx={{ height: { xs: 320, md: 420 }, width: "100%" }}>
-                    <Line
-                      data={revenueChartData}
-                      options={revenueChartOptions}
-                    />
-                  </Box>
-                ) : (
-                  <Skeleton variant="rectangular" height={360} />
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4} lg={4}>
-            <Card>
-              <CardContent>
-                <Typography
-                  variant="h6"
-                  mb={2}
-                  display="flex"
-                  alignItems="center"
-                  gap={1}
-                >
-                  <Assignment /> Đơn hàng kho
-                </Typography>
-                <Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Tổng đơn:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatNumber(warehouseOrders.total)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Đang chờ:</Typography>
-                    <Chip
-                      label={formatNumber(warehouseOrders.pending)}
-                      size="small"
-                      color="warning"
-                    />
-                  </Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2">Đã xác nhận:</Typography>
-                    <Chip
-                      label={formatNumber(warehouseOrders.confirmed)}
-                      size="small"
-                      color="success"
-                    />
-                  </Box>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2">Tổng giá trị:</Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {formatCurrency(warehouseOrders.totalAmount)}
-                    </Typography>
                   </Box>
                 </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+              ) : loading ? (
+                <Skeleton variant="rectangular" height={260} />
+              ) : (
+                <Alert severity="info">
+                  Chưa có dữ liệu giao dịch cho 30 ngày gần nhất.
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+      </Grid>
+
+      {/* Top Stores */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12} md={12}>
+          <Card sx={{ width: "600px" }}>
+            <CardContent>
+              <Typography variant="h6" mb={2}>
+                Top cửa hàng bán chạy
+              </Typography>
+              {topStoreChartData && topStores.length > 0 ? (
+                <Box sx={{ height: 320 }}>
+                  <Bar
+                    data={topStoreChartData}
+                    options={topStoreChartOptions}
+                  />
+                </Box>
+              ) : loading ? (
+                <Skeleton variant="rectangular" height={260} />
+              ) : (
+                <Alert severity="info">
+                  Chưa có dữ liệu doanh thu cửa hàng trong 30 ngày.
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Store Performance & Top Products */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={6}>
-          <Card>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ width: "100%", height: "300px" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>
                 Hiệu suất cửa hàng (30 ngày)
@@ -476,8 +630,8 @@ export default function CEODashboard() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Card>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ width: "100%", height: "300px" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>
                 Sản phẩm bán chạy (30 ngày)
@@ -525,6 +679,55 @@ export default function CEODashboard() {
             </CardContent>
           </Card>
         </Grid>
+        {/* {warehouseOrders && (
+          <Grid container spacing={3} mb={3}>
+            <Grid item xs={12} md={6} lg={4}>
+              <Card sx={{ width: "400px" }}>
+                <CardContent>
+                  <Typography
+                    variant="h6"
+                    mb={2}
+                    display="flex"
+                    alignItems="center"
+                    gap={1}
+                  >
+                    <Assignment /> Đơn hàng kho
+                  </Typography>
+                  <Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Tổng đơn:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {formatNumber(warehouseOrders.total)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Đang chờ:</Typography>
+                      <Chip
+                        label={formatNumber(warehouseOrders.pending)}
+                        size="small"
+                        color="warning"
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2">Đã xác nhận:</Typography>
+                      <Chip
+                        label={formatNumber(warehouseOrders.confirmed)}
+                        size="small"
+                        color="success"
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2">Tổng giá trị:</Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {formatCurrency(warehouseOrders.totalAmount)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )} */}
       </Grid>
 
       {/* Low Stock Alerts */}

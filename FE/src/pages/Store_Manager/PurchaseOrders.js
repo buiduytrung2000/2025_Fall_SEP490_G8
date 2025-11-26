@@ -36,7 +36,6 @@ const STATUS_OPTIONS = [
   { label: 'Tất cả', value: 'All' },
   { label: 'Đang chờ duyệt', value: 'pending' },
   { label: 'Đã duyệt', value: 'confirmed' },
-  { label: 'Đang chuẩn bị', value: 'preparing' },
   { label: 'Đang giao', value: 'shipped' },
   { label: 'Đã nhận', value: 'delivered' },
   { label: 'Đã hủy', value: 'cancelled' },
@@ -47,7 +46,6 @@ const STATUS_META = {
   pending: { label: 'Đang chờ duyệt', color: 'warning' },
   confirmed: { label: 'Đã duyệt', color: 'info' },
   approved: { label: 'Đã duyệt', color: 'info' },
-  preparing: { label: 'Đang chuẩn bị', color: 'info' },
   shipped: { label: 'Đang giao', color: 'primary' },
   delivered: { label: 'Đã nhận', color: 'success' },
   cancelled: { label: 'Đã hủy', color: 'default' },
@@ -70,6 +68,8 @@ const PurchaseOrders = () => {
   const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [confirmReceivedDialog, setConfirmReceivedDialog] = useState(false);
+  const [receiveNote, setReceiveNote] = useState('');
 
   const getStatusMeta = useCallback((status) => {
     if (!status) return STATUS_META.pending;
@@ -292,18 +292,20 @@ const PurchaseOrders = () => {
     },
   ], [getStatusMeta]);
 
+  const handleOpenConfirmReceived = () => {
+    setReceiveNote('');
+    setConfirmReceivedDialog(true);
+  };
+
   const handleConfirmReceived = async () => {
     if (!selectedOrder) return;
-    
-    if (!window.confirm(`Bạn có chắc chắn đã nhận hàng cho đơn hàng #${selectedOrder.store_order_id}?`)) {
-      return;
-    }
 
     setUpdatingStatus(true);
     try {
-      const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered');
+      const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered', receiveNote);
       if (response.err === 0) {
         toast.success('Xác nhận đã nhận hàng thành công!');
+        setConfirmReceivedDialog(false);
         await fetchOrders();
         // Update selected order
         setSelectedOrder({ ...selectedOrder, status: 'delivered' });
@@ -676,7 +678,7 @@ const PurchaseOrders = () => {
         <DialogActions>
           {selectedOrder?.status?.toLowerCase() === 'shipped' && (
             <Button 
-              onClick={handleConfirmReceived} 
+              onClick={handleOpenConfirmReceived} 
               variant="contained" 
               color="success"
               disabled={updatingStatus}
@@ -687,6 +689,47 @@ const PurchaseOrders = () => {
           )}
           <Button onClick={() => setOpenModal(false)} variant="outlined" disabled={updatingStatus}>
             Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirm Received Dialog */}
+      <Dialog
+        open={confirmReceivedDialog}
+        onClose={() => !updatingStatus && setConfirmReceivedDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Xác nhận đã nhận hàng
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Bạn có chắc chắn đã nhận hàng cho đơn hàng #{selectedOrder?.store_order_id}?
+          </Typography>
+          <TextField
+            label="Ghi chú khi nhận hàng"
+            placeholder="Nhập ghi chú (nếu có vấn đề về hàng hóa, số lượng...)"
+            multiline
+            rows={3}
+            fullWidth
+            value={receiveNote}
+            onChange={(e) => setReceiveNote(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmReceivedDialog(false)} disabled={updatingStatus}>
+            Hủy
+          </Button>
+          <Button
+            onClick={handleConfirmReceived}
+            variant="contained"
+            color="success"
+            disabled={updatingStatus}
+          >
+            {updatingStatus ? 'Đang xử lý...' : 'Xác nhận nhận hàng'}
           </Button>
         </DialogActions>
       </Dialog>

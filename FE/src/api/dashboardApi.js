@@ -91,6 +91,16 @@ export async function getCompanyTopProducts(limit = 10) {
     return res.json();
 }
 
+export async function getCompanyRevenueMix(days = 30) {
+    const params = new URLSearchParams();
+    if (days) params.append('days', days);
+    const query = params.toString() ? `?${params}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/ceo/revenue-mix${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
 export async function getStorePerformance() {
     const res = await fetch(`${API_BASE}/dashboard/ceo/store-performance`, {
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }

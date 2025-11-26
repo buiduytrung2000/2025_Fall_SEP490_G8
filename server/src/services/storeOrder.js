@@ -234,12 +234,13 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
 });
 
 // Update store order status (for store to mark as delivered)
-export const updateStoreOrderStatus = ({ orderId, status, updatedBy }) => new Promise(async (resolve, reject) => {
+export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes }) => new Promise(async (resolve, reject) => {
     try {
         const response = await updateWarehouseOrderStatus({
             orderId,
             status,
-            updatedBy
+            updatedBy,
+            notes
         });
         resolve(response);
     } catch (error) {

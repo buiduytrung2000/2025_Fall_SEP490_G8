@@ -50,7 +50,7 @@ const generateOrderCode = async () => {
     let exists = true;
 
     while (exists) {
-        code = Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
         // Ensure uniqueness
         const count = await db.Order.count({ where: { order_code: code } });
         if (count === 0) exists = false;

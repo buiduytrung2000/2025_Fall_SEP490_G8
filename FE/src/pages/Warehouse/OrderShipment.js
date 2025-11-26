@@ -30,7 +30,6 @@ import {
 import {
   ArrowBack as BackIcon,
   LocalShipping as ShippingIcon,
-  Inventory as InventoryIcon,
   CheckCircle as CheckIcon,
   Edit as EditIcon,
   Save as SaveIcon,
@@ -46,7 +45,6 @@ import {
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
-  preparing: 'secondary',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error'
@@ -55,7 +53,6 @@ const statusColors = {
 const statusLabels = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
-  preparing: 'Đang chuẩn bị',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
@@ -117,19 +114,22 @@ const OrderShipment = () => {
       if (response.err === 0) {
         const orderData = response.data;
 
-        if (orderData.status === 'pending') {
+        const normalizedStatus =
+          orderData.status === 'preparing' ? 'confirmed' : orderData.status;
+
+        if (normalizedStatus === 'pending') {
           toast.warning('Đơn hàng này chưa được xác nhận');
           navigate('/warehouse/branch-orders');
           return;
         }
 
-        if (orderData.status === 'cancelled') {
+        if (normalizedStatus === 'cancelled') {
           toast.error('Đơn hàng này đã bị hủy');
           navigate('/warehouse/branch-orders');
           return;
         }
 
-        setOrder(orderData);
+        setOrder({ ...orderData, status: normalizedStatus });
       } else {
         toast.error(response.msg || 'Không thể tải thông tin đơn hàng');
         navigate('/warehouse/branch-orders');
@@ -151,14 +151,13 @@ const OrderShipment = () => {
   // =====================================================
 
   const getStatusStep = (status) => {
-    const steps = ['confirmed', 'preparing', 'shipped', 'delivered'];
+    const steps = ['confirmed', 'shipped', 'delivered'];
     return steps.indexOf(status);
   };
 
   const getNextStatus = (currentStatus) => {
     const flow = {
-      confirmed: 'preparing',
-      preparing: 'shipped',
+      confirmed: 'shipped',
       shipped: 'delivered'
     };
     return flow[currentStatus] || null;
@@ -166,7 +165,6 @@ const OrderShipment = () => {
 
   const getStatusActionLabel = (status) => {
     const labels = {
-      preparing: 'Bắt đầu chuẩn bị hàng',
       shipped: 'Xuất kho và giao hàng',
       delivered: 'Xác nhận đã giao'
     };
@@ -175,7 +173,6 @@ const OrderShipment = () => {
 
   const getStatusActionIcon = (status) => {
     const icons = {
-      preparing: <InventoryIcon />,
       shipped: <ShippingIcon />,
       delivered: <CheckIcon />
     };
@@ -382,9 +379,6 @@ const OrderShipment = () => {
                   <StepLabel>Đã xác nhận</StepLabel>
                 </Step>
                 <Step>
-                  <StepLabel>Chuẩn bị hàng</StepLabel>
-                </Step>
-                <Step>
                   <StepLabel>Đang giao</StepLabel>
                 </Step>
                 <Step>
@@ -392,6 +386,18 @@ const OrderShipment = () => {
                 </Step>
               </Stepper>
             </Paper>
+
+            {/* Notes from Store (if any) */}
+            {order.notes && (
+              <Paper sx={{ p: 3, mb: 3, bgcolor: '#fff3e0', border: '1px solid #ffb74d' }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom color="warning.dark">
+                  📝 Ghi chú từ cửa hàng
+                </Typography>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+                  {order.notes}
+                </Typography>
+              </Paper>
+            )}
 
             {/* Summary Info */}
             <Paper sx={{ p: 3, mb: 3, bgcolor: '#e3f2fd' }}>
@@ -682,7 +688,6 @@ const OrderShipment = () => {
             severity={nextStatus === 'delivered' ? 'success' : 'info'}
             sx={{ mb: 2 }}
           >
-            {nextStatus === 'preparing' && '📦 Bắt đầu chuẩn bị hàng cho đơn hàng này'}
             {nextStatus === 'shipped' && '🚚 Xuất kho và bắt đầu vận chuyển đơn hàng'}
             {nextStatus === 'delivered' && '✅ Xác nhận đã giao hàng thành công. Tồn kho sẽ được cập nhật tự động.'}
           </Alert>

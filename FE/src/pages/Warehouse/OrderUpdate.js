@@ -39,7 +39,6 @@ import {
 const statusColors = {
   pending: 'warning',
   confirmed: 'info',
-  preparing: 'secondary',
   shipped: 'primary',
   delivered: 'success',
   cancelled: 'error'
@@ -48,7 +47,6 @@ const statusColors = {
 const statusLabels = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
-  preparing: 'Đang chuẩn bị',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
   cancelled: 'Đã hủy'
@@ -91,7 +89,9 @@ const OrderUpdate = () => {
       const response = await getWarehouseOrderDetail(id);
       if (response.err === 0) {
         const orderData = response.data;
-        setOrder(orderData);
+        const normalizedStatus =
+          orderData.status === 'preparing' ? 'confirmed' : orderData.status;
+        setOrder({ ...orderData, status: normalizedStatus });
 
         if (orderData.expected_delivery) {
           const date = new Date(orderData.expected_delivery);
@@ -122,6 +122,19 @@ const OrderUpdate = () => {
 
     setUpdating(true);
     try {
+      // Lưu ngày giao dự kiến trước
+      const formattedDate = newDeliveryDate.includes('T')
+        ? newDeliveryDate.replace('T', ' ').substring(0, 16) + ':00'
+        : `${newDeliveryDate} 00:00:00`;
+
+      const deliveryRes = await updateExpectedDelivery(id, formattedDate);
+      if (deliveryRes.err !== 0) {
+        toast.error('Không thể lưu ngày giao dự kiến: ' + (deliveryRes.msg || ''));
+        setUpdating(false);
+        return;
+      }
+
+      // Sau đó xác nhận đơn hàng
       const response = await updateWarehouseOrderStatus(id, 'confirmed');
       if (response.err === 0) {
         toast.success('Xác nhận đơn hàng thành công!');
@@ -324,8 +337,9 @@ const OrderUpdate = () => {
     );
   }
 
-  const isPending = order.status === 'pending';
-  const canShip = ['confirmed', 'preparing', 'shipped'].includes(order.status);
+  const normalizedStatus = order.status === 'preparing' ? 'confirmed' : order.status;
+  const isPending = normalizedStatus === 'pending';
+  const canShip = ['confirmed', 'shipped'].includes(normalizedStatus);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
@@ -389,6 +403,18 @@ const OrderUpdate = () => {
                   </Typography>
                 </Grid>
               </Grid>
+
+              {/* Notes from Store */}
+              {order.notes && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#fff3e0', borderRadius: 1, border: '1px solid #ffb74d' }}>
+                  <Typography variant="subtitle2" fontWeight={600} color="warning.dark" gutterBottom>
+                    📝 Ghi chú từ cửa hàng
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+                    {order.notes}
+                  </Typography>
+                </Box>
+              )}
             </Paper>
 
             {/* Products Table */}
