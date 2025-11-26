@@ -58,6 +58,12 @@ const formatDate = (dateString) => {
   });
 };
 
+const getOrderCode = (order) => {
+  if (!order) return '';
+  if (order.order_code) return order.order_code;
+  return `ORD${String(order.order_id || '').padStart(3, '0')}`;
+};
+
 const BranchOrders = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
@@ -195,9 +201,10 @@ const BranchOrders = () => {
         <Table sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700, width: 50 }}>#</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: 50 }}>STT</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Mã đơn</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Cửa hàng</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Loại đơn</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Ngày tạo</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Dự kiến giao</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Số lượng</TableCell>
@@ -220,17 +227,29 @@ const BranchOrders = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((order, index) => (
+              orders.map((order, index) => {
+                const orderCode = getOrderCode(order);
+                return (
                 <TableRow key={order.order_id} hover>
                   <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                  <TableCell>#{order.order_id}</TableCell>
+                  <TableCell>#{orderCode}</TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight={600}>
                       {order.store?.name}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {order.store?.phone}
-                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="caption" color="text.secondary">
+                        {order.store?.phone}
+                      </Typography>
+                      
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={order.perishable ? 'warning' : 'default'}
+                      label={order.perishable ? 'Đơn tươi sống' : 'Đơn thường'}
+                    />
                   </TableCell>
                   <TableCell>{formatDate(order.created_at)}</TableCell>
                   <TableCell>{formatDate(order.expected_delivery)}</TableCell>
@@ -280,7 +299,8 @@ const BranchOrders = () => {
                     </Stack>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>

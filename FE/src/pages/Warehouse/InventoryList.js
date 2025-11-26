@@ -516,7 +516,7 @@ const InventoryList = () => {
                     onChange={handleSelectAll}
                   />
                 </TableCell>
-                <TableCell sx={{ fontWeight: 700, width: 50 }}>#</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 50 }}>STT</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
@@ -559,12 +559,23 @@ const InventoryList = () => {
                         <Typography variant="body2" fontWeight={600}>{item.product?.sku}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={600}>{item.product?.name}</Typography>
-                        {item.product?.description && (
-                          <Typography variant="caption" color="text.secondary">
-                            {item.product.description}
-                          </Typography>
-                        )}
+                        <Stack spacing={0.5}>
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                            <Typography variant="body2" fontWeight={600}>{item.product?.name}</Typography>
+                            {item.product?.is_perishable !== undefined && (
+                              <Chip
+                                size="small"
+                                color={item.product.is_perishable ? 'warning' : 'default'}
+                                label={item.product.is_perishable ? 'Tươi sống' : 'Thường'}
+                              />
+                            )}
+                          </Stack>
+                          {item.product?.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {item.product.description}
+                            </Typography>
+                          )}
+                        </Stack>
                       </TableCell>
                       <TableCell>
                         <Chip size="small" label={item.product?.category?.name || 'N/A'} variant="outlined" />

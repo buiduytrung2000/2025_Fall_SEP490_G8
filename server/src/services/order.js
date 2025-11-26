@@ -44,7 +44,7 @@ const buildPackageMetaMap = async (productIds = []) => {
     return metaMap;
 };
 
-const generateOrderCode = async () => {
+export const generateOrderCode = async () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
     let exists = true;
@@ -493,19 +493,42 @@ export const updateOrderStatus = async ({ orderId, status, updatedBy, supplierGu
         if (status === 'confirmed' && currentStatus !== 'confirmed') {
             const orderItems = await db.OrderItem.findAll({ where: { order_id: orderId }, transaction });
 
-            for (const item of orderItems) {
-                // Use WarehouseInventory for warehouse-to-supplier orders
-                const inventory = await db.WarehouseInventory.findOne({ where: { product_id: item.product_id }, transaction });
+            // Nếu là đơn giao thẳng tới cửa hàng (direct_to_store), cộng vào tồn kho store
+            if (order.direct_to_store && order.target_store_id) {
+                for (const item of orderItems) {
+                    const inventory = await db.Inventory.findOne({
+                        where: {
+                            store_id: order.target_store_id,
+                            product_id: item.product_id
+                        },
+                        transaction
+                    });
 
-                if (inventory) {
-                    // Use the correct field name 'stock'
-                    await inventory.increment('stock', { by: item.quantity_in_base, transaction });
-                } else {
-                    // Create a new WarehouseInventory record if it doesn't exist
-                    await db.WarehouseInventory.create({
-                        product_id: item.product_id,
-                        stock: item.quantity_in_base, // Use quantity_in_base for accurate inventory
-                    }, { transaction });
+                    if (inventory) {
+                        await inventory.increment('stock', { by: item.quantity_in_base, transaction });
+                    } else {
+                        await db.Inventory.create({
+                            store_id: order.target_store_id,
+                            product_id: item.product_id,
+                            stock: item.quantity_in_base,
+                            min_stock_level: 0,
+                            reorder_point: 0
+                        }, { transaction });
+                    }
+                }
+            } else {
+                // Ngược lại: đơn nhập kho tổng, cộng vào WarehouseInventory như cũ
+                for (const item of orderItems) {
+                    const inventory = await db.WarehouseInventory.findOne({ where: { product_id: item.product_id }, transaction });
+
+                    if (inventory) {
+                        await inventory.increment('stock', { by: item.quantity_in_base, transaction });
+                    } else {
+                        await db.WarehouseInventory.create({
+                            product_id: item.product_id,
+                            stock: item.quantity_in_base,
+                        }, { transaction });
+                    }
                 }
             }
         }

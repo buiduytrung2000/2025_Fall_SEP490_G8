@@ -381,6 +381,14 @@ const OrderUpdate = () => {
                   <Typography variant="body2" color="text.secondary">
                     <strong>Chi nhánh:</strong> {order.store?.name}
                   </Typography>
+                  {order.perishable && (
+                    <Chip
+                      size="small"
+                      color="warning"
+                      label="Hàng tươi sống"
+                      sx={{ mt: 0.5 }}
+                    />
+                  )}
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">

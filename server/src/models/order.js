@@ -37,6 +37,13 @@ module.exports = (sequelize, DataTypes) => {
         as: 'transactions',
         onDelete: 'SET NULL'
       });
+
+      // Optional target store for direct-to-store deliveries
+      Order.belongsTo(models.Store, {
+        foreignKey: 'target_store_id',
+        as: 'targetStore',
+        onDelete: 'SET NULL'
+      });
     }
 
     /**
@@ -90,6 +97,21 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('pending', 'confirmed', 'cancelled'),
       defaultValue: 'pending',
       comment: 'Order status: pending (can edit), confirmed (read-only), cancelled (read-only)'
+    },
+    direct_to_store: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'If true, supplier will deliver directly to a store instead of warehouse'
+    },
+    target_store_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Store',
+        key: 'store_id'
+      },
+      comment: 'Target store for direct-to-store deliveries'
     },
     expected_delivery: {
       type: DataTypes.DATE,
