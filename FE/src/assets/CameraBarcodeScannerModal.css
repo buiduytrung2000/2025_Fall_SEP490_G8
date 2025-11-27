@@ -1,0 +1,399 @@
+/* Camera Barcode Scanner Modal CSS */
+
+.camera-barcode-modal .modal-content {
+    background-color: #1a1a1a;
+    color: #fff;
+    border-radius: 8px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.camera-barcode-modal .modal-header {
+    background-color: #2a2a2a;
+    border-bottom: 2px solid #0d6efd;
+    padding: 20px;
+}
+
+.camera-barcode-modal .modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    color: #0d6efd;
+}
+
+.camera-modal-body {
+    flex: 1;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1a1a;
+    overflow-y: auto;
+}
+
+/* Camera Preview Container */
+.camera-preview-container {
+    position: relative;
+    flex: 1;
+    background-color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 400px;
+}
+
+.camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* Mirror effect */
+}
+
+.camera-canvas {
+    display: none;
+}
+
+/* Camera Overlay */
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.camera-frame {
+    width: 75%;
+    height: 40%;
+    border: 3px solid #0d6efd;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(13, 110, 253, 0.5) inset, 0 0 20px rgba(13, 110, 253, 0.3);
+    position: relative;
+    background: rgba(13, 110, 253, 0.05);
+}
+
+.camera-frame::before,
+.camera-frame::after {
+    content: '';
+    position: absolute;
+    background-color: #0d6efd;
+}
+
+/* Corner markers */
+.camera-frame::before {
+    width: 30px;
+    height: 30px;
+    top: -3px;
+    left: -3px;
+    border-top: 3px solid #0d6efd;
+    border-left: 3px solid #0d6efd;
+    border-radius: 8px 0 0 0;
+}
+
+.camera-frame::after {
+    width: 30px;
+    height: 30px;
+    top: -3px;
+    right: -3px;
+    border-top: 3px solid #0d6efd;
+    border-right: 3px solid #0d6efd;
+    border-radius: 0 8px 0 0;
+}
+
+.camera-hint {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #0d6efd;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    animation: pulse-hint 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-hint {
+    0%, 100% {
+        opacity: 0.7;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+/* Camera Loading State */
+.camera-loading,
+.camera-denied {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.camera-loading p,
+.camera-denied p {
+    margin-top: 20px;
+    font-size: 1rem;
+}
+
+.camera-denied {
+    padding: 40px;
+}
+
+.camera-setup-guide {
+    background-color: #2a2a2a;
+    border-left: 4px solid #0d6efd;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: left;
+    margin-top: 20px;
+}
+
+.camera-setup-guide h5 {
+    color: #0d6efd;
+    margin-bottom: 15px;
+}
+
+.camera-setup-guide ol {
+    margin-left: 20px;
+    margin-bottom: 0;
+}
+
+.camera-setup-guide li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.camera-setup-guide small {
+    display: block;
+    margin-top: 15px;
+    color: #aaa;
+}
+
+/* Processing Indicator */
+.camera-processing {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.camera-processing p {
+    margin-top: 15px;
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Scan Result */
+.scan-result {
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    padding: 30px;
+    margin: 20px;
+    text-align: center;
+    animation: slideUp 0.3s ease-out;
+}
+
+.scan-result.success {
+    border-left: 5px solid #28a745;
+}
+
+.scan-result.error {
+    border-left: 5px solid #dc3545;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+.result-icon.success-icon {
+    color: #28a745;
+}
+
+.result-icon.error-icon {
+    color: #dc3545;
+}
+
+.scan-result h5 {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.product-info {
+    text-align: left;
+    background-color: #1a1a1a;
+    padding: 20px;
+    border-radius: 6px;
+    margin-top: 15px;
+}
+
+.product-info p {
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.product-info strong {
+    color: #0d6efd;
+    min-width: 120px;
+}
+
+/* Scan History */
+.scan-history {
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.scan-history h6 {
+    color: #0d6efd;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.scan-history-item {
+    background-color: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.scan-history-item:last-child {
+    margin-bottom: 0;
+}
+
+.scan-history-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.scan-code {
+    background-color: #0a0a0a;
+    color: #00ff00;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+/* Modal Footer */
+.camera-barcode-modal .modal-footer {
+    background-color: #2a2a2a;
+    border-top: 2px solid #3a3a3a;
+    padding: 20px;
+    gap: 10px;
+}
+
+.camera-barcode-modal .btn {
+    padding: 10px 20px;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.camera-barcode-modal .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+}
+
+.camera-barcode-modal .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .camera-barcode-modal .modal-title {
+        font-size: 1rem;
+    }
+
+    .camera-frame {
+        width: 90%;
+        height: 50%;
+    }
+
+    .scan-result {
+        margin: 15px;
+        padding: 20px;
+    }
+
+    .scan-history {
+        margin: 15px;
+        max-height: 200px;
+    }
+
+    .product-info p {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .camera-barcode-modal .modal-footer {
+        flex-direction: column;
+    }
+
+    .camera-barcode-modal .btn {
+        width: 100%;
+    }
+}
+
+/* Scrollbar styling */
+.scan-history::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scan-history::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.scan-history::-webkit-scrollbar-thumb {
+    background: #0d6efd;
+    border-radius: 4px;
+}
+
+.scan-history::-webkit-scrollbar-thumb:hover {
+    background: #0b5ed7;
+}

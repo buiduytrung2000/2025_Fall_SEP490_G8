@@ -2,23 +2,24 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-bootstrap';
 import {
-    FaSearch, FaQrcode, FaCartPlus,
+    FaSearch,
     FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
     FaMoneyBillWave, FaCreditCard, FaTicketAlt
 } from 'react-icons/fa';
 import '../../assets/POS.css';
-import { getProductsByStore, getProduct } from '../../api/productApi';
-import { checkoutCart } from '../../api/transactionApi';
+import { getProductsByStore } from '../../api/productApi';
 import { getMyOpenShift, checkinShift, checkoutShift } from '../../api/shiftApi';
 import { getMySchedules } from '../../api/scheduleApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
-import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
+import { getAvailableVouchers, validateVoucher, generateVouchersForCustomer } from '../../api/voucherApi';
 import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
 import CashPaymentModal from '../../components/CashPaymentModal';
 import BarcodeInput from '../../components/BarcodeInput';
+import CameraBarcodeScannerModal from '../../components/CameraBarcodeScannerModal';
 import { toast } from 'react-toastify';
+
 
 // Hàm helper để format tiền tệ
 const formatCurrency = (number) => {
@@ -47,15 +48,14 @@ const POS = () => {
 
     // Payment states
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
-    const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'bank_transfer'
-    const [paymentReference, setPaymentReference] = useState(''); // For bank transfer
-    const [paymentGiven, setPaymentGiven] = useState(''); // Cash amount given by customer
-    const [checkoutMessage, setCheckoutMessage] = useState(''); // Checkout status message
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
     const [cashPaymentData, setCashPaymentData] = useState(null);
     const [qrPaymentData, setQrPaymentData] = useState(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    // Camera Scanner state
+    const [showCameraScanner, setShowCameraScanner] = useState(false);
 
     // Shift states
     const [isShiftActive, setIsShiftActive] = useState(false);
@@ -447,8 +447,6 @@ const POS = () => {
             return
         }
 
-        const storeId = user?.store_id || Number(localStorage.getItem('store_id')) || 1
-
         // Extract data
         const {
             product_id,
@@ -550,22 +548,9 @@ const POS = () => {
         const sales = Number(cashSalesTotal || 0);
         return open + sales; // có thể cộng thêm/ trừ chi khác nếu sau này có
     }, [openingCash, cashSalesTotal]);
-    // Tìm kiếm khách hàng khi nhập số điện thoại
-    useEffect(() => {
-        const delaySearch = setTimeout(() => {
-            if (customerPhone.trim().length >= 3) {
-                handleSearchCustomer();
-            } else {
-                setSearchResults([]);
-                setShowCreateForm(false);
-            }
-        }, 500); // Debounce 500ms
-
-        return () => clearTimeout(delaySearch);
-    }, [customerPhone]);
 
     // Xử lý tìm kiếm khách hàng
-    const handleSearchCustomer = async () => {
+    const handleSearchCustomer = useCallback(async () => {
         setIsSearching(true);
         try {
             const res = await searchCustomerByPhone(customerPhone);
@@ -586,7 +571,21 @@ const POS = () => {
         } finally {
             setIsSearching(false);
         }
-    };
+    }, [customerPhone]);
+
+    // Tìm kiếm khách hàng khi nhập số điện thoại
+    useEffect(() => {
+        const delaySearch = setTimeout(() => {
+            if (customerPhone.trim().length >= 3) {
+                handleSearchCustomer();
+            } else {
+                setSearchResults([]);
+                setShowCreateForm(false);
+            }
+        }, 500); // Debounce 500ms
+
+        return () => clearTimeout(delaySearch);
+    }, [customerPhone, handleSearchCustomer]);
 
     // Xử lý chọn khách hàng
     const handleSelectCustomer = async (customer) => {
@@ -797,7 +796,7 @@ const POS = () => {
     // Xử lý in hóa đơn
     const handlePrintInvoice = async (transactionId) => {
         try {
-            const { generateAndPrintInvoice } = await import('../utils/invoicePDF');
+            const { generateAndPrintInvoice } = await import('../../utils/invoicePDF');
             await generateAndPrintInvoice(transactionId);
             toast.success('Đang mở cửa sổ in...');
         } catch (error) {
@@ -950,13 +949,25 @@ const POS = () => {
 
                 {/* Search */}
                 <div className="pos-search">
-                    <BarcodeInput
-                        onProductScanned={handleBarcodeScanned}
-                        onError={(errorMsg) => console.error('Barcode error:', errorMsg)}
-                        storeId={user?.store_id || Number(localStorage.getItem('store_id')) || 1}
-                        config={posConfig}
-                        placeholder="Quét mã vạch hoặc nhập SKU..."
-                    />
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ flex: 1 }}>
+                            <BarcodeInput
+                                onProductScanned={handleBarcodeScanned}
+                                onError={(errorMsg) => console.error('Barcode error:', errorMsg)}
+                                storeId={user?.store_id || Number(localStorage.getItem('store_id')) || 1}
+                                config={posConfig}
+                                placeholder="Quét mã vạch hoặc nhập SKU..."
+                            />
+                        </div>
+                        <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => setShowCameraScanner(true)}
+                            title="Mở camera quét mã vạch/QR code"
+                        >
+                            🎥 Camera
+                        </Button>
+                    </div>
                     <div style={{ marginTop: '8px' }}>
                         <InputGroup>
                             <InputGroup.Text><FaSearch /></InputGroup.Text>
@@ -1429,7 +1440,6 @@ const POS = () => {
                             Vui lòng bắt đầu ca (Check-in) trước khi thanh toán.
                         </div>
                     )}
-                    {checkoutMessage && <div className="text-success small mt-2">{checkoutMessage}</div>}
                 </div>
             </div>
 
@@ -1598,8 +1608,6 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
-                                setPaymentGiven('');
-                                setPaymentReference('');
                                 // Đánh dấu đã checkout để không hiển thị nút check-in nữa
                                 setScheduleAttendanceStatus('checked_out');
                                 setShowCheckoutModal(false);
@@ -1625,6 +1633,14 @@ const POS = () => {
                 paymentData={qrPaymentData}
                 onPaymentSuccess={handleQRPaymentSuccess}
                 onPrintInvoice={handlePrintInvoice}
+            />
+
+            {/* Camera Barcode Scanner Modal */}
+            <CameraBarcodeScannerModal
+                show={showCameraScanner}
+                onProductScanned={handleBarcodeScanned}
+                storeId={user?.store_id || Number(localStorage.getItem('store_id')) || 1}
+                onClose={() => setShowCameraScanner(false)}
             />
         </div>
     );

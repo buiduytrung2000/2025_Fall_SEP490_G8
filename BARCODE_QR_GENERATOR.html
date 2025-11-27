@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code & Barcode Generator - Warehouse Test Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+
+        header p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+            grid-column: 1 / -1;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .preview-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9ff;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .preview-area:empty {
+            color: #999;
+        }
+
+        #qrcodePreview,
+        #barcodePreview {
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .info-box {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .info-box strong {
+            color: #667eea;
+        }
+
+        .sample-data {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .sample-data h2 {
+            color: #667eea;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+        }
+
+        .sample-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .sample-table th {
+            background: #f0f0f0;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .sample-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .sample-table tr:hover {
+            background: #f8f9ff;
+        }
+
+        .sample-table button {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #5568d3;
+        }
+
+        .copy-btn.copied {
+            background: #28a745;
+        }
+
+        .code-display {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            border: 1px solid #e0e0e0;
+        }
+
+        .print-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .print-section h2 {
+            color: #667eea;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+        }
+
+        .print-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .print-item {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            text-align: center;
+            border-radius: 6px;
+            page-break-inside: avoid;
+        }
+
+        .print-item h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .print-item p {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .print-item svg {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .card, header {
+                box-shadow: none;
+                page-break-inside: avoid;
+            }
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        footer {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .feature-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🔍 QR Code & Barcode Generator</h1>
+            <p>Công cụ tạo mã vạch/QR code để test chức năng quét trong Warehouse Management</p>
+        </header>
+
+        <!-- Sample Data Section -->
+        <div class="sample-data">
+            <h2>📦 Dữ liệu mẫu từ Database</h2>
+            <p style="margin-bottom: 15px; color: #666;">Chọn sản phẩm mẫu để tạo mã vạch/QR code test. Các dữ liệu này dựa trên database của ứng dụng.</p>
+            <div style="overflow-x: auto;">
+                <table class="sample-table">
+                    <thead>
+                        <tr>
+                            <th>Sản phẩm</th>
+                            <th>SKU</th>
+                            <th>Barcode EAN-13</th>
+                            <th>Giá</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sampleTableBody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- QR Code Generator -->
+            <div class="card">
+                <h2>📱 QR Code Generator</h2>
+                
+                <div class="alert" id="qrAlert"></div>
+
+                <div class="form-group">
+                    <label>Chọn dữ liệu để mã hoá</label>
+                    <select id="qrDataType">
+                        <option value="barcode">Barcode/SKU</option>
+                        <option value="custom">Dữ liệu tuỳ chỉnh</option>
+                        <option value="url">URL</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="qrBarcodeField" style="display: block;">
+                    <label>Nhập Barcode hoặc SKU</label>
+                    <input type="text" id="qrBarcode" placeholder="VD: 8936065200163 hoặc SKU123" value="8936065200163">
+                </div>
+
+                <div class="form-group" id="qrCustomField" style="display: none;">
+                    <label>Dữ liệu tuỳ chỉnh</label>
+                    <textarea id="qrCustomData" placeholder="Nhập dữ liệu cần mã hoá..."></textarea>
+                </div>
+
+                <div class="form-group" id="qrUrlField" style="display: none;">
+                    <label>URL</label>
+                    <input type="url" id="qrUrl" placeholder="https://example.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Kích thước (pixels)</label>
+                    <input type="number" id="qrSize" value="200" min="100" max="500">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="generateQRCode()">📱 Tạo QR Code</button>
+                    <button class="btn-secondary" onclick="downloadQRCode()">💾 Tải xuống</button>
+                </div>
+
+                <div class="preview-area" id="qrcodePreview">
+                    Xem trước QR code tại đây
+                </div>
+
+                <div class="info-box">
+                    <strong>💡 Mẹo:</strong> Đặt QR code trước webcam để quét. QR code có thể chứa barcode, SKU, hoặc URL bất kỳ.
+                </div>
+            </div>
+
+            <!-- Barcode 1D Generator -->
+            <div class="card">
+                <h2>📊 Barcode 1D Generator</h2>
+                
+                <div class="alert" id="barcodeAlert"></div>
+
+                <div class="form-group">
+                    <label>Format Barcode</label>
+                    <select id="barcodeFormat">
+                        <option value="EAN13">EAN-13 (13 chữ số)</option>
+                        <option value="EAN8">EAN-8 (8 chữ số)</option>
+                        <option value="UPCA">UPC-A (12 chữ số)</option>
+                        <option value="UPCE">UPC-E (8 chữ số)</option>
+                        <option value="CODE128">CODE 128 (alphanumeric)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Dữ liệu Barcode</label>
+                    <input type="text" id="barcodeData" placeholder="VD: 8936065200163" value="8936065200163">
+                    <small style="color: #666; display: block; margin-top: 8px;">
+                        EAN-13: 13 chữ số | EAN-8: 8 chữ số | UPC-A: 12 chữ số | CODE128: 1-80 ký tự
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Hiển thị nhãn</label>
+                    <select id="barcodeDisplayValue">
+                        <option value="true">Có</option>
+                        <option value="false">Không</option>
+                    </select>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="generateBarcode()">📊 Tạo Barcode</button>
+                    <button class="btn-secondary" onclick="downloadBarcode()">💾 Tải xuống</button>
+                </div>
+
+                <div class="preview-area" id="barcodePreview">
+                    Xem trước barcode tại đây
+                </div>
+
+                <div class="info-box">
+                    <strong>💡 Mẹo:</strong> EAN-13 phổ biến nhất cho bán lẻ. CODE128 hỗ trợ text, tốt cho SKU.
+                </div>
+            </div>
+        </div>
+
+        <!-- Print Section -->
+        <div class="print-section">
+            <h2>🖨️ In bộ mã vạch test</h2>
+            <p style="margin-bottom: 20px; color: #666;">Tạo một sheet để in nhiều mã vạch cùng lúc cho testing</p>
+
+            <div class="form-group">
+                <label>Loại mã</label>
+                <select id="printType">
+                    <option value="qr">QR Code</option>
+                    <option value="barcode">Barcode 1D</option>
+                    <option value="mixed">Cả hai</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Số lượng (1-20)</label>
+                <input type="number" id="printQuantity" value="6" min="1" max="20">
+            </div>
+
+            <button class="btn-success" onclick="generatePrintSheet()">🖨️ Tạo trang in</button>
+            <button class="btn-secondary" onclick="window.print()" style="grid-column: 1 / -1; width: 100%; margin-top: 10px;">
+                🖨️ In (Ctrl+P)
+            </button>
+
+            <div id="printPreview" style="margin-top: 30px;">
+                <!-- Print preview generated here -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>🔒 Tất cả dữ liệu được xử lý trên trình duyệt của bạn. Không có dữ liệu nào được gửi đến máy chủ.</p>
+            <p style="margin-top: 10px;">📖 Hướng dẫn sử dụng: Tạo mã vạch → In ra → Đặt trước webcam → Nhấn "Quét" trong ứng dụng</p>
+        </footer>
+    </div>
+
+    <!-- Sample Products Data -->
+    <script>
+        const sampleProducts = [
+            { name: 'Coca Cola 1.5L', sku: 'SKU001', barcode: '8936065200163', price: 15000 },
+            { name: 'Pepsi 1L', sku: 'SKU002', barcode: '8936096400051', price: 12000 },
+            { name: 'Fanta Orange 2L', sku: 'SKU003', barcode: '8936077904100', price: 18000 },
+            { name: 'Sprite 1.5L', sku: 'SKU004', barcode: '8936078100003', price: 15000 },
+            { name: 'Nước lạnh 350ml', sku: 'SKU005', barcode: '8936065200170', price: 5000 },
+            { name: 'Sữa tươi 1L', sku: 'SKU006', barcode: '8934783020108', price: 25000 },
+            { name: 'Bánh mì', sku: 'SKU007', barcode: '8934783020115', price: 8000 },
+            { name: 'Kẹo socola', sku: 'SKU008', barcode: '8934783020122', price: 12000 }
+        ];
+
+        // Populate sample table
+        function populateSampleTable() {
+            const tbody = document.getElementById('sampleTableBody');
+            tbody.innerHTML = sampleProducts.map(product => `
+                <tr>
+                    <td>${product.name}</td>
+                    <td><code>${product.sku}</code></td>
+                    <td><code>${product.barcode}</code></td>
+                    <td>${product.price.toLocaleString('vi-VN')} ₫</td>
+                    <td>
+                        <button class="copy-btn" onclick="copyToQRCode('${product.barcode}')">QR</button>
+                        <button class="copy-btn" onclick="copyToBarcode('${product.barcode}')">Barcode</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Copy to QR code field
+        function copyToQRCode(barcode) {
+            document.getElementById('qrBarcode').value = barcode;
+            document.getElementById('qrDataType').value = 'barcode';
+            updateQRFields();
+            showAlert('qrAlert', 'success', 'Đã sao chép vào trường QR Code');
+        }
+
+        // Copy to Barcode field
+        function copyToBarcode(barcode) {
+            document.getElementById('barcodeData').value = barcode;
+            showAlert('barcodeAlert', 'success', 'Đã sao chép vào trường Barcode');
+        }
+
+        // Show/hide QR fields based on selection
+        function updateQRFields() {
+            const type = document.getElementById('qrDataType').value;
+            document.getElementById('qrBarcodeField').style.display = type === 'barcode' ? 'block' : 'none';
+            document.getElementById('qrCustomField').style.display = type === 'custom' ? 'block' : 'none';
+            document.getElementById('qrUrlField').style.display = type === 'url' ? 'block' : 'none';
+        }
+
+        // Generate QR Code
+        function generateQRCode() {
+            const preview = document.getElementById('qrcodePreview');
+            preview.innerHTML = '';
+
+            let data = '';
+            const type = document.getElementById('qrDataType').value;
+
+            if (type === 'barcode') {
+                data = document.getElementById('qrBarcode').value.trim();
+            } else if (type === 'custom') {
+                data = document.getElementById('qrCustomData').value.trim();
+            } else if (type === 'url') {
+                data = document.getElementById('qrUrl').value.trim();
+            }
+
+            if (!data) {
+                showAlert('qrAlert', 'error', 'Vui lòng nhập dữ liệu');
+                return;
+            }
+
+            const size = parseInt(document.getElementById('qrSize').value);
+
+            new QRCode(preview, {
+                text: data,
+                width: size,
+                height: size,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            showAlert('qrAlert', 'success', `✓ QR Code tạo thành công! Dữ liệu: ${data}`);
+        }
+
+        // Generate Barcode
+        function generateBarcode() {
+            const data = document.getElementById('barcodeData').value.trim();
+            const format = document.getElementById('barcodeFormat').value;
+            const displayValue = document.getElementById('barcodeDisplayValue').value === 'true';
+
+            if (!data) {
+                showAlert('barcodeAlert', 'error', 'Vui lòng nhập dữ liệu barcode');
+                return;
+            }
+
+            // Validate format
+            const lengthMap = {
+                'EAN13': 13,
+                'EAN8': 8,
+                'UPCA': 12,
+                'UPCE': 8,
+                'CODE128': null
+            };
+
+            if (lengthMap[format] && data.length !== lengthMap[format]) {
+                showAlert('barcodeAlert', 'error', `${format} phải có ${lengthMap[format]} chữ số`);
+                return;
+            }
+
+            const preview = document.getElementById('barcodePreview');
+            preview.innerHTML = '';
+
+            JsBarcode(`#barcodePreview`, data, {
+                format: format,
+                width: 2,
+                height: 100,
+                displayValue: displayValue,
+                margin: 10
+            });
+
+            showAlert('barcodeAlert', 'success', `✓ Barcode ${format} tạo thành công! Dữ liệu: ${data}`);
+        }
+
+        // Download QR Code
+        function downloadQRCode() {
+            const canvas = document.querySelector('#qrcodePreview canvas');
+            if (!canvas) {
+                showAlert('qrAlert', 'error', 'Vui lòng tạo QR code trước');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = 'qrcode_' + Date.now() + '.png';
+            link.click();
+        }
+
+        // Download Barcode
+        function downloadBarcode() {
+            const svg = document.querySelector('#barcodePreview svg');
+            if (!svg) {
+                showAlert('barcodeAlert', 'error', 'Vui lòng tạo barcode trước');
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const img = new Image();
+
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = 'barcode_' + Date.now() + '.png';
+                link.click();
+            };
+
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+        }
+
+        // Generate Print Sheet
+        function generatePrintSheet() {
+            const type = document.getElementById('printType').value;
+            const quantity = parseInt(document.getElementById('printQuantity').value);
+
+            if (quantity < 1 || quantity > 20) {
+                showAlert('barcodeAlert', 'error', 'Số lượng phải từ 1 đến 20');
+                return;
+            }
+
+            const preview = document.getElementById('printPreview');
+            preview.innerHTML = '';
+
+            const items = sampleProducts.slice(0, quantity);
+            let html = '<div class="print-grid">';
+
+            items.forEach((product, idx) => {
+                html += `
+                    <div class="print-item">
+                        <h4>${product.name}</h4>
+                        <p>${product.sku}</p>
+                `;
+
+                if (type === 'qr' || type === 'mixed') {
+                    html += `<div id="qr-${idx}"></div>`;
+                }
+
+                if (type === 'barcode' || type === 'mixed') {
+                    html += `<div id="bc-${idx}"></div>`;
+                }
+
+                html += '</div>';
+            });
+
+            html += '</div>';
+            preview.innerHTML = html;
+
+            // Generate codes
+            setTimeout(() => {
+                items.forEach((product, idx) => {
+                    if (type === 'qr' || type === 'mixed') {
+                        new QRCode(document.getElementById(`qr-${idx}`), {
+                            text: product.barcode,
+                            width: 150,
+                            height: 150
+                        });
+                    }
+
+                    if (type === 'barcode' || type === 'mixed') {
+                        JsBarcode(`#bc-${idx}`, product.barcode, {
+                            format: 'EAN13',
+                            width: 1.5,
+                            height: 60,
+                            displayValue: true
+                        });
+                    }
+                });
+            }, 100);
+
+            showAlert('barcodeAlert', 'success', `✓ Tạo ${quantity} mã vạch thành công! Nhấn Ctrl+P để in.`);
+        }
+
+        // Alert helper
+        function showAlert(elementId, type, message) {
+            const alert = document.getElementById(elementId);
+            alert.className = `alert alert-${type} show`;
+            alert.textContent = message;
+
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        // Event listeners
+        document.getElementById('qrDataType').addEventListener('change', updateQRFields);
+
+        // Initialize
+        window.addEventListener('load', () => {
+            populateSampleTable();
+        });
+    </script>
+</body>
+</html>
