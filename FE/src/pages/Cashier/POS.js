@@ -442,10 +442,10 @@ const POS = () => {
      * productData từ API: { product_id, name, sku, unit_id, unit_name, conversion_to_base, current_price, available_quantity, ... }
      */
     const handleBarcodeScanned = useCallback((productData) => {
-        if (!isShiftActive) {
-            toast.error('⚠️ Vui lòng bắt đầu ca làm việc trước');
-            return
-        }
+        // if (!isShiftActive) {
+        //     toast.error('⚠️ Vui lòng bắt đầu ca làm việc trước');
+        //     return
+        // }
 
         const storeId = user?.store_id || Number(localStorage.getItem('store_id')) || 1
 
