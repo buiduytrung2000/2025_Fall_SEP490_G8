@@ -167,3 +167,48 @@ export const reactivateUser = async (req, res) => {
         })
     }
 }
+
+// UPDATE PROFILE (current user)
+export const updateProfile = async (req, res) => {
+    const { user_id } = req.user
+    const { full_name, phone } = req.body
+    try {
+        const response = await services.updateProfile(user_id, { full_name, phone })
+        return res.status(response.err ? 400 : 200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed to update profile: ' + error
+        })
+    }
+}
+
+// CHANGE PASSWORD (current user)
+export const changePassword = async (req, res) => {
+    const { user_id } = req.user
+    const { current_password, new_password } = req.body
+
+    if (!current_password || !new_password) {
+        return res.status(400).json({
+            err: 1,
+            msg: 'Vui lòng cung cấp đầy đủ mật khẩu hiện tại và mật khẩu mới.'
+        })
+    }
+
+    if (new_password.length < 6) {
+        return res.status(400).json({
+            err: 1,
+            msg: 'Mật khẩu mới phải có ít nhất 6 ký tự.'
+        })
+    }
+
+    try {
+        const response = await services.changePassword(user_id, current_password, new_password)
+        return res.status(response.err ? 400 : 200).json(response)
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed to change password: ' + error
+        })
+    }
+}
