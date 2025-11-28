@@ -14,13 +14,14 @@
     ('Gạo & Ngũ cốc', 1),             -- 4
     ('Gia vị & Nước chấm', 1),        -- 5
     ('Chăm sóc cá nhân', 2),          -- 6
-    ('Vệ sinh nhà cửa', 2);           -- 7
+    ('Rau củ quả', NULL);           -- 7
 
     -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
 INSERT INTO Supplier (user_id, name, contact, email, address) VALUES
 (7, 'Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
 (8, 'Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
-(9, 'Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát');
+(9, 'Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát'),
+(10, 'Công Ty Rau Củ Quả D', 'Lê Văn D', 'salesD@beverage.com', '300 KCN Nước Giải Khát');
 
 -- 4. Insert Units & Product Units for multi-level conversion
 INSERT INTO Unit (name, symbol, level) VALUES
@@ -44,38 +45,41 @@ INSERT INTO Unit (name, symbol, level) VALUES
     ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
     ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
     ('supplier_rep2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier2@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
+    ('manager_store2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 2, 'manager2@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
     ('supplier_rep3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier3@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
 
 -- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
-INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, description) VALUES
-('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 1, 120000, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm'),
-('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 2, 55000, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào'),
-('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 3, 45000, 'Chai nước mắm cá cơm độ đạm cao, 750ml'),
-('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 5, 90000, 'Thùng mì gói 30 gói, nhiều hương vị'),
-('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 1, 28000, 'Túi đường trắng tinh luyện 1kg'),
-('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 4, 85000, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ');
+INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, import_price, is_perishable, description, is_active) VALUES
+('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 7, 120000.00, 1000000.00, 0, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm', 1),
+('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 4, 55000.00, 0.00, 0, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào', 1),
+('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 4, 45000.00, 0.00, 0, 'Chai nước mắm cá cơm độ đạm cao, 750ml', 1),
+('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 5, 90000.00, 0.00, 0, 'Thùng mì gói 30 gói, nhiều hương vị', 1),
+('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 5, 28000.00, 0.00, 0, 'Túi đường trắng tinh luyện 1kg', 1),
+('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 4, 85000.00, 0.00, 0, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ', 1),
+('Rau tươi ', 'RAU600001', 7, 4, 1, 6000.00, 5000.00, 1, 'Rau tươi ', 1);
 
 -- 5b. Insert Product Units & conversion ratios
 INSERT INTO ProductUnit (product_id, unit_id, conversion_to_base) VALUES
-(1, 7, 5),  
-(2, 4, 8),  
-(3, 4, 10),  
-(4, 6, 30), 
-(5, 5, 30), 
-(6, 6, 24); 
+(1, 7, 5.000000),  
+(2, 6, 8.000000),  
+(3, 6, 10.000000),  
+(4, 6, 30.000000), 
+(5, 6, 30.000000), 
+(6, 6, 24.000000); 
 
 -- 6. Insert Inventory (base_quantity = đơn vị cơ sở, reserved_quantity = 0)
 INSERT INTO Inventory (store_id, product_id, base_quantity, reserved_quantity, min_stock_level, reorder_point) VALUES
-(1, 1, 250, 0, 50, 100),
-(1, 2, 30, 0, 5, 15),
-(1, 3, 11250, 0, 2250, 7500),
-(1, 4, 3000, 0, 600, 1500),
+(1, 1, 243, 0, 50, 100),
+(1, 2, 27, 0, 5, 15),
+(1, 3, 11249, 0, 2250, 7500),
+(1, 4, 2999, 0, 600, 1500),
 (1, 5, 80, 0, 15, 40),
-(1, 6, 4800, 0, 1200, 2400),
+(1, 6, 4896, 0, 1200, 2400),
 (2, 1, 200, 0, 50, 100),
 (2, 2, 25, 0, 5, 15),
 (2, 4, 2400, 0, 600, 1500),
-(3, 6, 3600, 0, 1200, 2400);
+(3, 6, 3600, 0, 1200, 2400),
+(1, 7, 362, 0, 50, 100);
 
     -- 6b. Insert Warehouse Inventory
     --   Sử dụng các product_id đã có trong bảng Product (1–6)
@@ -88,12 +92,7 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
 (5, 600, 0, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
 (6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
-    -- 7. Insert Pricing Rules
-    INSERT INTO PricingRule (product_id, store_id, type, value, start_date, end_date) VALUES
-    (1, 1, 'markup', 10.00, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
-    (2, 1, 'markup', 15.00, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
-    (4, 1, 'fixed_price', 15.99, '2024-05-01 00:00:00', '2024-12-31 23:59:59'),
-    (6, 1, 'markdown', 5.00, '2024-06-01 00:00:00', '2024-08-31 23:59:59');
+    
 
     -- 9. Insert Customers
     INSERT INTO Customer (name, phone, email, loyalty_point, tier) VALUES
