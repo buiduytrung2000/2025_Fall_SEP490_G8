@@ -50,5 +50,14 @@ router.get('/ceo/warehouse-orders', dashboardController.getWarehouseOrdersSummar
 // Get company low stock alerts
 router.get('/ceo/low-stock', dashboardController.getCompanyLowStock);
 
+// Get product sales per branch
+router.get('/ceo/branch-product-sales', dashboardController.getBranchProductSales);
+
+// Get latest purchase orders
+router.get('/ceo/purchase-orders', dashboardController.getRecentPurchaseOrders);
+
+// Get inventory overview
+router.get('/ceo/inventory-overview', dashboardController.getInventoryOverview);
+
 export default router;
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
-  Chip, Stack, CircularProgress, Alert
+  Chip, Stack, CircularProgress, Alert, Tabs, Tab
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
 import { getShiftReport } from '../../api/shiftApi';
@@ -10,6 +10,19 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+};
+
+const getDateString = (date) => date.toISOString().split('T')[0];
+
+const getRangeForPeriod = (period) => {
+  const now = new Date();
+  if (period === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: getDateString(start), end: getDateString(now) };
+  }
+  const start = new Date(now);
+  start.setDate(now.getDate() - 6);
+  return { start: getDateString(start), end: getDateString(now) };
 };
 
 const formatDate = (dateString) => {
@@ -39,14 +52,10 @@ const MyShiftReports = () => {
   const [error, setError] = useState(null);
   const [shifts, setShifts] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [from, setFrom] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 7); // 7 ngày trước
-    return date.toISOString().split('T')[0];
-  });
-  const [to, setTo] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const [periodView, setPeriodView] = useState('week');
+  const initialRange = getRangeForPeriod('week');
+  const [from, setFrom] = useState(initialRange.start);
+  const [to, setTo] = useState(initialRange.end);
 
   const load = useCallback(async () => {
     if (!user?.user_id) return;
@@ -83,6 +92,12 @@ const MyShiftReports = () => {
     load(); 
   }, [load]);
 
+  useEffect(() => {
+    const range = getRangeForPeriod(periodView);
+    setFrom(range.start);
+    setTo(range.end);
+  }, [periodView]);
+
   // Tính toán KPIs từ summary
   const kpis = useMemo(() => {
     if (!summary) return null;
@@ -98,6 +113,19 @@ const MyShiftReports = () => {
   }, [summary]);
 
   // Định nghĩa cột cho bảng shift reports
+  const getDiscrepancy = useCallback((shift) => {
+    const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
+    const actualCash = parseFloat(shift.closing_cash || 0);
+    return actualCash - expectedCash;
+  }, []);
+
+  const totalNegativeDiscrepancy = useMemo(() => {
+    return shifts.reduce((sum, shift) => {
+      const diff = getDiscrepancy(shift);
+      return diff < 0 ? sum + diff : sum;
+    }, 0);
+  }, [getDiscrepancy, shifts]);
+
   const columns = useMemo(() => [
     {
       accessorKey: 'index',
@@ -168,10 +196,7 @@ const MyShiftReports = () => {
       header: 'Chênh lệch',
       size: 130,
       Cell: ({ row }) => {
-        const shift = row.original;
-        const expectedCash = parseFloat(shift.opening_cash || 0) + parseFloat(shift.cash_sales_total || 0);
-        const actualCash = parseFloat(shift.closing_cash || 0);
-        const discrepancy = actualCash - expectedCash;
+        const discrepancy = getDiscrepancy(row.original);
         return (
           <Typography
             variant="body2"
@@ -186,7 +211,7 @@ const MyShiftReports = () => {
       },
       enableColumnFilter: false,
     },
-  ], []);
+  ], [getDiscrepancy]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
@@ -273,6 +298,16 @@ const MyShiftReports = () => {
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
+          <Tabs
+            value={periodView}
+            onChange={(_, value) => setPeriodView(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ minHeight: 40 }}
+          >
+            <Tab label="Theo tuần" value="week" />
+            <Tab label="Theo tháng" value="month" />
+          </Tabs>
           <TextField 
             label="Từ ngày" 
             type="date" 
@@ -334,6 +369,21 @@ const MyShiftReports = () => {
           pagination: { pageSize: 10, pageIndex: 0 },
         }}
       />
+
+      {shifts.length > 0 && (
+        <Box mt={2} textAlign="right">
+          <Typography
+            variant="subtitle1"
+            fontWeight={700}
+            color={totalNegativeDiscrepancy < 0 ? 'error.main' : 'text.primary'}
+          >
+            Tổng tiền âm khấu trừ: {formatCurrency(totalNegativeDiscrepancy)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            (Khoản âm sẽ được khấu trừ vào lương)
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 };

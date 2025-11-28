@@ -713,3 +713,180 @@ export const getCompanyLowStock = (limit = 10) => new Promise(async (resolve, re
     }
 });
 
+// Get product sales by branch with timeframe filters
+export const getBranchProductSales = ({
+    storeId = null,
+    period = 'month',
+    year = null,
+    month = null,
+    limit = 25
+} = {}) => new Promise(async (resolve, reject) => {
+    try {
+        const now = new Date();
+        const normalizedPeriod = period === 'year' ? 'year' : 'month';
+        const targetYear = Number(year) || now.getFullYear();
+        const targetMonth = normalizedPeriod === 'month'
+            ? Number(month) || now.getMonth() + 1
+            : null;
+
+        const whereClauses = [`t.status = 'completed'`, `YEAR(t.created_at) = :year`];
+        const replacements = {
+            year: targetYear,
+            limit: parseInt(limit)
+        };
+
+        if (normalizedPeriod === 'month') {
+            whereClauses.push(`MONTH(t.created_at) = :month`);
+            replacements.month = targetMonth;
+        }
+
+        if (storeId) {
+            whereClauses.push(`t.store_id = :storeId`);
+            replacements.storeId = storeId;
+        }
+
+        const salesQuery = `
+            SELECT 
+                s.store_id,
+                s.name AS store_name,
+                p.product_id,
+                p.name AS product_name,
+                COALESCE(SUM(ti.quantity), 0) AS totalQuantity,
+                COALESCE(SUM(ti.subtotal), 0) AS totalRevenue
+            FROM Transaction t
+            INNER JOIN TransactionItem ti ON t.transaction_id = ti.transaction_id
+            INNER JOIN Product p ON ti.product_id = p.product_id
+            LEFT JOIN Store s ON t.store_id = s.store_id
+            WHERE ${whereClauses.join(' AND ')}
+            GROUP BY s.store_id, s.name, p.product_id, p.name
+            ORDER BY totalRevenue DESC
+            LIMIT :limit
+        `;
+
+        const salesRows = await db.sequelize.query(salesQuery, {
+            replacements,
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const stores = await db.Store.findAll({
+            attributes: ['store_id', 'name'],
+            where: { status: 'active' },
+            order: [['name', 'ASC']],
+            raw: true
+        });
+
+        const data = {
+            filters: {
+                period: normalizedPeriod,
+                year: targetYear,
+                month: targetMonth,
+                store_id: storeId || null
+            },
+            stores: stores.map(store => ({
+                store_id: store.store_id,
+                name: store.name
+            })),
+            sales: salesRows.map(row => ({
+                store_id: row.store_id,
+                store_name: row.store_name || 'Không xác định',
+                product_id: row.product_id,
+                product_name: row.product_name,
+                quantity: parseInt(row.totalQuantity || 0),
+                revenue: parseFloat(row.totalRevenue || 0)
+            }))
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get latest purchase orders with totals
+export const getRecentPurchaseOrders = (limit = 8) => new Promise(async (resolve, reject) => {
+    try {
+        const ordersQuery = `
+            SELECT
+                o.order_id,
+                o.order_code,
+                o.status,
+                o.created_at,
+                o.expected_delivery,
+                s.name AS supplier_name,
+                COALESCE(SUM(oi.subtotal), 0) AS totalAmount,
+                COUNT(DISTINCT oi.order_item_id) AS itemCount
+            FROM \`Order\` o
+            LEFT JOIN Supplier s ON o.supplier_id = s.supplier_id
+            LEFT JOIN OrderItem oi ON o.order_id = oi.order_id
+            GROUP BY o.order_id, o.order_code, o.status, o.created_at, o.expected_delivery, s.name
+            ORDER BY o.created_at DESC
+            LIMIT :limit
+        `;
+
+        const rows = await db.sequelize.query(ordersQuery, {
+            replacements: { limit: parseInt(limit) },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const orders = rows.map(row => ({
+            order_id: row.order_id,
+            order_code: row.order_code,
+            status: row.status,
+            supplier_name: row.supplier_name || 'N/A',
+            created_at: row.created_at,
+            expected_delivery: row.expected_delivery,
+            total_amount: parseFloat(row.totalAmount || 0),
+            item_count: parseInt(row.itemCount || 0)
+        }));
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: orders
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get total inventory snapshot
+export const getInventoryOverview = () => new Promise(async (resolve, reject) => {
+    try {
+        const summaryQuery = `
+            SELECT 
+                COALESCE(SUM(wi.base_quantity), 0) AS totalUnits,
+                COALESCE(SUM(wi.reserved_quantity), 0) AS reservedUnits,
+                COUNT(DISTINCT wi.product_id) AS skuCount,
+                COALESCE(SUM(wi.base_quantity * COALESCE(p.import_price, 0)), 0) AS totalValue
+            FROM WarehouseInventory wi
+            LEFT JOIN Product p ON wi.product_id = p.product_id
+        `;
+
+        const [row] = await db.sequelize.query(summaryQuery, {
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const totalUnits = parseInt(row?.totalUnits || 0);
+        const reservedUnits = parseInt(row?.reservedUnits || 0);
+        const overview = {
+            totalUnits,
+            reservedUnits,
+            availableUnits: totalUnits - reservedUnits,
+            skuCount: parseInt(row?.skuCount || 0),
+            totalValue: parseFloat(row?.totalValue || 0)
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: overview
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+

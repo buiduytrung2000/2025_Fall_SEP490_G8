@@ -22,6 +22,8 @@ import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
 import AdminPermissions from "./pages/Admin/AdminPermissions";
 import UserManagement from "./pages/Admin/UserManagement";
 import CEODashboard from "./pages/CEO/CEODashboard";
+import CEORevenueBoard from "./pages/CEO/CEORevenueBoard";
+import CEOOrdersBoard from "./pages/CEO/CEOOrdersBoard";
 import InventoryManagement from "./pages/Warehouse/InventoryManagement";
 import SupplierPortal from "./pages/Supplier/SupplierPortal";
 import SupplierOrderDetail from "./pages/Supplier/SupplierOrderDetail";
@@ -164,6 +166,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["CEO"]}>
                   <CEODashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ceo/revenue"
+              element={
+                <ProtectedRoute allowedRoles={["CEO"]}>
+                  <CEORevenueBoard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ceo/orders"
+              element={
+                <ProtectedRoute allowedRoles={["CEO"]}>
+                  <CEOOrdersBoard />
                 </ProtectedRoute>
               }
             />

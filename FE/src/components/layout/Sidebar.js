@@ -38,7 +38,11 @@ const navLinks = {
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" },
         { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" }
     ],
-    CEO: [{ to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" }],
+    CEO: [
+        { to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" },
+        { to: "/ceo/revenue", icon: <FaChartPie />, text: "Bảng doanh thu" },
+        { to: "/ceo/orders", icon: <FaClipboardList />, text: "Bảng nhập/xuất" }
+    ],
     Warehouse: [
         // - Quản lý tồn kho tổng
         { to: "/warehouse/inventory", icon: <FaBoxes />, text: "Quản lý Tồn kho" },

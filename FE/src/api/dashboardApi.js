@@ -124,3 +124,41 @@ export async function getCompanyLowStock(limit = 10) {
     return res.json();
 }
 
+export async function getBranchProductSales({
+    storeId,
+    period,
+    year,
+    month,
+    limit = 25
+} = {}) {
+    const params = new URLSearchParams();
+    if (storeId && storeId !== 'all') params.append('store_id', storeId);
+    if (period) params.append('period', period);
+    if (year) params.append('year', year);
+    if (period !== 'year' && month) params.append('month', month);
+    if (limit) params.append('limit', limit);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/ceo/branch-product-sales${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
+export async function getRecentPurchaseOrders(limit = 8) {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/ceo/purchase-orders${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
+export async function getInventoryOverview() {
+    const res = await fetch(`${API_BASE}/dashboard/ceo/inventory-overview`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+

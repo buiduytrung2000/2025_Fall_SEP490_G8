@@ -258,23 +258,32 @@ const InventoryManagement = () => {
       size: 240,
       Cell: ({ row }) => {
         const original = row.original;
-        const isPerishable = !!original.is_perishable;
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Typography fontWeight={600}>{original.name}</Typography>
-              <Chip
-                size="small"
-                color={isPerishable ? 'warning' : 'default'}
-                label={isPerishable ? 'Tươi sống' : 'Thường'}
-              />
-            </Box>
+            <Typography fontWeight={600}>{original.name}</Typography>
             <Typography variant="caption" color="text.secondary">
               {original.sku}
             </Typography>
           </Box>
         );
       },
+    },
+    {
+      id: 'product_type',
+      header: 'Loại hàng',
+      size: 130,
+      Cell: ({ row }) => {
+        const original = row.original;
+        const isPerishable = !!(original.is_perishable || original.product?.is_perishable);
+        return (
+          <Chip
+            size="small"
+            color={isPerishable ? 'warning' : 'default'}
+            label={isPerishable ? 'Tươi sống' : 'Thường'}
+          />
+        );
+      },
+      enableColumnFilter: false,
     },
     {
       accessorKey: 'category',

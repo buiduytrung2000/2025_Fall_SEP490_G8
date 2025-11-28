@@ -31,6 +31,7 @@ const createDirectSupplierOrdersForPerishable = async (storeOrder, transaction) 
 
     const itemsBySupplier = {};
     const perishableItemIds = [];
+    const hasRegularItems = items.some((item) => item.product && !item.product.is_perishable);
 
     for (const item of items) {
         const product = item.product;
@@ -100,8 +101,14 @@ const createDirectSupplierOrdersForPerishable = async (storeOrder, transaction) 
         }
     }
 
-    // 2. Xóa các dòng tươi sống khỏi StoreOrder (đã chuyển sang NCC)
-    if (perishableItemIds.length > 0) {
+    /**
+     * 2. Xóa các dòng tươi sống khỏi StoreOrder (đã chuyển sang NCC)
+     * - Nếu đơn ban đầu có cả hàng thường và tươi sống thì phần tươi sống sẽ bị xóa để kho chỉ xử lý hàng thường.
+     * - Nếu đơn chỉ gồm hàng tươi sống, giữ nguyên các dòng để người dùng vẫn nhìn thấy chi tiết (theo yêu cầu mới).
+     */
+    const shouldRemovePerishableItems = perishableItemIds.length > 0 && hasRegularItems;
+
+    if (shouldRemovePerishableItems) {
         await db.StoreOrderItem.destroy({
             where: { store_order_item_id: perishableItemIds },
             transaction

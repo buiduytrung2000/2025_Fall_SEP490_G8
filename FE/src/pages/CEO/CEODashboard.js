@@ -13,7 +13,6 @@ import {
   TableRow,
   Chip,
   Grid,
-  Paper,
   Skeleton,
   Alert,
   LinearProgress,
@@ -26,9 +25,6 @@ import {
   AttachMoney,
   ShoppingCart,
   Store,
-  Inventory2,
-  Assignment,
-  People,
   Warning,
 } from "@mui/icons-material";
 import {
@@ -49,7 +45,6 @@ import {
   getCompanyTopProducts,
   getCompanyRevenueMix,
   getStorePerformance,
-  getWarehouseOrdersSummary,
   getCompanyLowStock,
 } from "../../api/dashboardApi";
 import { toast } from "react-toastify";
@@ -164,7 +159,6 @@ export default function CEODashboard() {
   const [revenueData, setRevenueData] = useState(null);
   const [topProducts, setTopProducts] = useState([]);
   const [storePerformance, setStorePerformance] = useState([]);
-  const [warehouseOrders, setWarehouseOrders] = useState(null);
   const [lowStock, setLowStock] = useState([]);
   const [revenueMix, setRevenueMix] = useState([]);
   const currentYear = new Date().getFullYear();
@@ -180,7 +174,6 @@ export default function CEODashboard() {
         revenueMixRes,
         productsRes,
         storesRes,
-        warehouseRes,
         lowStockRes,
       ] = await Promise.all([
         getCompanyKPIs(),
@@ -188,7 +181,6 @@ export default function CEODashboard() {
         getCompanyRevenueMix(),
         getCompanyTopProducts(10),
         getStorePerformance(),
-        getWarehouseOrdersSummary(),
         getCompanyLowStock(10),
       ]);
 
@@ -197,7 +189,6 @@ export default function CEODashboard() {
       if (revenueMixRes.err === 0) setRevenueMix(revenueMixRes.data);
       if (productsRes.err === 0) setTopProducts(productsRes.data);
       if (storesRes.err === 0) setStorePerformance(storesRes.data);
-      if (warehouseRes.err === 0) setWarehouseOrders(warehouseRes.data);
       if (lowStockRes.err === 0) setLowStock(lowStockRes.data);
     } catch (error) {
       toast.error("Lỗi tải dữ liệu: " + error.message);
@@ -453,7 +444,7 @@ export default function CEODashboard() {
       {/* Revenue Trend & Mix */}
       <Grid container spacing={3} mb={3}>
         <Grid item xs={12} md={8} lg={8}>
-          <Card sx={{ width: "600px" }}>
+          <Card sx={{ height: "100%" }}>
             <CardContent>
               <Box
                 sx={{
@@ -492,7 +483,7 @@ export default function CEODashboard() {
           </Card>
         </Grid>
         <Grid item xs={12} md={4} lg={4}>
-          <Card sx={{ width: "600px", height: "516px" }}>
+          <Card sx={{ height: "100%" }}>
             <CardContent>
               <Typography variant="h6" mb={2}>
                 Cơ cấu doanh thu (30 ngày)
@@ -679,55 +670,6 @@ export default function CEODashboard() {
             </CardContent>
           </Card>
         </Grid>
-        {/* {warehouseOrders && (
-          <Grid container spacing={3} mb={3}>
-            <Grid item xs={12} md={6} lg={4}>
-              <Card sx={{ width: "400px" }}>
-                <CardContent>
-                  <Typography
-                    variant="h6"
-                    mb={2}
-                    display="flex"
-                    alignItems="center"
-                    gap={1}
-                  >
-                    <Assignment /> Đơn hàng kho
-                  </Typography>
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2">Tổng đơn:</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {formatNumber(warehouseOrders.total)}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2">Đang chờ:</Typography>
-                      <Chip
-                        label={formatNumber(warehouseOrders.pending)}
-                        size="small"
-                        color="warning"
-                      />
-                    </Box>
-                    <Box display="flex" justifyContent="space-between" mb={1}>
-                      <Typography variant="body2">Đã xác nhận:</Typography>
-                      <Chip
-                        label={formatNumber(warehouseOrders.confirmed)}
-                        size="small"
-                        color="success"
-                      />
-                    </Box>
-                    <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2">Tổng giá trị:</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {formatCurrency(warehouseOrders.totalAmount)}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        )} */}
       </Grid>
 
       {/* Low Stock Alerts */}

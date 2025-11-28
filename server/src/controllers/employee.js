@@ -87,7 +87,7 @@ export const createEmployee = async (req, res) => {
         const data = {
             username,
             password: hashedPassword,
-            name,
+            full_name: name,
             email,
             phone,
             address,
@@ -118,6 +118,11 @@ export const updateEmployee = async (req, res) => {
     try {
         const { id } = req.params;
         const data = req.body;
+
+        if (data.name) {
+            data.full_name = data.name;
+            delete data.name;
+        }
 
         // If password is being updated, hash it
         if (data.password) {

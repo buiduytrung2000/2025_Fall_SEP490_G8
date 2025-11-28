@@ -297,3 +297,70 @@ export const getCompanyLowStock = async (req, res) => {
     }
 };
 
+// Get product sales per branch
+export const getBranchProductSales = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const {
+            store_id: storeId,
+            period,
+            year,
+            month,
+            limit
+        } = req.query;
+
+        const response = await dashboardService.getBranchProductSales({
+            storeId: storeId ? Number(storeId) : null,
+            period,
+            year,
+            month,
+            limit
+        });
+
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get latest purchase orders
+export const getRecentPurchaseOrders = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const { limit } = req.query;
+        const response = await dashboardService.getRecentPurchaseOrders(limit);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get inventory overview
+export const getInventoryOverview = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const response = await dashboardService.getInventoryOverview();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+

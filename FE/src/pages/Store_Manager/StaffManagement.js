@@ -25,7 +25,8 @@ const StaffManagement = () => {
         if (res && res.err === 0) {
             const mapped = (res.data || []).map(u => ({
                 id: u.user_id,
-                name: u.name || u.username,
+                name: u.full_name || u.username,
+                full_name: u.full_name || '',
                 phone: u.phone || '',
                 address: u.address || '',
                 role: u.role,
@@ -54,7 +55,7 @@ const StaffManagement = () => {
     };
     const handleShowAddModal = () => {
         setIsEditMode(false);
-        setCurrentStaff({ username: '', email: '', name: '', phone: '', address: '', role: 'Cashier' });
+        setCurrentStaff({ email: '', name: '', phone: '', address: '', role: 'Cashier' });
         setErrors({});
         setShowFormModal(true);
     }
@@ -96,7 +97,7 @@ const StaffManagement = () => {
 
     const validateAll = () => {
         if (!currentStaff) return false;
-        const fieldsToValidate = ['username', 'email', 'name', 'phone', 'role'];
+        const fieldsToValidate = ['email', 'name', 'phone', 'role'];
         const newErrors = {};
 
         fieldsToValidate.forEach((field) => {
@@ -121,9 +122,11 @@ const StaffManagement = () => {
         }
 
         try {
+            const normalizedName = currentStaff.name?.trim() || '';
             if (isEditMode) {
                 const res = await updateEmployee(currentStaff.id, {
-                    name: currentStaff.name,
+                    name: normalizedName,
+                    full_name: normalizedName,
                     phone: currentStaff.phone,
                     address: currentStaff.address,
                     role: currentStaff.role
@@ -131,11 +134,18 @@ const StaffManagement = () => {
                 if (res.err === 0) toast.success('Cập nhật nhân viên thành công');
                 else toast.error(res.msg || 'Cập nhật thất bại');
             } else {
+                const generatedUsername = () => {
+                    const base = (currentStaff.email || '')
+                        .split('@')[0]
+                        ?.replace(/[^a-zA-Z0-9._-]/g, '') || '';
+                    return base.length ? base : `user${Date.now()}`;
+                };
                 const res = await createEmployee({
-                    username: currentStaff.username,
+                    username: generatedUsername(),
                     email: currentStaff.email,
                     password: '123', // Mật khẩu mặc định
-                    name: currentStaff.name,
+                    name: normalizedName,
+                    full_name: normalizedName,
                     phone: currentStaff.phone,
                     address: currentStaff.address,
                     role: currentStaff.role,
@@ -234,23 +244,12 @@ const StaffManagement = () => {
                 <Modal.Body>
                     <Form onSubmit={handleSaveStaff}>
                         <Form.Group className="mb-3">
-                            <Form.Label>Tên đăng nhập</Form.Label>
-                            <Form.Control
-                                type="text"
-                                value={currentStaff?.username || ''}
-                                onChange={handleInputChange('username')}
-                                isInvalid={!!errors.username}
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.username}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group className="mb-3">
                             <Form.Label>Email</Form.Label>
                             <Form.Control
                                 type="email"
                                 value={currentStaff?.email || ''}
                                 onChange={handleInputChange('email')}
+                                disabled={isEditMode}
                                 isInvalid={!!errors.email}
                             />
                             <Form.Control.Feedback type="invalid">
