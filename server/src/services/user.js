@@ -249,3 +249,79 @@ export const reactivateUser = (userId) => new Promise(async (resolve, reject) =>
         reject(error)
     }
 })
+
+// UPDATE PROFILE FOR CURRENT USER
+export const updateProfile = (userId, data = {}) => new Promise(async (resolve, reject) => {
+    try {
+        const allowedFields = ['full_name', 'phone'];
+        const updates = {};
+        allowedFields.forEach(field => {
+            if (Object.prototype.hasOwnProperty.call(data, field)) {
+                updates[field] = data[field];
+            }
+        });
+
+        if (!Object.keys(updates).length) {
+            return resolve({
+                err: 1,
+                msg: 'Không có dữ liệu hợp lệ để cập nhật.'
+            });
+        }
+
+        const [updated] = await db.User.update(updates, {
+            where: { user_id: userId }
+        });
+
+        if (!updated) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy người dùng.'
+            });
+        }
+
+        const freshUser = await db.User.findOne({
+            where: { user_id: userId },
+            attributes: ['user_id', 'full_name', 'phone', 'email', 'role', 'store_id', 'status'],
+            raw: true
+        });
+
+        resolve({
+            err: 0,
+            msg: 'Cập nhật hồ sơ thành công.',
+            data: freshUser
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// CHANGE PASSWORD FOR CURRENT USER
+export const changePassword = (userId, currentPassword, newPassword) => new Promise(async (resolve, reject) => {
+    try {
+        const user = await db.User.findOne({ where: { user_id: userId } });
+        if (!user) {
+            return resolve({
+                err: 1,
+                msg: 'Không tìm thấy người dùng.'
+            });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return resolve({
+                err: 1,
+                msg: 'Mật khẩu hiện tại không chính xác.'
+            });
+        }
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        await user.update({ password: hashed });
+
+        resolve({
+            err: 0,
+            msg: 'Đổi mật khẩu thành công.'
+        });
+    } catch (error) {
+        reject(error);
+    }
+});

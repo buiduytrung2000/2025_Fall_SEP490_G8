@@ -38,6 +38,26 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
             nest: true
         })
 
+        // Tự động cập nhật status dựa trên thời gian hiện tại
+        const now = new Date()
+        const updatePromises = response.map(async (rule) => {
+            const start = new Date(rule.start_date)
+            const end = new Date(rule.end_date)
+            const newStatus = computeStatus(start, end)
+            
+            // Chỉ cập nhật nếu status thay đổi
+            if (rule.status !== newStatus) {
+                await db.PricingRule.update(
+                    { status: newStatus },
+                    { where: { rule_id: rule.rule_id } }
+                )
+                rule.status = newStatus
+            }
+            return rule
+        })
+
+        await Promise.all(updatePromises)
+
         resolve({
             err: 0,
             msg: 'OK',
@@ -96,6 +116,26 @@ export const getProductPriceHistory = (product_id, store_id) => new Promise(asyn
             nest: true
         })
 
+        // Tự động cập nhật status dựa trên thời gian hiện tại
+        const now = new Date()
+        const updatePromises = response.map(async (rule) => {
+            const start = new Date(rule.start_date)
+            const end = new Date(rule.end_date)
+            const newStatus = computeStatus(start, end)
+            
+            // Chỉ cập nhật nếu status thay đổi
+            if (rule.status !== newStatus) {
+                await db.PricingRule.update(
+                    { status: newStatus },
+                    { where: { rule_id: rule.rule_id } }
+                )
+                rule.status = newStatus
+            }
+            return rule
+        })
+
+        await Promise.all(updatePromises)
+
         resolve({
             err: 0,
             msg: 'OK',
@@ -107,11 +147,31 @@ export const getProductPriceHistory = (product_id, store_id) => new Promise(asyn
 })
 
 // CREATE PRICING RULE
+const PERMANENT_END_ISO = '9999-12-31T23:59:59.999Z'
+
+const getPermanentEndDate = () => new Date(PERMANENT_END_ISO)
+
+const normalizeEndDateInput = (value) => {
+    if (!value) return getPermanentEndDate()
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) {
+        return getPermanentEndDate()
+    }
+    return parsed
+}
+
+const computeStatus = (start, end) => {
+    const now = new Date()
+    if (now < start) return 'upcoming'
+    if (now > end) return 'expired'
+    return 'active'
+}
+
 export const create = (body) => new Promise(async (resolve, reject) => {
     try {
         const { product_id, store_id, type, value, start_date, end_date } = body
 
-        if (!product_id || !store_id || !type || value === undefined || !start_date || !end_date) {
+        if (!product_id || !store_id || !type || value === undefined || !start_date) {
             resolve({
                 err: 1,
                 msg: 'Missing required fields',
@@ -122,7 +182,16 @@ export const create = (body) => new Promise(async (resolve, reject) => {
 
         // Validate dates
         const start = new Date(start_date)
-        const end = new Date(end_date)
+        if (Number.isNaN(start.getTime())) {
+            resolve({
+                err: 1,
+                msg: 'Invalid start date',
+                data: null
+            })
+            return
+        }
+
+        const end = normalizeEndDateInput(end_date)
         if (start >= end) {
             resolve({
                 err: 1,
@@ -132,36 +201,7 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             return
         }
 
-        // Check for overlapping rules
-        const overlapping = await db.PricingRule.findOne({
-            where: {
-                product_id,
-                store_id,
-                [Op.or]: [
-                    {
-                        start_date: { [Op.between]: [start, end] },
-                    },
-                    {
-                        end_date: { [Op.between]: [start, end] },
-                    },
-                    {
-                        [Op.and]: [
-                            { start_date: { [Op.lte]: start } },
-                            { end_date: { [Op.gte]: end } }
-                        ]
-                    }
-                ]
-            }
-        })
-
-        if (overlapping) {
-            resolve({
-                err: 1,
-                msg: 'Overlapping pricing rule exists for this product and store',
-                data: null
-            })
-            return
-        }
+        const status = computeStatus(start, end)
 
         const response = await db.PricingRule.create({
             product_id,
@@ -169,7 +209,8 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             type,
             value: parseFloat(value),
             start_date: start,
-            end_date: end
+            end_date: end,
+            status
         })
 
         const created = await db.PricingRule.findOne({
@@ -212,48 +253,44 @@ export const update = (rule_id, body) => new Promise(async (resolve, reject) => 
             return
         }
 
+        // Không cho phép sửa khi trạng thái là 'active'
+        if (rule.status === 'active') {
+            resolve({
+                err: 1,
+                msg: 'Không thể sửa quy tắc giá đang áp dụng',
+                data: false
+            })
+            return
+        }
+
         const { type, value, start_date, end_date } = body
 
         // Validate dates if provided
-        if (start_date && end_date) {
-            const start = new Date(start_date)
-            const end = new Date(end_date)
-            if (start >= end) {
+        let start, end
+        const hasStart = !!start_date
+        const hasEnd = end_date !== undefined
+
+        if (hasStart) {
+            start = new Date(start_date)
+            if (Number.isNaN(start.getTime())) {
                 resolve({
                     err: 1,
-                    msg: 'Start date must be before end date',
+                    msg: 'Invalid start date',
                     data: false
                 })
                 return
             }
+        }
 
-            // Check for overlapping rules (excluding current rule)
-            const overlapping = await db.PricingRule.findOne({
-                where: {
-                    product_id: rule.product_id,
-                    store_id: rule.store_id,
-                    rule_id: { [Op.ne]: rule_id },
-                    [Op.or]: [
-                        {
-                            start_date: { [Op.between]: [start, end] },
-                        },
-                        {
-                            end_date: { [Op.between]: [start, end] },
-                        },
-                        {
-                            [Op.and]: [
-                                { start_date: { [Op.lte]: start } },
-                                { end_date: { [Op.gte]: end } }
-                            ]
-                        }
-                    ]
-                }
-            })
+        if (hasEnd) {
+            end = normalizeEndDateInput(end_date)
+        }
 
-            if (overlapping) {
+        if (hasStart && hasEnd) {
+            if (start >= end) {
                 resolve({
                     err: 1,
-                    msg: 'Overlapping pricing rule exists',
+                    msg: 'Start date must be before end date',
                     data: false
                 })
                 return
@@ -263,8 +300,13 @@ export const update = (rule_id, body) => new Promise(async (resolve, reject) => 
         const updateData = {}
         if (type) updateData.type = type
         if (value !== undefined) updateData.value = parseFloat(value)
-        if (start_date) updateData.start_date = new Date(start_date)
-        if (end_date) updateData.end_date = new Date(end_date)
+        if (hasStart) updateData.start_date = start
+        if (hasEnd) updateData.end_date = end
+
+        // Tính status mới dựa trên start/end hiệu lực sau cập nhật
+        const effectiveStart = hasStart ? start : rule.start_date
+        const effectiveEnd = hasEnd ? end : rule.end_date
+        updateData.status = computeStatus(effectiveStart, effectiveEnd)
 
         const [affectedRows] = await db.PricingRule.update(updateData, {
             where: { rule_id }
@@ -308,6 +350,26 @@ export const update = (rule_id, body) => new Promise(async (resolve, reject) => 
 // DELETE PRICING RULE
 export const remove = (rule_id) => new Promise(async (resolve, reject) => {
     try {
+        const rule = await db.PricingRule.findOne({ where: { rule_id } })
+        if (!rule) {
+            resolve({
+                err: 1,
+                msg: 'Pricing rule not found',
+                data: false
+            })
+            return
+        }
+
+        // Không cho phép xóa khi trạng thái là 'active'
+        if (rule.status === 'active') {
+            resolve({
+                err: 1,
+                msg: 'Không thể xóa quy tắc giá đang áp dụng',
+                data: false
+            })
+            return
+        }
+
         const affectedRows = await db.PricingRule.destroy({
             where: { rule_id }
         })

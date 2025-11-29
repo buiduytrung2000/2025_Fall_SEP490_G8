@@ -12,7 +12,8 @@ import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
     FaBars, FaUserClock, FaCashRegister, FaChartPie, FaExchangeAlt,
-    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift, FaBuilding
+    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift, FaBuilding,
+    FaUserCircle
 } from 'react-icons/fa';
 
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
@@ -36,7 +37,8 @@ const navLinks = {
         { to: "/cashier/payment-history", icon: <FaHistory />, text: "Lịch sử thanh toán" },
         { to: "/cashier/shift-reports", icon: <FaChartPie />, text: "Tổng kết ca" },
         { to: "/my-schedule", icon: <FaUserClock />, text: "Xem lịch làm việc" },
-        { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" }
+        { to: "/shift-change-request", icon: <FaExchangeAlt />, text: "Yêu cầu đổi lịch" },
+        { to: "/cashier/profile", icon: <FaUserCircle />, text: "Hồ sơ cá nhân" }
     ],
     CEO: [
         { to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" },

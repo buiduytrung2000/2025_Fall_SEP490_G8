@@ -39,6 +39,7 @@ import WarehouseOrderShipment from "./pages/Warehouse/OrderShipment";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
+import CashierProfile from "./pages/Cashier/Profile";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
 import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
@@ -191,6 +192,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Cashier"]}>
                   <POS />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/cashier/profile"
+              element={
+                <ProtectedRoute allowedRoles={["Cashier"]}>
+                  <CashierProfile />
                 </ProtectedRoute>
               }
             />

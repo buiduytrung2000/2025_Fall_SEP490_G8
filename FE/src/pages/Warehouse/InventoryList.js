@@ -187,18 +187,14 @@ const InventoryList = () => {
         };
       }
 
-      const baseUnitPrice = Number(item.product?.hq_price) || 0;
       const hasPackageUnit = Boolean(item.package_conversion && item.package_unit_label);
-      const initialUnitPrice = hasPackageUnit && item.package_conversion
-        ? Number((baseUnitPrice * item.package_conversion).toFixed(2))
-        : baseUnitPrice;
 
       groupedBySupplier[supplierId].items.push({
         product_id: item.product?.product_id,
         product_name: item.product?.name || '',
         sku: item.product?.sku || '',
         quantity: 1,
-        unit_price: initialUnitPrice,
+        unit_price: '',
         unit_id: item.product?.base_unit_id || null,
         base_unit_label: item.product?.base_unit_label || '',
         stock: item.stock || 0,
@@ -230,7 +226,7 @@ const InventoryList = () => {
   const handleOrderItemChange = (supplierIndex, itemIndex, field, value) => {
     const next = [...orderItems];
     next[supplierIndex].items[itemIndex][field] = value;
-    setOrderItems(next);
+    setOrderItems(next); 
   };
 
   // Handle unit toggle for order items
@@ -247,8 +243,8 @@ const InventoryList = () => {
         item.quantity = Math.round(currentQuantity * item.package_conversion);
         item.unit_price = Number((currentPrice / item.package_conversion).toFixed(2));
       } else {
-        // Chuyển từ đơn vị cơ sở sang đơn vị quy đổi
-        item.quantity = Number((currentQuantity / item.package_conversion).toFixed(2));
+        // Chuyển từ đơn vị cơ sở sang đơn vị quy đổi - làm tròn thành số nguyên
+        item.quantity = Math.round(currentQuantity / item.package_conversion);
         item.unit_price = Number((currentPrice * item.package_conversion).toFixed(2));
       }
 
@@ -270,7 +266,7 @@ const InventoryList = () => {
   };
 
   const handleSubmitOrder = async () => {
-    if (!orderItems.length) return toast.error('Đơn hàng phải có ít nhất 1 nhà cung cấp');
+    if (!orderItems.length) return toast.error('Phiếu nhập hàng phải có ít nhất 1 nhà cung cấp');
 
     // Validate all items
     for (const group of orderItems) {
@@ -316,9 +312,9 @@ const InventoryList = () => {
         const { successCount, failCount } = res.data;
 
         if (failCount === 0) {
-          toast.success(`Đã tạo thành công ${successCount} đơn hàng cho ${successCount} nhà cung cấp`);
+          toast.success(`Đã tạo thành công ${successCount} phiếu nhập hàng cho ${successCount} nhà cung cấp`);
         } else {
-          toast.warning(`Đã tạo ${successCount} đơn hàng thành công, ${failCount} đơn hàng thất bại`);
+          toast.warning(`Đã tạo ${successCount} phiếu nhập hàng thành công, ${failCount} phiếu nhập hàng thất bại`);
 
           // Show details of failed orders
           if (res.data.failed && res.data.failed.length > 0) {
@@ -336,7 +332,7 @@ const InventoryList = () => {
         try { window.dispatchEvent(new CustomEvent('warehouse-order:created')); } catch { }
         loadInventory();
       } else {
-        toast.error(res.msg || 'Không thể tạo đơn hàng');
+        toast.error(res.msg || 'Không thể tạo phiếu nhập hàng');
       }
     } catch (e) {
       toast.error('Lỗi kết nối: ' + e.message);
@@ -430,7 +426,7 @@ const InventoryList = () => {
               startIcon={<ShoppingCartIcon />}
               onClick={handleOpenCreateOrder}
             >
-              Tạo Đơn Hàng ({selectedProducts.length})
+              Tạo Phiếu Nhập Hàng ({selectedProducts.length})
             </Button>
           )}
           <IconButton onClick={handleSearch} color="primary" title="Làm mới">
@@ -634,7 +630,7 @@ const InventoryList = () => {
       <Dialog open={createOrderDialog} onClose={handleCloseCreateOrder} fullWidth maxWidth="lg">
         <DialogTitle>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">Tạo Đơn Hàng Mới</Typography>
+            <Typography variant="h6">Tạo Phiếu Nhập Hàng</Typography>
             <Chip
               label={`${orderItems.length} nhà cung cấp`}
               color="primary"
@@ -724,11 +720,17 @@ const InventoryList = () => {
                                 type="number"
                                 size="small"
                                 value={item.quantity}
-                                onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'quantity', e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  // Chỉ cho phép số nguyên
+                                  const intVal = val === '' ? '' : Math.floor(Math.abs(Number(val)));
+                                  handleOrderItemChange(supplierIndex, itemIndex, 'quantity', intVal);
+                                }}
                                 sx={{ width: 130 }}
+                                placeholder="Nhập số lượng"
                                 slotProps={{
                                   input: {
-                                    inputProps: { min: item.use_package_unit ? 0.01 : 1, step: item.use_package_unit ? 0.01 : 1 },
+                                    inputProps: { min: 1, step: 1 },
                                     endAdornment: getDisplayUnitLabel(item)
                                       ? <InputAdornment position="end">{getDisplayUnitLabel(item)}</InputAdornment>
                                       : null
@@ -754,14 +756,14 @@ const InventoryList = () => {
                               </Stack>
                             </Stack>
                           </TableCell>
-                          <TableCell align="right">
+                          <TableCell align="right" sx={{ minWidth: 100 }}>
                             <Stack alignItems="flex-end" spacing={0.5}>
                               <TextField
                                 type="number"
                                 size="small"
                                 value={item.unit_price}
                                 onChange={(e) => handleOrderItemChange(supplierIndex, itemIndex, 'unit_price', e.target.value)}
-                                sx={{ width: 140 }}
+                                sx={{ width: 180 }}
                                 slotProps={{
                                   input: {
                                     endAdornment: (
@@ -816,7 +818,7 @@ const InventoryList = () => {
           {orderItems.length > 0 && (
             <Paper sx={{ p: 2, bgcolor: 'primary.50' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">Tổng cộng tất cả đơn hàng</Typography>
+                <Typography variant="h6">Tổng cộng tất cả phiếu nhập hàng</Typography>
                 <Typography variant="h5" fontWeight={700} color="error.main">
                   {formatVnd(orderItems.reduce((total, group) =>
                     total + group.items.reduce((acc, item) => acc + getDisplaySubtotal(item), 0), 0
@@ -833,7 +835,7 @@ const InventoryList = () => {
             onClick={handleSubmitOrder}
             disabled={creatingOrder || orderItems.length === 0}
           >
-            {creatingOrder ? <CircularProgress size={24} /> : `Tạo ${orderItems.length} Đơn Hàng`}
+            {creatingOrder ? <CircularProgress size={24} /> : `Tạo ${orderItems.length} Phiếu Nhập Hàng`}
           </Button>
         </DialogActions>
       </Dialog>

@@ -10,6 +10,8 @@ router.use(verifyToken)
 
 // Current user info
 router.get('/get-current', userController.getCurrent)
+router.put('/me/profile', userController.updateProfile)
+router.put('/me/password', userController.changePassword)
 
 // Admin-only routes for user management
 router.get('/list', checkRole('Admin'), userController.listUsers)

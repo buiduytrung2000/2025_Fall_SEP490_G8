@@ -22,12 +22,14 @@ export const AuthProvider = ({ children }) => {
                 const backendRole = payload.role;
                 const roleMap = { 'Store_Manager': 'Manager' };
                 const mappedRole = roleMap[backendRole] || backendRole;
+                const displayName = data.user?.full_name || data.user?.username || payload.full_name || payload.username || ''
                 const loggedInUser = {
                     user_id: payload.user_id,
                     id: payload.user_id, // Keep for backward compatibility
                     email: data.user?.email || payload.email || null,
                     username: data.user?.username || null,
                     role: mappedRole,
+                    name: displayName,
                     store_id: payload.store_id || null,
                     token: data.token
                 };
@@ -49,12 +51,14 @@ export const AuthProvider = ({ children }) => {
                 const backendRole = payload.role;
                 const roleMap = { 'Store_Manager': 'Manager' };
                 const mappedRole = roleMap[backendRole] || backendRole;
+                const displayName = data.user?.full_name || data.user?.username || payload.full_name || payload.username || ''
                 const registeredUser = {
                     user_id: payload.user_id,
                     id: payload.user_id,
                     email: data.user?.email || null,
                     username: data.user?.username || payload.username || null,
                     role: mappedRole,
+                    name: displayName,
                     store_id: payload.store_id || null,
                     token: data.token
                 };
@@ -68,6 +72,17 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const updateUserInfo = (patch = {}) => {
+        setUser(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, ...patch };
+            try {
+                localStorage.setItem('user', JSON.stringify(updated));
+            } catch {}
+            return updated;
+        });
+    };
+
     const logout = () => {
         try {
             localStorage.removeItem('user');
@@ -77,7 +92,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout }}>
+        <AuthContext.Provider value={{ user, login, register, logout, updateUserInfo }}>
             {children}
         </AuthContext.Provider>
     );

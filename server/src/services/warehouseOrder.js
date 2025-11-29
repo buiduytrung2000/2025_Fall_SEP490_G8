@@ -900,8 +900,28 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy, not
 
         // 1. Nếu đơn được đánh dấu là tươi sống và từ pending -> confirmed,
         // tách các sản phẩm tươi sống sang đơn NCC giao thẳng cho cửa hàng
+        // VÀ tự động cập nhật tồn kho của store ngay lập tức (không cần chờ supplier xác nhận)
         if (isPerishableOrder && currentStatus === 'pending' && status === 'confirmed') {
+            // Lưu thông tin các item tươi sống trước khi có thể bị xóa
+            const perishableItems = await db.StoreOrderItem.findAll({
+                where: { store_order_id: orderId },
+                include: [
+                    {
+                        model: db.Product,
+                        as: 'product',
+                        attributes: ['product_id', 'is_perishable']
+                    }
+                ],
+                transaction
+            });
+            
+            const itemsToUpdate = perishableItems.filter(item => item.product?.is_perishable);
+            
+            // Tạo đơn NCC
             await createDirectSupplierOrdersForPerishable(order, transaction);
+            
+            // Tự động cập nhật tồn kho của store cho các sản phẩm tươi sống
+            await receivePerishableInventoryAtStore(orderId, itemsToUpdate, transaction);
         }
 
         // 2. TRỪ TỒN KHO KHI GIAO HÀNG (chỉ áp dụng cho phần hàng thường trong đơn)
@@ -1207,6 +1227,59 @@ const returnInventoryToWarehouse = async (orderId, transaction) => {
         }
     } catch (error) {
         console.error('❌ Error returning inventory to warehouse:', error);
+        throw error;
+    }
+};
+
+/**
+ * CỘNG hàng tươi sống vào tồn kho chi nhánh ngay khi warehouse xác nhận
+ * (không cần chờ supplier xác nhận)
+ */
+const receivePerishableInventoryAtStore = async (orderId, perishableItems, transaction) => {
+    try {
+        const order = await db.StoreOrder.findByPk(orderId, { transaction });
+        if (!order) return;
+
+        for (const item of perishableItems) {
+            if (!item.product_id) {
+                // Thử lấy product_id từ product relation
+                const productId = item.product?.product_id || item.product_id;
+                if (!productId) {
+                    console.warn(`⚠️ Item ${item.store_order_item_id} không có product_id, bỏ qua nhập kho cửa hàng`);
+                    continue;
+                }
+                item.product_id = productId;
+            }
+
+            const qty = getBaseQuantity(item);
+            if (qty <= 0) continue;
+
+            const inventory = await db.Inventory.findOne({
+                where: {
+                    store_id: order.store_id,
+                    product_id: item.product_id
+                },
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
+            });
+
+            if (inventory) {
+                await inventory.update({
+                    stock: inventory.stock + qty,
+                    updated_at: new Date()
+                }, { transaction });
+            } else {
+                await db.Inventory.create({
+                    store_id: order.store_id,
+                    product_id: item.product_id,
+                    stock: qty,
+                    min_stock_level: 0,
+                    reorder_point: 0
+                }, { transaction });
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error receiving perishable inventory at store:', error);
         throw error;
     }
 };

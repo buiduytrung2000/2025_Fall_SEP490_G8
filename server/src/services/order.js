@@ -177,17 +177,18 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
             return resolve({ err: 1, msg: 'Supplier not found' });
         }
 
-        // Create order
+        // Create order - tự động set status thành 'confirmed' để cập nhật tồn kho ngay
         const orderCode = await generateOrderCode();
         const order = await db.Order.create({
             supplier_id: effectiveSupplierId,
             created_by,
             order_code: orderCode,
-            status: 'pending',
+            status: 'confirmed', // Tự động confirmed để cập nhật tồn kho
             expected_delivery: expected_delivery || null
         }, { transaction });
 
         let total = 0;
+        const createdOrderItems = [];
 
         // Create order items
         for (const item of items) {
@@ -230,7 +231,7 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
 
             const quantityInBase = quantity * conversionToBase;
 
-            await db.OrderItem.create({
+            const orderItem = await db.OrderItem.create({
                 order_id: order.order_id,
                 product_id: product.product_id,
                 quantity,
@@ -239,6 +240,26 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
                 unit_id: unitId,
                 quantity_in_base: quantityInBase
             }, { transaction });
+
+            createdOrderItems.push(orderItem);
+        }
+
+        // Tự động cập nhật tồn kho khi tạo order thành công
+        // Đơn nhập kho tổng, cộng vào WarehouseInventory
+        for (const orderItem of createdOrderItems) {
+            const inventory = await db.WarehouseInventory.findOne({
+                where: { product_id: orderItem.product_id },
+                transaction
+            });
+
+            if (inventory) {
+                await inventory.increment('stock', { by: orderItem.quantity_in_base, transaction });
+            } else {
+                await db.WarehouseInventory.create({
+                    product_id: orderItem.product_id,
+                    stock: orderItem.quantity_in_base,
+                }, { transaction });
+            }
         }
 
         await transaction.commit();
