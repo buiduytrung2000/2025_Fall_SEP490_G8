@@ -1,5 +1,5 @@
 import db from '../models'
-import { Op } from 'sequelize'
+import { Op, Sequelize } from 'sequelize'
 
 // GET ALL PRODUCTS
 export const getAll = (query) => new Promise(async (resolve, reject) => {
@@ -17,6 +17,28 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
 
         const response = await db.Product.findAll({
             where,
+            attributes: {
+                include: [
+                    [
+                        Sequelize.literal(`(
+                            SELECT 
+                                CASE 
+                                    WHEN oi.unit_id = Product.base_unit_id THEN oi.unit_price
+                                    WHEN pu.conversion_to_base > 0 THEN ROUND(oi.unit_price / pu.conversion_to_base, 2)
+                                    ELSE oi.unit_price
+                                END as import_price
+                            FROM OrderItem oi
+                            INNER JOIN \`Order\` o ON oi.order_id = o.order_id
+                            LEFT JOIN ProductUnit pu ON pu.product_id = oi.product_id AND pu.unit_id = oi.unit_id
+                            WHERE oi.product_id = Product.product_id
+                            AND o.status = 'confirmed'
+                            ORDER BY o.created_at DESC, oi.created_at DESC
+                            LIMIT 1
+                        )`),
+                        'latest_import_price'
+                    ]
+                ]
+            },
             include: [
                 {
                     model: db.Category,
@@ -63,6 +85,28 @@ export const getOne = (product_id, include_inactive = false) => new Promise(asyn
 
         const response = await db.Product.findOne({
             where,
+            attributes: {
+                include: [
+                    [
+                        Sequelize.literal(`(
+                            SELECT 
+                                CASE 
+                                    WHEN oi.unit_id = Product.base_unit_id THEN oi.unit_price
+                                    WHEN pu.conversion_to_base > 0 THEN ROUND(oi.unit_price / pu.conversion_to_base, 2)
+                                    ELSE oi.unit_price
+                                END as import_price
+                            FROM OrderItem oi
+                            INNER JOIN \`Order\` o ON oi.order_id = o.order_id
+                            LEFT JOIN ProductUnit pu ON pu.product_id = oi.product_id AND pu.unit_id = oi.unit_id
+                            WHERE oi.product_id = Product.product_id
+                            AND o.status = 'confirmed'
+                            ORDER BY o.created_at DESC, oi.created_at DESC
+                            LIMIT 1
+                        )`),
+                        'latest_import_price'
+                    ]
+                ]
+            },
             include: [
                 {
                     model: db.Category,

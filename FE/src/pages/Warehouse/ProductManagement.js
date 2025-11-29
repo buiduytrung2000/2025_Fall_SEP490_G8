@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Alert } from 'react-bootstrap';
 import {
     getAllProducts, createProduct, updateProduct, toggleProductStatus, getAllCategories, getAllSuppliers,
-    getProductPriceHistory, createPricingRule, updatePricingRule, deletePricingRule, getProduct
+    getProductPriceHistory, createPricingRule, updatePricingRule, deletePricingRule, getProduct, getAllPricingRules
 } from '../../api/productApi';
 import { getInventoryByProduct } from '../../api/inventoryApi';
 import { MaterialReactTable } from 'material-react-table';
@@ -114,6 +114,9 @@ const ProductManagement = () => {
     const [ruleToDelete, setRuleToDelete] = useState(null);
     const [deletingRule, setDeletingRule] = useState(false);
 
+    // Active pricing rules map: product_id -> active rule
+    const [activePricingRules, setActivePricingRules] = useState({});
+
     // Get store_id from localStorage or default to 1
     const selectedStoreId = (() => {
         const stored = localStorage.getItem('store_id');
@@ -125,14 +128,33 @@ const ProductManagement = () => {
         loadData();
     }, []);
 
+    const loadActivePricingRules = async () => {
+        try {
+            const pricingRulesRes = await getAllPricingRules({ store_id: selectedStoreId, status: 'active' });
+            if (pricingRulesRes.err === 0) {
+                const rulesMap = {};
+                (pricingRulesRes.data || []).forEach(rule => {
+                    if (rule.product_id && rule.status === 'active') {
+                        rulesMap[rule.product_id] = rule;
+                    }
+                });
+                setActivePricingRules(rulesMap);
+            }
+        } catch (err) {
+            console.error('Lỗi khi tải active pricing rules:', err);
+        }
+    };
+
     const loadData = async () => {
         setError(null);
         try {
-            const [productsRes, categoriesRes, suppliersRes] = await Promise.all([
+            const [productsRes, categoriesRes, suppliersRes, pricingRulesRes] = await Promise.all([
                 // Load all products including inactive ones
                 getAllProducts({ include_inactive: true }),
                 getAllCategories(),
-                getAllSuppliers()
+                getAllSuppliers(),
+                // Load active pricing rules for current store
+                getAllPricingRules({ store_id: selectedStoreId, status: 'active' })
             ]);
 
             if (productsRes.err === 0) {
@@ -147,6 +169,17 @@ const ProductManagement = () => {
 
             if (suppliersRes.err === 0) {
                 setSuppliers(suppliersRes.data || []);
+            }
+
+            // Map active pricing rules by product_id
+            if (pricingRulesRes.err === 0) {
+                const rulesMap = {};
+                (pricingRulesRes.data || []).forEach(rule => {
+                    if (rule.product_id && rule.status === 'active') {
+                        rulesMap[rule.product_id] = rule;
+                    }
+                });
+                setActivePricingRules(rulesMap);
             }
         } catch (err) {
             setError('Lỗi khi tải dữ liệu: ' + err.message);
@@ -299,17 +332,17 @@ const ProductManagement = () => {
                 const history = (response.data || []).map(rule => {
                     const isPermanent = isPermanentEndDateValue(rule.end_date);
                     return {
-                        rule_id: rule.rule_id,
-                        type: rule.type,
-                        value: parseFloat(rule.value),
-                        start_date: rule.start_date ? rule.start_date.split('T')[0] : '',
+                    rule_id: rule.rule_id,
+                    type: rule.type,
+                    value: parseFloat(rule.value),
+                    start_date: rule.start_date ? rule.start_date.split('T')[0] : '',
                         end_date: isPermanent
                             ? ''
                             : (rule.end_date ? rule.end_date.split('T')[0] : ''),
                         end_date_raw: rule.end_date,
                         status: rule.status || 'upcoming', // Lấy status từ DB
-                        created_at: rule.created_at,
-                        store: rule.store
+                    created_at: rule.created_at,
+                    store: rule.store
                     };
                 });
                 setPriceHistory(history);
@@ -327,7 +360,7 @@ const ProductManagement = () => {
         setSelectedProduct(product);
         setEditingRule(null);
         setPriceType('fixed_price');
-        setPriceValue(product.hq_price || '0');
+        setPriceValue(product.latest_import_price || '0');
         
         // Load price history trước để tính ngày bắt đầu mặc định
         await loadPriceHistory(product.product_id);
@@ -381,9 +414,9 @@ const ProductManagement = () => {
             return;
         }
 
+        // Luôn dùng fixed_price
         if (!priceType) {
-            toast.error('Vui lòng chọn loại quy tắc giá');
-            return;
+            setPriceType('fixed_price');
         }
 
         const priceValueNum = parseFloat(priceValue);
@@ -564,6 +597,8 @@ const ProductManagement = () => {
                 toast.success(editingRule ? 'Cập nhật giá thành công' : 'Tạo quy tắc giá thành công');
                 handleClosePriceModal();
                 await loadPriceHistory(selectedProduct.product_id);
+                // Reload active pricing rules to update the table
+                await loadActivePricingRules();
             } else {
                 let errorMsg = response.msg || 'Có lỗi xảy ra';
                 if (errorMsg.includes('Overlapping pricing rule')) {
@@ -592,6 +627,8 @@ const ProductManagement = () => {
                 if (selectedProduct) {
                     await loadPriceHistory(selectedProduct.product_id);
                 }
+                // Reload active pricing rules to update the table
+                await loadActivePricingRules();
                 setShowDeleteConfirm(false);
                 setRuleToDelete(null);
             } else {
@@ -613,7 +650,7 @@ const ProductManagement = () => {
         setProductPriceHistory([]);
         // Reset price form
         setDetailPriceType('fixed_price');
-        setDetailPriceValue(product.hq_price || '0');
+        setDetailPriceValue(product.latest_import_price || '0');
         setDetailStartDate(getTomorrowDate());
         setDetailEndDate('');
         setDetailEditingRule(null);
@@ -627,7 +664,7 @@ const ProductManagement = () => {
 
             if (productRes.err === 0) {
                 setProductDetail(productRes.data);
-                setDetailPriceValue(productRes.data.hq_price || '0');
+                setDetailPriceValue(productRes.data.latest_import_price || '0');
             } else {
                 toast.error(productRes.msg || 'Không thể tải thông tin sản phẩm');
             }
@@ -730,9 +767,9 @@ const ProductManagement = () => {
             return;
         }
 
+        // Luôn dùng fixed_price
         if (!detailPriceType) {
-            toast.error('Vui lòng chọn loại quy tắc giá');
-            return;
+            setDetailPriceType('fixed_price');
         }
 
         const priceValueNum = parseFloat(detailPriceValue);
@@ -944,7 +981,7 @@ const ProductManagement = () => {
                 // Reset form
                 setDetailEditingRule(null);
                 setDetailPriceType('fixed_price');
-                setDetailPriceValue(productDetail.hq_price || '0');
+                setDetailPriceValue(productDetail.latest_import_price || '0');
                 
                 // Tính lại ngày bắt đầu mặc định sau khi reload
                 const priceHistoryRes = await getProductPriceHistory(productDetail.product_id, selectedStoreId);
@@ -978,6 +1015,8 @@ const ProductManagement = () => {
                     setDetailStartDate(defaultStartDate);
                 }
                 setDetailEndDate('');
+                // Reload active pricing rules to update the table
+                await loadActivePricingRules();
             } else {
                 let errorMsg = response.msg || 'Có lỗi xảy ra';
                 if (errorMsg.includes('Overlapping pricing rule')) {
@@ -1012,6 +1051,8 @@ const ProductManagement = () => {
                         setProductPriceHistory(priceHistoryRes.data || []);
                     }
                 }
+                // Reload active pricing rules to update the table
+                await loadActivePricingRules();
                 setShowDeleteConfirm(false);
                 setRuleToDelete(null);
             } else {
@@ -1049,30 +1090,28 @@ const ProductManagement = () => {
                 size: 200,
             },
             {
-                accessorKey: 'hq_price',
-                header: 'Giá HQ',
-                size: 120,
-                Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-            },
-            {
-                accessorKey: 'import_price',
+                accessorKey: 'latest_import_price',
                 header: 'Giá nhập',
                 size: 120,
-                Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+                Cell: ({ cell }) => {
+                    const price = cell.getValue();
+                    return formatCurrency(price || 0);
+                },
             },
             {
-                accessorKey: 'is_active',
-                header: 'Trạng thái',
+                accessorKey: 'selling_price',
+                header: 'Giá bán',
                 size: 120,
-                Cell: ({ cell }) => (
-                    <Chip
-                        icon={cell.getValue() ? <CheckCircle /> : <Cancel />}
-                        label={cell.getValue() ? 'Hoạt động' : 'Đã tắt'}
-                        color={cell.getValue() ? 'success' : 'default'}
-                        size="small"
-                        variant={cell.getValue() ? 'filled' : 'outlined'}
-                    />
-                ),
+                Cell: ({ row }) => {
+                    const product = row.original;
+                    // Lấy giá từ pricing rule active, nếu không có thì dùng giá nhập
+                    const activeRule = activePricingRules[product.product_id];
+                    if (activeRule && activeRule.value) {
+                        return formatCurrency(activeRule.value);
+                    }
+                    // Mặc định là giá nhập
+                    return formatCurrency(product.latest_import_price || 0);
+                },
             },
             {
                 accessorKey: 'category.name',
@@ -1095,8 +1134,22 @@ const ProductManagement = () => {
                     return desc ? (desc.length > 50 ? desc.substring(0, 50) + '...' : desc) : '-';
                 },
             },
+            {
+                accessorKey: 'is_active',
+                header: 'Trạng thái',
+                size: 120,
+                Cell: ({ cell }) => (
+                    <Chip
+                        icon={cell.getValue() ? <CheckCircle /> : <Cancel />}
+                        label={cell.getValue() ? 'Hoạt động' : 'Đã tắt'}
+                        color={cell.getValue() ? 'success' : 'default'}
+                        size="small"
+                        variant={cell.getValue() ? 'filled' : 'outlined'}
+                    />
+                ),
+            },
         ],
-        [],
+        [activePricingRules],
     );
 
     // Định nghĩa cột cho bảng lịch sử giá
@@ -1116,8 +1169,8 @@ const ProductManagement = () => {
                     const value = cell.getValue();
                     const type = row.original.type;
                     const displayValue = type === 'fixed_price'
-                        ? formatCurrency(value || productDetail?.hq_price)
-                        : formatCurrency(value || productDetail?.hq_price) + (type === 'markup' ? ' (+)' : ' (-)');
+                        ? formatCurrency(value || productDetail?.latest_import_price)
+                        : formatCurrency(value || productDetail?.latest_import_price) + (type === 'markup' ? ' (+)' : ' (-)');
                     return (
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
                             {displayValue}
@@ -1161,32 +1214,32 @@ const ProductManagement = () => {
                         }
                     } else {
                         // Tính toán lại nếu không có status từ DB (dữ liệu cũ)
-                        const now = new Date();
-                        now.setHours(0, 0, 0, 0);
-                        const startDate = item.start_date ? new Date(item.start_date) : null;
-                        const endDate = item.end_date ? new Date(item.end_date) : null;
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0);
+                    const startDate = item.start_date ? new Date(item.start_date) : null;
+                    const endDate = item.end_date ? new Date(item.end_date) : null;
 
-                        if (startDate) {
-                            startDate.setHours(0, 0, 0, 0);
-                            if (endDate) {
-                                endDate.setHours(23, 59, 59, 999);
-                                if (now >= startDate && now <= endDate) {
-                                    status = 'Đang áp dụng';
-                                    statusColor = 'success';
-                                } else if (now < startDate) {
-                                    status = 'Chuẩn bị áp dụng';
-                                    statusColor = 'warning';
-                                } else {
-                                    status = 'Đã hết hạn';
-                                    statusColor = 'default';
-                                }
+                    if (startDate) {
+                        startDate.setHours(0, 0, 0, 0);
+                        if (endDate) {
+                            endDate.setHours(23, 59, 59, 999);
+                            if (now >= startDate && now <= endDate) {
+                                status = 'Đang áp dụng';
+                                statusColor = 'success';
+                            } else if (now < startDate) {
+                                status = 'Chuẩn bị áp dụng';
+                                statusColor = 'warning';
                             } else {
-                                if (now >= startDate) {
-                                    status = 'Đang áp dụng';
-                                    statusColor = 'success';
-                                } else {
-                                    status = 'Chuẩn bị áp dụng';
-                                    statusColor = 'warning';
+                                status = 'Đã hết hạn';
+                                statusColor = 'default';
+                            }
+                        } else {
+                            if (now >= startDate) {
+                                status = 'Đang áp dụng';
+                                statusColor = 'success';
+                            } else {
+                                status = 'Chuẩn bị áp dụng';
+                                statusColor = 'warning';
                                 }
                             }
                         }
@@ -1445,7 +1498,7 @@ const ProductManagement = () => {
                                 onClick={() => {
                                     setEditingRule(null);
                                     setPriceType('fixed_price');
-                                    setPriceValue(selectedProduct?.hq_price || '0');
+                                    setPriceValue(selectedProduct?.latest_import_price || '0');
                                     
                                     // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                                     let defaultStartDate = getTomorrowDate();
@@ -1470,35 +1523,16 @@ const ProductManagement = () => {
                             </Button>
                         </Box>
 
-                        <FormControl fullWidth margin="normal" required>
-                            <InputLabel>Loại quy tắc giá</InputLabel>
-                            <Select
-                                value={priceType}
-                                label="Loại quy tắc giá"
-                                onChange={(e) => setPriceType(e.target.value)}
-                            >
-                                <MenuItem value="fixed_price">Giá cố định</MenuItem>
-                                <MenuItem value="markup">Tăng giá (cộng thêm)</MenuItem>
-                                <MenuItem value="markdown">Giảm giá (trừ đi)</MenuItem>
-                            </Select>
-                        </FormControl>
-
                         <TextField
-                            label={priceType === 'fixed_price' ? 'Giá cố định (₫)' :
-                                priceType === 'markup' ? 'Số tiền tăng (₫)' :
-                                    'Số tiền giảm (₫)'}
+                            label="Giá bán (₫)"
                             type="number"
-                            inputProps={{ min: 0, step: 1000 }}
+                            inputProps={{ min: 0 }}
                             value={priceValue}
                             onChange={(e) => setPriceValue(e.target.value)}
                             fullWidth
                             margin="normal"
                             required
-                            helperText={
-                                priceType === 'fixed_price' ? 'Giá bán cố định cho sản phẩm' :
-                                    priceType === 'markup' ? `Giá bán = Giá HQ + ${formatCurrency(parseFloat(priceValue) || 0)}` :
-                                        `Giá bán = Giá HQ - ${formatCurrency(parseFloat(priceValue) || 0)}`
-                            }
+                            helperText="Giá bán cho sản phẩm"
                         />
 
                         <TextField
@@ -1543,17 +1577,17 @@ const ProductManagement = () => {
                                     <TableBody>
                                         {priceHistory && priceHistory.length > 0 ? (
                                             priceHistory.map((rule) => (
-                                                <TableRow key={rule.rule_id} hover>
-                                                    <TableCell align="right">
-                                                        {rule.type === 'fixed_price'
-                                                            ? formatCurrency(rule.value)
-                                                            : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
-                                                        }
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
-                                                    </TableCell>
-                                                    <TableCell>
+                                                    <TableRow key={rule.rule_id} hover>
+                                                        <TableCell align="right">
+                                                            {rule.type === 'fixed_price'
+                                                                ? formatCurrency(rule.value)
+                                                                : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
+                                                            }
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
+                                                        </TableCell>
+                                                        <TableCell>
                                                         {rule.end_date ? new Date(rule.end_date).toLocaleString('vi-VN', {
                                                             year: 'numeric',
                                                             month: '2-digit',
@@ -1562,30 +1596,30 @@ const ProductManagement = () => {
                                                             minute: '2-digit',
                                                             second: '2-digit'
                                                         }) : 'Không giới hạn'}
-                                                    </TableCell>
-                                                    <TableCell align="center">
-                                                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                            <IconButton
-                                                                color="primary"
-                                                                size="small"
-                                                                onClick={() => handleEditRule(rule)}
-                                                                title="Chỉnh sửa"
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                                <IconButton
+                                                                    color="primary"
+                                                                    size="small"
+                                                                    onClick={() => handleEditRule(rule)}
+                                                                    title="Chỉnh sửa"
                                                                 disabled={rule.status === 'active'}
-                                                            >
-                                                                <Edit fontSize="small" />
-                                                            </IconButton>
-                                                            <IconButton
-                                                                color="error"
-                                                                size="small"
-                                                                onClick={() => handleDeleteRule(rule.rule_id)}
-                                                                title="Xóa"
+                                                                >
+                                                                    <Edit fontSize="small" />
+                                                                </IconButton>
+                                                                <IconButton
+                                                                    color="error"
+                                                                    size="small"
+                                                                    onClick={() => handleDeleteRule(rule.rule_id)}
+                                                                    title="Xóa"
                                                                 disabled={rule.status === 'active'}
-                                                            >
+                                                                >
                                                                 <Delete fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    </TableCell>
-                                                </TableRow>
+                                                                </IconButton>
+                                                            </Box>
+                                                        </TableCell>
+                                                    </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
@@ -1658,7 +1692,20 @@ const ProductManagement = () => {
                                                         <strong>Giá bán:</strong>{' '}
                                                     </Typography>
                                                     <Typography variant="body1" color="success.main" component="span" sx={{ fontWeight: 600 }}>
-                                                        {formatCurrency(productDetail.hq_price || 0)}
+                                                        {(() => {
+                                                            // Lấy giá từ pricing rule đang active, nếu không có thì lấy từ giá nhập (order)
+                                                            const activeRule = productPriceHistory?.find(rule => rule.status === 'active');
+                                                            if (activeRule && activeRule.value) {
+                                                                return formatCurrency(activeRule.value);
+                                                            }
+                                                            // Lấy giá nhập từ order (latest_import_price)
+                                                            const importPrice = productDetail?.latest_import_price;
+                                                            if (importPrice && importPrice > 0) {
+                                                                return formatCurrency(importPrice);
+                                                            }
+                                                            // Nếu không có giá từ order, hiển thị 0
+                                                            return formatCurrency(0);
+                                                        })()}
                                                     </Typography>
                                                 </Box>
 
@@ -1775,36 +1822,15 @@ const ProductManagement = () => {
                                             <form onSubmit={handleSavePriceInDetail}>
                                                 <Grid container spacing={2}>
                                                     <Grid item xs={12} sm={6} md={3}>
-                                                        <FormControl fullWidth required>
-                                                            <InputLabel>Loại quy tắc giá</InputLabel>
-                                                            <Select
-                                                                value={detailPriceType}
-                                                                label="Loại quy tắc giá"
-                                                                onChange={(e) => setDetailPriceType(e.target.value)}
-                                                            >
-                                                                <MenuItem value="fixed_price">Giá cố định</MenuItem>
-                                                                <MenuItem value="markup">Tăng giá (cộng thêm)</MenuItem>
-                                                                <MenuItem value="markdown">Giảm giá (trừ đi)</MenuItem>
-                                                            </Select>
-                                                        </FormControl>
-                                                    </Grid>
-
-                                                    <Grid item xs={12} sm={6} md={3}>
                                                         <TextField
-                                                            label={detailPriceType === 'fixed_price' ? 'Giá cố định (₫)' :
-                                                                detailPriceType === 'markup' ? 'Số tiền tăng (₫)' :
-                                                                    'Số tiền giảm (₫)'}
+                                                            label="Giá bán (₫)"
                                                             type="number"
-                                                            inputProps={{ min: 0, step: 1000 }}
+                                                            inputProps={{ min: 0 }}
                                                             value={detailPriceValue}
                                                             onChange={(e) => setDetailPriceValue(e.target.value)}
                                                             fullWidth
                                                             required
-                                                            helperText={
-                                                                detailPriceType === 'fixed_price' ? 'Giá bán cố định' :
-                                                                    detailPriceType === 'markup' ? `+ ${formatCurrency(parseFloat(detailPriceValue) || 0)}` :
-                                                                        `- ${formatCurrency(parseFloat(detailPriceValue) || 0)}`
-                                                            }
+                                                            helperText="Giá bán cho sản phẩm"
                                                         />
                                                     </Grid>
 
@@ -1842,7 +1868,7 @@ const ProductManagement = () => {
                                                                     onClick={() => {
                                                                         setDetailEditingRule(null);
                                                                         setDetailPriceType('fixed_price');
-                                                                        setDetailPriceValue(productDetail?.hq_price || '0');
+                                                                        setDetailPriceValue(productDetail?.latest_import_price || '0');
                                                                         
                                                                         // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                                                                         let defaultStartDate = getTomorrowDate();
@@ -1920,17 +1946,17 @@ const ProductManagement = () => {
                                                         const item = row.original;
                                                         // Sử dụng status từ DB, nếu không có thì tính toán lại
                                                         const isActive = item.status === 'active' || (() => {
-                                                            const now = new Date();
-                                                            now.setHours(0, 0, 0, 0);
-                                                            const startDate = item.start_date ? new Date(item.start_date) : null;
-                                                            const endDate = item.end_date ? new Date(item.end_date) : null;
+                                                        const now = new Date();
+                                                        now.setHours(0, 0, 0, 0);
+                                                        const startDate = item.start_date ? new Date(item.start_date) : null;
+                                                        const endDate = item.end_date ? new Date(item.end_date) : null;
 
-                                                            if (startDate) {
-                                                                startDate.setHours(0, 0, 0, 0);
-                                                                if (endDate) {
-                                                                    endDate.setHours(23, 59, 59, 999);
+                                                        if (startDate) {
+                                                            startDate.setHours(0, 0, 0, 0);
+                                                            if (endDate) {
+                                                                endDate.setHours(23, 59, 59, 999);
                                                                     return now >= startDate && now <= endDate;
-                                                                } else {
+                                                            } else {
                                                                     return now >= startDate;
                                                                 }
                                                             }
