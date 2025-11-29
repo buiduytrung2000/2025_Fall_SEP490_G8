@@ -226,7 +226,7 @@ const InventoryList = () => {
   const handleOrderItemChange = (supplierIndex, itemIndex, field, value) => {
     const next = [...orderItems];
     next[supplierIndex].items[itemIndex][field] = value;
-    setOrderItems(next);
+    setOrderItems(next); 
   };
 
   // Handle unit toggle for order items

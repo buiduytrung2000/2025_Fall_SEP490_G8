@@ -4,7 +4,7 @@ import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-boots
 import {
     FaSearch, FaQrcode, FaCartPlus,
     FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
-    FaMoneyBillWave, FaCreditCard, FaTicketAlt
+    FaMoneyBillWave, FaCreditCard, FaTicketAlt, FaTrash
 } from 'react-icons/fa';
 import '../../assets/POS.css';
 import { getProductsByStore, getProduct } from '../../api/productApi';
@@ -28,7 +28,22 @@ const formatCurrency = (number) => {
 const POS = () => {
     const { user } = useAuth();
     const [products, setProducts] = useState([]);
-    const [cart, setCart] = useState([]);
+    
+    // Load cart from localStorage on mount
+    const getInitialCart = () => {
+        try {
+            const stored = localStorage.getItem('pos_cart');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                return Array.isArray(parsed) ? parsed : [];
+            }
+        } catch (error) {
+            console.error('Error loading cart from localStorage:', error);
+        }
+        return [];
+    };
+    
+    const [cart, setCart] = useState(getInitialCart());
     const [searchTerm, setSearchTerm] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -69,6 +84,7 @@ const POS = () => {
     const [closingCashInput, setClosingCashInput] = useState('');
     const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
     const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
+    const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
 
     // Load trạng thái ca từ API (open shift) và check schedule attendance_status
     useEffect(() => {
@@ -388,6 +404,15 @@ const POS = () => {
         return filtered;
     }, [products, searchTerm]);
 
+    // Lưu cart vào localStorage mỗi khi cart thay đổi
+    useEffect(() => {
+        try {
+            localStorage.setItem('pos_cart', JSON.stringify(cart));
+        } catch (error) {
+            console.error('Error saving cart to localStorage:', error);
+        }
+    }, [cart]);
+
     // Thêm sản phẩm vào giỏ
     const handleAddToCart = (product) => {
         setCart(currentCart => {
@@ -423,6 +448,20 @@ const POS = () => {
     // Xóa khỏi giỏ
     const handleRemoveFromCart = (productId) => {
         setCart(currentCart => currentCart.filter(item => item.id !== productId));
+    };
+
+    // Xóa toàn bộ giỏ hàng
+    const handleClearCart = () => {
+        setCart([]);
+        setSelectedVoucher(null);
+        // Xóa cart khỏi localStorage
+        try {
+            localStorage.removeItem('pos_cart');
+        } catch (error) {
+            console.error('Error clearing cart from localStorage:', error);
+        }
+        toast.success('Đã xóa toàn bộ giỏ hàng');
+        setShowClearCartModal(false);
     };
 
     // Tính toán tiền
@@ -701,6 +740,12 @@ const POS = () => {
         setCart([]);
         setSelectedVoucher(null);
         setSelectedPaymentMethod(null);
+        // Xóa cart khỏi localStorage khi thanh toán thành công
+        try {
+            localStorage.removeItem('pos_cart');
+        } catch (error) {
+            console.error('Error clearing cart from localStorage:', error);
+        }
     };
 
     // Xử lý in hóa đơn
@@ -1194,6 +1239,24 @@ const POS = () => {
                     </div>
                 )}
 
+                {/* Cart Header with Clear Button */}
+                {cart.length > 0 && (
+                    <div className="cart-header px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
+                        <h6 className="mb-0">
+                            <FaShoppingCart className="me-2" />
+                            Giỏ hàng ({cart.length} sản phẩm)
+                        </h6>
+                        <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => setShowClearCartModal(true)}
+                        >
+                            <FaTrash className="me-1" />
+                            Xóa giỏ hàng
+                        </Button>
+                    </div>
+                )}
+
                 {/* Cart Items - Scrollable */}
                 <div className="cart-items-list px-3 py-2" style={{
                     flex: '1 1 auto',
@@ -1501,7 +1564,7 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
-                                setPaymentGiven('');
+                                setPaymentGiven(''  );
                                 setPaymentReference('');
                                 // Đánh dấu đã checkout để không hiển thị nút check-in nữa
                                 setScheduleAttendanceStatus('checked_out');
@@ -1529,6 +1592,28 @@ const POS = () => {
                 onPaymentSuccess={handleQRPaymentSuccess}
                 onPrintInvoice={handlePrintInvoice}
             />
+
+            {/* Clear Cart Confirmation Modal */}
+            <Modal show={showClearCartModal} onHide={() => setShowClearCartModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Xác nhận xóa giỏ hàng</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p>Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng?</p>
+                    <p className="text-muted small mb-0">
+                        Tổng cộng: <strong>{cart.length}</strong> sản phẩm - <strong>{formatCurrency(subtotal)}</strong>
+                    </p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowClearCartModal(false)}>
+                        Hủy
+                    </Button>
+                    <Button variant="danger" onClick={handleClearCart}>
+                        <FaTrash className="me-1" />
+                        Xóa giỏ hàng
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

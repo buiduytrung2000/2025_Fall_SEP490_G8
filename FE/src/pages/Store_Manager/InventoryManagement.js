@@ -32,6 +32,7 @@ import { toast } from 'react-toastify';
 import { createWarehouseOrder } from '../../api/warehouseOrderApi';
 import { getStoreInventory } from '../../api/inventoryApi';
 import { createStoreOrder } from '../../api/storeOrderApi';
+import { getAllPricingRules } from '../../api/productApi';
 
 // Old columns definition - kept for exportCsv function
 const oldColumns = [
@@ -72,7 +73,8 @@ const InventoryManagement = () => {
             target: parsed.target || 'Main Warehouse',
             supplier: parsed.supplier || 'Coca-Cola',
             lines: parsed.lines && parsed.lines.length > 0 ? parsed.lines : [emptyLine()],
-            perishable: parsed.perishable || false
+            perishable: parsed.perishable || false,
+            storageType: parsed.storageType || 'stored'
           };
           return cached;
         }
@@ -83,7 +85,8 @@ const InventoryManagement = () => {
         target: 'Main Warehouse',
         supplier: 'Coca-Cola',
         lines: [emptyLine()],
-        perishable: false
+        perishable: false,
+        storageType: 'stored'
       };
       return cached;
     };
@@ -95,13 +98,50 @@ const InventoryManagement = () => {
   const [lines, setLines] = useState(initialData.lines);
   const [submitting, setSubmitting] = useState(false);
   const [perishable, setPerishable] = useState(initialData.perishable);
+  const [storageType, setStorageType] = useState(initialData.storageType || 'stored'); // 'stored' hoặc 'direct'
+  
+  // Active pricing rules map: product_id -> active rule
+  const [activePricingRules, setActivePricingRules] = useState({});
+  
+  // Get store_id from localStorage or user context
+  const getStoreId = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.store_id || null;
+      }
+    } catch (error) {
+      console.error('Error getting store_id:', error);
+    }
+    return null;
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const storeId = getStoreId();
       // Get store_id from user if available, otherwise pass null to use user's store
-      const items = await getStoreInventory(null);
+      const items = await getStoreInventory(storeId);
       setData(items || []);
+      
+      // Load active pricing rules for current store
+      if (storeId) {
+        try {
+          const pricingRulesRes = await getAllPricingRules({ store_id: storeId, status: 'active' });
+          if (pricingRulesRes.err === 0) {
+            const rulesMap = {};
+            (pricingRulesRes.data || []).forEach(rule => {
+              if (rule.product_id && rule.status === 'active') {
+                rulesMap[rule.product_id] = rule;
+              }
+            });
+            setActivePricingRules(rulesMap);
+          }
+        } catch (error) {
+          console.error('Error loading active pricing rules:', error);
+        }
+      }
     } catch (error) {
       console.error('Error fetching inventory:', error);
       setData([]);
@@ -119,13 +159,14 @@ const InventoryManagement = () => {
         target,
         supplier,
         lines,
-        perishable
+        perishable,
+        storageType
       };
       localStorage.setItem('inventory_order_draft', JSON.stringify(orderData));
     } catch (error) {
       console.error('Error saving order data to localStorage:', error);
     }
-  }, [lines, target, supplier, perishable]);
+  }, [lines, target, supplier, perishable, storageType]);
 
   // Keep selection in sync with current data
   useEffect(() => {
@@ -197,6 +238,36 @@ const InventoryManagement = () => {
     if (checked) {
       const row = filtered.find(r => rowId(r) === id) || data.find(r => rowId(r) === id);
       if (row) {
+        const isPerishable = !!(row.is_perishable || row.product?.is_perishable);
+        
+        // Kiểm tra xem đã có sản phẩm loại khác trong đơn chưa
+        const currentLines = lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== ''));
+        if (currentLines.length > 0) {
+          const hasOtherType = currentLines.some((l) => {
+            const sku = (l.sku || '').trim();
+            const name = (l.name || '').trim();
+            if (!sku && !name) return false;
+            const invRow = data.find(
+              (r) =>
+                (r.sku && r.sku === sku) ||
+                (r.name && r.name === name)
+            );
+            const otherIsPerishable = !!(invRow?.is_perishable || invRow?.product?.is_perishable);
+            return otherIsPerishable !== isPerishable;
+          });
+          
+          if (hasOtherType) {
+            toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+            // Không thêm sản phẩm này vào đơn
+            setSelected(prev => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            return;
+          }
+        }
+        
         const quantity = computeSuggestedQty(row);
         // Push into 'Tạo đơn hàng mới' draft instead of sending API immediately
         setLines(prev => {
@@ -205,14 +276,16 @@ const InventoryManagement = () => {
           
           const sku = row.sku || '';
           const name = row.name || '';
-          const price = Number(row.package_price || row.cost_price || row.price || 0) || 0;
+          // Tự động lấy giá nhập từ package_price (giá nhập/thùng)
+          const price = Number(row.package_price ?? 0);
           const idx = filteredLines.findIndex(l => l.sku === sku);
           if (idx >= 0) {
             const updated = [...filteredLines];
             updated[idx] = {
               ...updated[idx],
               qty: Number(updated[idx].qty || 0) + quantity,
-              price: price || updated[idx].price
+              // Nếu chưa có giá hoặc giá = 0, cập nhật từ package_price
+              price: (price > 0) ? price : (updated[idx].price || 0)
             };
             return updated;
           }
@@ -228,13 +301,22 @@ const InventoryManagement = () => {
   const tableColumns = useMemo(() => [
     {
       id: 'select',
-      header: '',
-      size: 50,
+      header: ({ table }) => (
+        <Checkbox
+          indeterminate={someInViewSelected}
+          checked={allInViewSelected}
+          onChange={(e) => toggleAllInView(e.target.checked)}
+          inputProps={{ 'aria-label': 'chọn tất cả' }}
+          size="small"
+        />
+      ),
+      size: 40,
       Cell: ({ row }) => (
         <Checkbox
           checked={selected.has(rowId(row.original))}
           onChange={(e) => toggleOne(rowId(row.original), e.target.checked)}
           inputProps={{ 'aria-label': 'chọn sản phẩm' }}
+          size="small"
         />
       ),
       enableColumnFilter: false,
@@ -243,27 +325,25 @@ const InventoryManagement = () => {
     {
       accessorKey: 'index',
       header: 'STT',
-      size: 60,
+      size: 45,
       Cell: ({ row }) => row.index + 1,
       enableColumnFilter: false,
     },
     {
       accessorKey: 'sku',
       header: 'Mã SKU',
-      size: 120,
+      size: 90,
     },
     {
       accessorKey: 'name',
       header: 'Tên hàng',
-      size: 240,
+      size: 150,
       Cell: ({ row }) => {
         const original = row.original;
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Typography fontWeight={600}>{original.name}</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {original.sku}
-            </Typography>
+            <Typography>{original.name}</Typography>
+            
           </Box>
         );
       },
@@ -271,7 +351,7 @@ const InventoryManagement = () => {
     {
       id: 'product_type',
       header: 'Loại hàng',
-      size: 130,
+      size: 85,
       Cell: ({ row }) => {
         const original = row.original;
         const isPerishable = !!(original.is_perishable || original.product?.is_perishable);
@@ -288,29 +368,51 @@ const InventoryManagement = () => {
     {
       accessorKey: 'category',
       header: 'Danh mục',
-      size: 150,
+      size: 100,
     },
     {
       accessorKey: 'package_price',
       header: 'Giá nhập/thùng',
-      size: 130,
+      size: 100,
       Cell: ({ row }) => {
-        const price = row.original.package_price || row.original.price || 0;
-        return `${formatVnd(price)}đ`;
+        // Lấy giá thùng từ package_price (đã tính từ latest_import_price * conversion)
+        // Nếu không có thì hiển thị 0
+        const price = row.original.package_price ?? 0;
+        return `${formatVnd(Number(price) || 0)}đ`;
       },
       enableColumnFilter: false,
     },
     {
       accessorKey: 'price',
       header: 'Giá lẻ/đơn vị',
-      size: 130,
-      Cell: ({ cell }) => `${formatVnd(cell.getValue() || 0)}đ`,
+      size: 100,
+      Cell: ({ row }) => {
+        // Chỉ lấy giá từ order (latest_import_price), nếu không có thì hiển thị 0
+        const price = row.original.latest_import_price ?? 0;
+        return `${formatVnd(Number(price) || 0)}đ`;
+      },
+      enableColumnFilter: false,
+    },
+    {
+      accessorKey: 'selling_price',
+      header: 'Giá bán',
+      size: 100,
+      Cell: ({ row }) => {
+        const item = row.original;
+        // Lấy giá từ pricing rule active, nếu không có thì dùng giá nhập
+        const activeRule = activePricingRules[item.product_id];
+        if (activeRule && activeRule.value) {
+          return `${formatVnd(Number(activeRule.value) || 0)}đ`;
+        }
+        // Mặc định là giá nhập
+        return `${formatVnd(Number(item.latest_import_price) || 0)}đ`;
+      },
       enableColumnFilter: false,
     },
     {
       accessorKey: 'stock',
       header: 'Tồn kho',
-      size: 100,
+      size: 70,
       Cell: ({ row }) => {
         const stock = row.original.stock || 0;
         const minStock = row.original.min_stock_level || row.original.minStock || 0;
@@ -331,14 +433,14 @@ const InventoryManagement = () => {
     {
       accessorKey: 'min_stock_level',
       header: 'Tồn tối thiểu',
-      size: 120,
+      size: 80,
       Cell: ({ row }) => row.original.min_stock_level || row.original.minStock || 0,
       enableColumnFilter: false,
     },
     {
       accessorKey: 'status',
       header: 'Trạng thái',
-      size: 120,
+      size: 80,
       Cell: ({ row }) => {
         const stock = row.original.stock || 0;
         const minStock = row.original.min_stock_level || row.original.minStock || 0;
@@ -353,7 +455,7 @@ const InventoryManagement = () => {
       },
       enableColumnFilter: false,
     },
-  ], [selected, toggleOne]);
+  ], [selected, toggleOne, allInViewSelected, someInViewSelected, toggleAllInView, activePricingRules]);
 
   // Order management functions
   const addLine = () => {
@@ -374,13 +476,52 @@ const InventoryManagement = () => {
       }
       const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
       
-      // Khi nhập SKU hoặc tên hàng, tự động xóa các dòng trống khác
+      // Khi nhập SKU hoặc tên hàng, kiểm tra loại hàng và validation, tự động điền giá nhập
       if (key === 'sku' || key === 'name') {
         const currentLine = updated[idx];
         const hasData = (currentLine.sku && currentLine.sku.trim() !== '') || 
                        (currentLine.name && currentLine.name.trim() !== '');
         
         if (hasData) {
+          // Kiểm tra xem sản phẩm này là hàng tươi sống hay không
+          const sku = (currentLine.sku || '').trim();
+          const name = (currentLine.name || '').trim();
+          const invRow = data.find(
+            (r) =>
+              (r.sku && r.sku === sku) ||
+              (r.name && r.name === name)
+          );
+          const isPerishable = !!(invRow?.is_perishable || invRow?.product?.is_perishable);
+          
+          // Tự động điền giá nhập từ package_price (giá nhập/thùng)
+          if (invRow) {
+            const packagePrice = Number(invRow.package_price ?? 0);
+            if (packagePrice > 0) {
+              updated[idx].price = packagePrice;
+            }
+          }
+          
+          // Kiểm tra xem có sản phẩm loại khác trong đơn không
+          const otherLines = updated.filter((l, i) => i !== idx && ((l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')));
+          const hasOtherType = otherLines.some((l) => {
+            const otherSku = (l.sku || '').trim();
+            const otherName = (l.name || '').trim();
+            if (!otherSku && !otherName) return false;
+            const otherInvRow = data.find(
+              (r) =>
+                (r.sku && r.sku === otherSku) ||
+                (r.name && r.name === otherName)
+            );
+            const otherIsPerishable = !!(otherInvRow?.is_perishable || otherInvRow?.product?.is_perishable);
+            return otherIsPerishable !== isPerishable;
+          });
+          
+          if (hasOtherType) {
+            toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+            // Xóa dòng hiện tại vì không hợp lệ
+            return updated.filter((_, i) => i !== idx);
+          }
+          
           // Giữ dòng hiện tại và các dòng có dữ liệu, xóa các dòng trống khác
           const filtered = updated.filter((l, i) => {
             if (i === idx) return true; // Luôn giữ dòng đang được cập nhật
@@ -439,25 +580,34 @@ const InventoryManagement = () => {
     return lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')).length;
   }, [lines]);
 
-  // Tự động bật/tắt cờ perishable theo danh sách sản phẩm trong đơn
-  useEffect(() => {
-    try {
-      const hasPerishable = lines.some((line) => {
-        const sku = (line.sku || '').trim();
-        const name = (line.name || '').trim();
-        if (!sku && !name) return false;
-        const invRow = data.find(
-          (row) =>
-            (row.sku && row.sku === sku) ||
-            (row.name && row.name === name)
-        );
-        return !!invRow?.is_perishable;
-      });
+  // Kiểm tra xem có hàng tươi sống trong đơn không
+  const hasPerishableInLines = useMemo(() => {
+    return lines.some((line) => {
+      const sku = (line.sku || '').trim();
+      const name = (line.name || '').trim();
+      if (!sku && !name) return false;
+      const invRow = data.find(
+        (row) =>
+          (row.sku && row.sku === sku) ||
+          (row.name && row.name === name)
+      );
+      return !!invRow?.is_perishable;
+    });
+  }, [lines, data]);
 
-      setPerishable(hasPerishable);
-    } catch {
-      // ignore
-    }
+  // Kiểm tra xem có hàng thường trong đơn không
+  const hasNonPerishableInLines = useMemo(() => {
+    return lines.some((line) => {
+      const sku = (line.sku || '').trim();
+      const name = (line.name || '').trim();
+      if (!sku && !name) return false;
+      const invRow = data.find(
+        (row) =>
+          (row.sku && row.sku === sku) ||
+          (row.name && row.name === name)
+      );
+      return !invRow?.is_perishable;
+    });
   }, [lines, data]);
 
   // Khi là đơn hàng tươi sống, đồng bộ state supplier theo danh sách nhà cung cấp thực tế
@@ -467,6 +617,19 @@ const InventoryManagement = () => {
     }
   }, [perishable, perishableSuppliers]);
 
+  // Tự động cập nhật storageType và perishable khi có hàng tươi sống
+  useEffect(() => {
+    if (hasPerishableInLines) {
+      // Nếu có hàng tươi sống, tự động set storageType = 'direct' và perishable = true
+      setStorageType('direct');
+      setPerishable(true);
+    } else if (hasNonPerishableInLines && !hasPerishableInLines) {
+      // Nếu chỉ có hàng thường, tự động set storageType = 'stored' và perishable = false
+      setStorageType('stored');
+      setPerishable(false);
+    }
+  }, [hasPerishableInLines, hasNonPerishableInLines]);
+
   const handleCreateOrder = async () => {
       if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
         toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
@@ -474,6 +637,24 @@ const InventoryManagement = () => {
       }
     if (!target || target.trim() === '') {
       toast.error('Vui lòng nhập tên kho nhận hàng');
+      return;
+    }
+
+    // Validation: Không cho phép nhập chung hàng tươi sống với hàng thường
+    if (hasPerishableInLines && hasNonPerishableInLines) {
+      toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+      return;
+    }
+
+    // Validation: Hàng tươi sống phải chọn "hàng không lưu kho"
+    if (hasPerishableInLines && storageType !== 'direct') {
+      toast.error('Hàng tươi sống phải chọn "Hàng không lưu kho (nhập trực tiếp)"');
+      return;
+    }
+
+    // Validation: Hàng thường phải chọn "hàng lưu kho"
+    if (hasNonPerishableInLines && !hasPerishableInLines && storageType !== 'stored') {
+      toast.error('Hàng thường phải chọn "Hàng lưu kho"');
       return;
     }
 
@@ -538,6 +719,7 @@ const InventoryManagement = () => {
         items: validItems,
         // Tự động đánh dấu đơn là tươi sống nếu có ít nhất 1 sản phẩm tươi sống
         perishable: hasPerishableItem,
+        storage_type: storageType, // 'stored' hoặc 'direct'
         notes: null
       };
 
@@ -548,6 +730,7 @@ const InventoryManagement = () => {
         // Reset đơn nhập
         setLines([]);
         setPerishable(false);
+        setStorageType('stored');
         setTarget('Main Warehouse');
         setSupplier('Coca-Cola');
         // Xóa dữ liệu đã lưu trong localStorage
@@ -642,11 +825,6 @@ const InventoryManagement = () => {
         enableBottomToolbar={true}
         enablePagination={true}
         enableRowSelection={false}
-        muiTableContainerProps={{
-          sx: {
-            maxHeight: { xs: '70vh', md: 'none' }
-          }
-        }}
         muiTablePaperProps={{
           elevation: 0,
           sx: { boxShadow: 'none' }
@@ -655,22 +833,16 @@ const InventoryManagement = () => {
           sx: {
             fontWeight: 700,
             fontSize: { xs: '0.75rem', sm: '0.875rem' },
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            padding: '6px 8px'
           }
         }}
-        renderTopToolbarCustomActions={() => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
-            <Checkbox
-              indeterminate={someInViewSelected}
-              checked={allInViewSelected}
-              onChange={(e) => toggleAllInView(e.target.checked)}
-              inputProps={{ 'aria-label': 'chọn tất cả' }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              {selectedCountInView > 0 ? `Đã chọn ${selectedCountInView} sản phẩm` : 'Chọn tất cả'}
-            </Typography>
-          </Box>
-        )}
+        muiTableBodyCellProps={{
+          sx: {
+            padding: '6px 8px',
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          }
+        }}
         state={{
           isLoading: loading,
           showProgressBars: loading
@@ -709,15 +881,33 @@ const InventoryManagement = () => {
               <TextField 
                 select 
                 size="small" 
-                label="Hàng tươi sống?" 
-                value={perishable ? 'Yes' : 'No'} 
-                onChange={(e) => setPerishable(e.target.value === 'Yes')} 
-                sx={{ width: { xs: '100%', sm: 180 } }}
+                label="Loại hàng" 
+                value={storageType} 
+                onChange={(e) => {
+                  const newStorageType = e.target.value;
+                  setStorageType(newStorageType);
+                  // Nếu chọn "hàng không lưu kho", tự động set perishable = true
+                  if (newStorageType === 'direct') {
+                    setPerishable(true);
+                  } else if (newStorageType === 'stored' && !hasPerishableInLines) {
+                    setPerishable(false);
+                  }
+                }}
+                sx={{ width: { xs: '100%', sm: 220 } }}
+                disabled={hasPerishableInLines && hasNonPerishableInLines}
+                helperText={
+                  hasPerishableInLines && hasNonPerishableInLines 
+                    ? 'Không được nhập chung hàng tươi sống với hàng thường' 
+                    : hasPerishableInLines 
+                    ? 'Hàng tươi sống phải chọn "Hàng không lưu kho"' 
+                    : ''
+                }
+                error={hasPerishableInLines && hasNonPerishableInLines}
               >
-                <MenuItem value="No">No</MenuItem>
-                <MenuItem value="Yes">Yes</MenuItem>
+                <MenuItem value="stored">Hàng lưu kho</MenuItem>
+                <MenuItem value="direct">Hàng không lưu kho (nhập trực tiếp)</MenuItem>
               </TextField>
-              {perishable && (
+              {hasPerishableInLines && (
                 <TextField 
                   label="Nhà cung cấp tươi sống" 
                   size="small" 
@@ -734,7 +924,7 @@ const InventoryManagement = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Nhập số lượng thùng và đơn giá của <strong>1 thùng</strong> cho từng sản phẩm.
           </Typography>
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: { xs: '50vh', md: '60vh' }, overflowX: 'auto' }}>
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
             <Table sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>

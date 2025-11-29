@@ -4,6 +4,7 @@ import categoryRouter from './category'
 import supplierRouter from './supplier'
 import productRouter from './product'
 import pricingRuleRouter from './pricingRule'
+import unitRouter from './unit'
 
 import scheduleRouter from './schedule'
 
@@ -28,6 +29,7 @@ const initRoutes = (app) => {
     app.use('/api/v1/supplier', supplierRouter)
     app.use('/api/v1/product', productRouter)
     app.use('/api/v1/pricing-rule', pricingRuleRouter)
+    app.use('/api/v1/unit', unitRouter)
 
     app.use('/api/v1/schedule', scheduleRouter)
 

@@ -380,4 +380,18 @@ export async function deletePricingRule(ruleId) {
     }
 }
 
+// UNIT APIs
+export async function getAllUnits() {
+    try {
+        const res = await fetch(`${API_BASE}/unit`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: [] };
+    }
+}
+
 

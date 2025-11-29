@@ -55,6 +55,28 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 {
                     model: db.Product,
                     as: 'product',
+                    attributes: {
+                        include: [
+                            [
+                                db.sequelize.literal(`(
+                                    SELECT 
+                                        CASE 
+                                            WHEN pu.conversion_to_base > 0 
+                                            THEN oi.unit_price * pu.conversion_to_base
+                                            ELSE oi.unit_price
+                                        END as import_price
+                                    FROM OrderItem oi
+                                    INNER JOIN \`Order\` o ON oi.order_id = o.order_id
+                                    LEFT JOIN ProductUnit pu ON pu.product_id = oi.product_id AND pu.unit_id = oi.unit_id
+                                    WHERE oi.product_id = Product.product_id
+                                    AND o.status = 'confirmed'
+                                    ORDER BY o.created_at DESC, oi.created_at DESC
+                                    LIMIT 1
+                                )`),
+                                'latest_import_price'
+                            ]
+                        ]
+                    },
                     include: [
                         {
                             model: db.Category,
@@ -111,7 +133,10 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 contact: product.supplier.contact
             } : null;
 
+            // Chỉ lấy giá nhập từ order (latest_import_price), không fallback về hq_price
+            const latestImportPrice = parseFloat(product.latest_import_price || 0);
             const hqPrice = parseFloat(product.hq_price || 0);
+            // currentPrice dùng cho giá bán (có thể dùng hq_price nếu cần)
             let currentPrice = hqPrice;
             const activeRule = ruleMap[product.product_id];
 
@@ -129,9 +154,10 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
             const packageMeta = product.product_id ? packageMetaMap[product.product_id] : null;
             const packageConversion = packageMeta?.conversion_to_base || null;
             const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
-            const packagePrice = packageConversion && packageConversion > 0
-                ? Math.round(currentPrice * packageConversion)
-                : Math.round(currentPrice);
+            // Giá nhập/thùng chỉ tính từ latest_import_price (từ order), nếu không có thì 0
+            const packagePrice = latestImportPrice > 0 && packageConversion && packageConversion > 0
+                ? Math.round(latestImportPrice * packageConversion)
+                : (latestImportPrice > 0 ? Math.round(latestImportPrice) : 0);
 
             return {
                 inventory_id: invPlain.inventory_id,
@@ -146,10 +172,11 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
                 category: category ? category.name : '',
                 supplier, // full supplier object for FE
                 unit: 'Cái', // Default unit, can be added to Product table later
-                price: Math.round(currentPrice),
+                price: latestImportPrice || 0, // Giá lẻ/đơn vị từ order (chỉ từ order, không fallback)
+                latest_import_price: latestImportPrice || 0, // Giá nhập từ order (chỉ từ order, không fallback)
                 package_conversion: packageConversion,
                 package_unit: packageUnitLabel,
-                package_price: packagePrice,
+                package_price: packagePrice || 0, // Giá nhập/thùng từ order (chỉ từ order, không fallback)
                 status: invPlain.stock <= invPlain.min_stock_level ? 'Thiếu hàng' : 'Ổn định'
             };
         });

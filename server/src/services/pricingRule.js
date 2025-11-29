@@ -38,6 +38,26 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
             nest: true
         })
 
+        // Tự động cập nhật status dựa trên thời gian hiện tại
+        const now = new Date()
+        const updatePromises = response.map(async (rule) => {
+            const start = new Date(rule.start_date)
+            const end = new Date(rule.end_date)
+            const newStatus = computeStatus(start, end)
+            
+            // Chỉ cập nhật nếu status thay đổi
+            if (rule.status !== newStatus) {
+                await db.PricingRule.update(
+                    { status: newStatus },
+                    { where: { rule_id: rule.rule_id } }
+                )
+                rule.status = newStatus
+            }
+            return rule
+        })
+
+        await Promise.all(updatePromises)
+
         resolve({
             err: 0,
             msg: 'OK',
@@ -95,6 +115,26 @@ export const getProductPriceHistory = (product_id, store_id) => new Promise(asyn
             order: [['start_date', 'DESC']],
             nest: true
         })
+
+        // Tự động cập nhật status dựa trên thời gian hiện tại
+        const now = new Date()
+        const updatePromises = response.map(async (rule) => {
+            const start = new Date(rule.start_date)
+            const end = new Date(rule.end_date)
+            const newStatus = computeStatus(start, end)
+            
+            // Chỉ cập nhật nếu status thay đổi
+            if (rule.status !== newStatus) {
+                await db.PricingRule.update(
+                    { status: newStatus },
+                    { where: { rule_id: rule.rule_id } }
+                )
+                rule.status = newStatus
+            }
+            return rule
+        })
+
+        await Promise.all(updatePromises)
 
         resolve({
             err: 0,

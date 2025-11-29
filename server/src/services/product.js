@@ -117,6 +117,18 @@ export const getOne = (product_id, include_inactive = false) => new Promise(asyn
                     model: db.Supplier,
                     as: 'supplier',
                     attributes: ['supplier_id', 'name', 'contact', 'address', 'email']
+                },
+                {
+                    model: db.ProductUnit,
+                    as: 'units',
+                    include: [
+                        {
+                            model: db.Unit,
+                            as: 'unit',
+                            attributes: ['unit_id', 'name', 'symbol']
+                        }
+                    ],
+                    attributes: ['product_unit_id', 'unit_id', 'conversion_to_base']
                 }
             ],
             nest: true
@@ -133,13 +145,16 @@ export const getOne = (product_id, include_inactive = false) => new Promise(asyn
 
 // CREATE PRODUCT
 export const create = (body) => new Promise(async (resolve, reject) => {
+    const transaction = await db.sequelize.transaction()
     try {
         // Check if SKU already exists (including inactive products)
         const existingProduct = await db.Product.findOne({
-            where: { sku: body.sku }
+            where: { sku: body.sku },
+            transaction
         })
 
         if (existingProduct) {
+            await transaction.rollback()
             resolve({
                 err: 1,
                 msg: 'SKU already exists',
@@ -158,19 +173,32 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             import_price: body.import_price || 0.00,
             description: body.description,
             is_active: true  // New products are active by default
-        })
+        }, { transaction })
+
+        // Create ProductUnit for package unit if provided
+        if (body.package_unit_id && body.conversion_factor && body.conversion_factor > 0) {
+            await db.ProductUnit.create({
+                product_id: response.product_id,
+                unit_id: body.package_unit_id,
+                conversion_to_base: body.conversion_factor
+            }, { transaction })
+        }
+
+        await transaction.commit()
         resolve({
             err: 0,
             msg: 'Product created successfully',
             data: response
         })
     } catch (error) {
+        await transaction.rollback()
         reject(error)
     }
 })
 
 // UPDATE PRODUCT
 export const update = (product_id, body) => new Promise(async (resolve, reject) => {
+    const transaction = await db.sequelize.transaction()
     try {
         // If updating SKU, check if it's unique
         if (body.sku) {
@@ -178,10 +206,12 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
                 where: {
                     sku: body.sku,
                     product_id: { [Op.ne]: product_id }
-                }
+                },
+                transaction
             })
 
             if (existingProduct) {
+                await transaction.rollback()
                 resolve({
                     err: 1,
                     msg: 'SKU already exists',
@@ -206,15 +236,61 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
         const [affectedRows] = await db.Product.update(
             updateData,
             {
-                where: { product_id }
+                where: { product_id },
+                transaction
             }
         )
+
+        if (affectedRows === 0) {
+            await transaction.rollback()
+            resolve({
+                err: 1,
+                msg: 'Product not found',
+                data: false
+            })
+            return
+        }
+
+        // Handle ProductUnit for package unit
+        if (body.package_unit_id !== undefined) {
+            // Find existing ProductUnit for this product (excluding base unit)
+            const existingProductUnits = await db.ProductUnit.findAll({
+                where: {
+                    product_id: product_id,
+                    unit_id: { [Op.ne]: body.base_unit_id || null }
+                },
+                transaction
+            })
+
+            // Delete existing package units
+            if (existingProductUnits.length > 0) {
+                await db.ProductUnit.destroy({
+                    where: {
+                        product_id: product_id,
+                        unit_id: { [Op.ne]: body.base_unit_id || null }
+                    },
+                    transaction
+                })
+            }
+
+            // Create new ProductUnit if package_unit_id and conversion_factor are provided
+            if (body.package_unit_id && body.conversion_factor && body.conversion_factor > 0) {
+                await db.ProductUnit.create({
+                    product_id: product_id,
+                    unit_id: body.package_unit_id,
+                    conversion_to_base: body.conversion_factor
+                }, { transaction })
+            }
+        }
+
+        await transaction.commit()
         resolve({
-            err: affectedRows > 0 ? 0 : 1,
-            msg: affectedRows > 0 ? 'Product updated successfully' : 'Product not found',
-            data: affectedRows > 0
+            err: 0,
+            msg: 'Product updated successfully',
+            data: true
         })
     } catch (error) {
+        await transaction.rollback()
         reject(error)
     }
 })
