@@ -2,18 +2,17 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-bootstrap';
 import {
-    FaSearch, FaQrcode, FaCartPlus,
+    FaSearch, FaQrcode,
     FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
     FaMoneyBillWave, FaCreditCard, FaTicketAlt, FaTrash
 } from 'react-icons/fa';
 import '../../assets/POS.css';
-import { getProductsByStore, getProduct } from '../../api/productApi';
-import { checkoutCart } from '../../api/transactionApi';
+import { getProductsByStore } from '../../api/productApi';
 import { getMyOpenShift, checkinShift, checkoutShift } from '../../api/shiftApi';
 import { getMySchedules } from '../../api/scheduleApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
-import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, generateVouchersForCustomer } from '../../api/voucherApi';
+import { getAvailableVouchers, validateVoucher, generateVouchersForCustomer } from '../../api/voucherApi';
 import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
 import CashPaymentModal from '../../components/CashPaymentModal';
@@ -61,10 +60,6 @@ const POS = () => {
 
     // Payment states
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null); // 'cash' or 'qr'
-    const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'bank_transfer'
-    const [paymentReference, setPaymentReference] = useState(''); // For bank transfer
-    const [paymentGiven, setPaymentGiven] = useState(''); // Cash amount given by customer
-    const [checkoutMessage, setCheckoutMessage] = useState(''); // Checkout status message
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
     const [cashPaymentData, setCashPaymentData] = useState(null);
@@ -89,7 +84,7 @@ const POS = () => {
     const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
 
     // Helper function: Kiểm tra schedule có phải chưa check-in không
-    const isUncheckedSchedule = (schedule) => {
+    const isUncheckedSchedule = useCallback((schedule) => {
         const status = schedule?.attendance_status;
         return status === null || 
                status === undefined || 
@@ -97,7 +92,7 @@ const POS = () => {
                status === 'not_check' ||
                status === 'not_checked_in' ||
                (typeof status === 'string' && status.trim() === '');
-    };
+    }, []);
 
     // Helper function: Load và xử lý schedules của ngày hôm nay
     const loadTodaySchedules = async () => {
@@ -126,7 +121,7 @@ const POS = () => {
     };
 
     // Helper function: Xử lý schedules và cập nhật state
-    const processSchedules = (todaySchedules) => {
+    const processSchedules = useCallback((todaySchedules) => {
         if (!todaySchedules || todaySchedules.length === 0) {
             setHasTodaySchedule(false);
             setScheduleAttendanceStatus(null);
@@ -216,7 +211,7 @@ const POS = () => {
         } else {
             setSelectedScheduleId(null);
         }
-    };
+    }, [isUncheckedSchedule]);
 
     // Load trạng thái ca từ API (open shift) và check schedule attendance_status
     useEffect(() => {
@@ -263,7 +258,7 @@ const POS = () => {
             }
         };
         fetchOpenShift();
-    }, [user]);
+    }, [user, processSchedules]);
 
     const refreshOpenShift = useCallback(async () => {
         const storedStoreId = (() => {
@@ -306,7 +301,7 @@ const POS = () => {
             const todaySchedules = await loadTodaySchedules();
             processSchedules(todaySchedules);
         }
-    }, [user]);
+    }, [user, processSchedules]);
 
     // Auto-refresh shift data mỗi 10 giây để cập nhật realtime
     useEffect(() => {
@@ -472,21 +467,8 @@ const POS = () => {
         return open + sales; // có thể cộng thêm/ trừ chi khác nếu sau này có
     }, [openingCash, cashSalesTotal]);
     // Tìm kiếm khách hàng khi nhập số điện thoại
-    useEffect(() => {
-        const delaySearch = setTimeout(() => {
-            if (customerPhone.trim().length >= 3) {
-                handleSearchCustomer();
-            } else {
-                setSearchResults([]);
-                setShowCreateForm(false);
-            }
-        }, 500); // Debounce 500ms
-
-        return () => clearTimeout(delaySearch);
-    }, [customerPhone]);
-
     // Xử lý tìm kiếm khách hàng
-    const handleSearchCustomer = async () => {
+    const handleSearchCustomer = useCallback(async () => {
         setIsSearching(true);
         try {
             const res = await searchCustomerByPhone(customerPhone);
@@ -507,7 +489,21 @@ const POS = () => {
         } finally {
             setIsSearching(false);
         }
-    };
+    }, [customerPhone]);
+
+    // Tìm kiếm khách hàng khi nhập số điện thoại
+    useEffect(() => {
+        const delaySearch = setTimeout(() => {
+            if (customerPhone.trim().length >= 3) {
+                handleSearchCustomer();
+            } else {
+                setSearchResults([]);
+                setShowCreateForm(false);
+            }
+        }, 500); // Debounce 500ms
+
+        return () => clearTimeout(delaySearch);
+    }, [customerPhone, handleSearchCustomer]);
 
     // Xử lý chọn khách hàng
     const handleSelectCustomer = async (customer) => {
@@ -724,7 +720,7 @@ const POS = () => {
     // Xử lý in hóa đơn
     const handlePrintInvoice = async (transactionId) => {
         try {
-            const { generateAndPrintInvoice } = await import('../utils/invoicePDF');
+            const { generateAndPrintInvoice } = await import('../../utils/invoicePDF');
             await generateAndPrintInvoice(transactionId);
             ToastNotification.success('Đang mở cửa sổ in...');
         } catch (error) {
@@ -1375,7 +1371,6 @@ const POS = () => {
                             Vui lòng bắt đầu ca (Check-in) trước khi thanh toán.
                         </div>
                     )}
-                    {checkoutMessage && <div className="text-success small mt-2">{checkoutMessage}</div>}
                 </div>
             </div>
 
@@ -1558,8 +1553,6 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
-                                setPaymentGiven('');
-                                setPaymentReference('');
                                 
                                 // Refresh schedules để kiểm tra có ca tiếp theo không
                                 const todaySchedules = await loadTodaySchedules();

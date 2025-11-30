@@ -24,7 +24,6 @@ import UserManagement from "./pages/Admin/UserManagement";
 import CEODashboard from "./pages/CEO/CEODashboard";
 import CEORevenueBoard from "./pages/CEO/CEORevenueBoard";
 import CEOOrdersBoard from "./pages/CEO/CEOOrdersBoard";
-import InventoryManagement from "./pages/Warehouse/InventoryManagement";
 import SupplierPortal from "./pages/Supplier/SupplierPortal";
 import SupplierOrderDetail from "./pages/Supplier/SupplierOrderDetail";
 import StaffManagement from "./pages/Store_Manager/StaffManagement";
@@ -48,6 +47,7 @@ import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
 import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
 import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
 import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
+import StockCountReports from "./pages/Warehouse/StockCountReports";
 import SupplierManagement from "./pages/Warehouse/SupplierManagement";
 import ProductDetail from "./pages/Warehouse/ProductDetail";
 import MyShiftReports from "./pages/Cashier/MyShiftReports";
@@ -296,6 +296,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
                   <WarehouseInventoryDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/stock-count-reports"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <StockCountReports />
                 </ProtectedRoute>
               }
             />

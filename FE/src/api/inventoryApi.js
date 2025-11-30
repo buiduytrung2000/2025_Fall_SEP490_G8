@@ -391,6 +391,111 @@ export async function createWarehouseInventory({ product_id, stock, min_stock_le
 }
 
 /**
+ * Create stock count report
+ * For Warehouse staff
+ */
+export async function createStockCountReport({ warehouse_inventory_id, product_id, system_stock, actual_stock, reason, notes }) {
+    try {
+        const res = await fetch(`${API_BASE}/stock-count-reports`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ warehouse_inventory_id, product_id, system_stock, actual_stock, reason, notes })
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error('Error creating stock count report:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Create batch stock count reports
+ * For Warehouse staff
+ */
+export async function createBatchStockCountReports(reports) {
+    try {
+        const res = await fetch(`${API_BASE}/stock-count-reports/batch`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ reports })
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error('Error creating batch stock count reports:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Get all stock count reports with filters
+ * For Warehouse staff
+ */
+export async function getAllStockCountReports({ page = 1, limit = 10, reportType, productId, startDate, endDate, search } = {}) {
+    try {
+        const params = new URLSearchParams({ page, limit });
+        if (reportType) params.append('reportType', reportType);
+        if (productId) params.append('productId', productId);
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+        if (search) params.append('search', search);
+
+        const res = await fetch(`${API_BASE}/stock-count-reports?${params}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching stock count reports:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
+ * Get stock count statistics
+ * For Warehouse staff
+ */
+export async function getStockCountStatistics({ startDate, endDate } = {}) {
+    try {
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+
+        const res = await fetch(`${API_BASE}/stock-count-reports/statistics?${params}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+
+        return await res.json();
+    } catch (error) {
+        console.error('Error fetching stock count statistics:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
  * Get all inventory locations for a specific product
  * For Product Detail page
  */

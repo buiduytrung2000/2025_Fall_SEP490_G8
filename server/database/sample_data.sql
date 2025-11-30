@@ -34,19 +34,23 @@ INSERT INTO Unit (name, symbol, level) VALUES
 ('Bịch', 'bich', 1),          -- 7
 ('Bao', 'bao', 2);              -- 8
 
-    -- Note: includes phone column
+    -- Note: includes phone column, full_name, is_active
     -- Passwords are hashed using bcrypt (password: '123')
-    INSERT INTO User (username, password, role, store_id, email, phone, address, status) VALUES
-    ('ceo_admin', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', 'active'),
-    ('manager_store1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
-    ('cashier_store1_1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier1@ccms.com', '0900000003', '15 Cashier Lane, City A', 'active'),
-    ('cashier_store1_2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', 'active'),
-    ('cashier_store1_3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', 'active'),
-    ('warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', 'active'),
-    ('supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
-    ('supplier_rep2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier2@ccms.com', '0900000007', '999 Supplier Road, City C', 'active'),
-    ('manager_store2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 2, 'manager2@ccms.com', '0900000002', '88 Manager Blvd, City A', 'active'),
-    ('supplier_rep3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier3@ccms.com', '0900000007', '999 Supplier Road, City C', 'active');
+    INSERT INTO User (user_id, username, password, role, store_id, email, phone, address, full_name, is_active, status, created_at, updated_at) VALUES
+    (1, 'ceo_admin', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-28 12:54:58'),
+    (2, 'manager_store1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'manage', 1, 'active', '2025-11-20 21:43:33', '2025-11-28 19:21:40'),
+    (3, 'cashier_store1_1', '$2a$10$hJ3aTfVD1/Is/FdLhmcxKOLAQwL1kcUH3yFt8vn7SRxIqpIC4t4.C', 'Cashier', 1, 'cashier1@ccms.com', '0900000004', '15 Cashier Lane, City A', 'cash 1', 1, 'active', '2025-11-20 21:43:33', '2025-11-28 19:49:23'),
+    (4, 'cashier_store1_2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier2@ccms.com', '0900000004', '47 Cashier Lane, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-20 21:43:33'),
+    (5, 'cashier_store1_3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Cashier', 1, 'cashier3@ccms.com', '0900000005', '102 Retail Road, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-20 21:43:33'),
+    (6, 'warehouse_staff1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Warehouse', NULL, 'warehouse1@ccms.com', '0900000006', '55 Logistics Park, City B', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-20 21:43:33'),
+    (7, 'supplier_rep1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier1@ccms.com', '0900000007', '999 Supplier Road, City C', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-20 21:43:33'),
+    (8, 'supplier_rep2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier2@ccms.com', '0900000007', '999 Supplier Road, City C', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-20 21:43:33'),
+    (9, 'manager_store2', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 2, 'manager2@ccms.com', '0900000002', '88 Manager Blvd, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-25 21:04:51'),
+    (10, 'supplier_rep3', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Supplier', NULL, 'supplier3@ccms.com', '0900000002', '88 Manager Blvd, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-25 21:04:51'),
+    (11, 'admin', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Admin', NULL, 'admin@ccms.com', '0900000002', '88 Manager Blvd, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-25 21:04:51');
+
+    -- Reset AUTO_INCREMENT for User table
+    ALTER TABLE User AUTO_INCREMENT = 12;
 
 -- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
 INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, import_price, is_perishable, description, is_active) VALUES
@@ -92,7 +96,37 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
 (5, 600, 0, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
 (6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
-    
+    -- 7. Insert Orders
+    INSERT INTO `Order` (order_id, order_code, supplier_id, created_by, created_at, status, expected_delivery, direct_to_store, target_store_id, updated_at) VALUES
+    (46, 'XKJXOZ', 1, 6, '2025-11-29 16:52:41', 'confirmed', NULL, 0, NULL, '2025-11-29 16:59:42'),
+    (47, 'OT3IZW', 1, 6, '2025-11-29 17:07:25', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:25'),
+    (48, '8LSD5Y', 1, 6, '2025-11-29 17:07:54', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:54'),
+    (49, 'GIC73P', 1, 6, '2025-11-29 18:11:01', 'confirmed', NULL, 0, NULL, '2025-11-29 18:11:01'),
+    (50, 'NYCDHK', 3, 6, '2025-11-29 22:24:14', 'confirmed', NULL, 0, NULL, '2025-11-29 22:24:14'),
+    (51, 'NCH1NX', 4, 6, '2025-11-29 22:26:47', 'confirmed', NULL, 0, NULL, '2025-11-29 22:26:47'),
+    (52, 'VBKFB7', 4, 2, '2025-11-29 22:29:26', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:26'),
+    (53, '68O3HE', 4, 2, '2025-11-29 22:29:55', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:55'),
+    (54, 'JGC259', 1, 6, '2025-11-30 00:17:39', 'confirmed', NULL, 0, NULL, '2025-11-30 00:17:39');
+
+    -- Reset AUTO_INCREMENT for Order table
+    ALTER TABLE `Order` AUTO_INCREMENT = 55;
+
+    -- 8. Insert Order Items
+    INSERT INTO OrderItem (order_item_id, order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base, created_at, updated_at) VALUES
+    (34, 46, 2, 8, 82500.00, 660000.00, 4, 8.000000, '2025-11-29 16:52:42', '2025-11-29 16:52:42'),
+    (35, 47, 3, 10, 44400.00, 444000.00, 4, 10.000000, '2025-11-29 17:07:25', '2025-11-29 17:07:25'),
+    (36, 48, 3, 10, 52000.00, 520000.00, 4, 10.000000, '2025-11-29 17:07:54', '2025-11-29 17:07:54'),
+    (37, 49, 3, 10, 100000.00, 1000000.00, 4, 10.000000, '2025-11-29 18:11:01', '2025-11-29 18:11:01'),
+    (38, 50, 6, 24, 10000.00, 240000.00, 4, 24.000000, '2025-11-29 22:24:14', '2025-11-29 22:24:14'),
+    (39, 51, 7, 1, 5000.00, 5000.00, 1, 1.000000, '2025-11-29 22:26:47', '2025-11-29 22:26:47'),
+    (40, 52, 7, 3, 5000.00, 15000.00, 1, 3.000000, '2025-11-29 22:29:26', '2025-11-29 22:29:26'),
+    (41, 53, 7, 1, 5000.00, 5000.00, 1, 1.000000, '2025-11-29 22:29:55', '2025-11-29 22:29:55'),
+    (42, 54, 4, 30, 4000.00, 120000.00, 5, 30.000000, '2025-11-30 00:17:39', '2025-11-30 00:17:39'),
+    (43, 54, 5, 30, 20000.00, 600000.00, 5, 30.000000, '2025-11-30 00:17:39', '2025-11-30 00:17:39'),
+    (44, 54, 1, 5, 20000.00, 100000.00, 7, 5.000000, '2025-11-30 00:17:39', '2025-11-30 00:17:39'); 
+
+    -- Reset AUTO_INCREMENT for OrderItem table
+    ALTER TABLE OrderItem AUTO_INCREMENT = 45;
 
     -- 9. Insert Customers
     INSERT INTO Customer (name, phone, email, loyalty_point, tier) VALUES
