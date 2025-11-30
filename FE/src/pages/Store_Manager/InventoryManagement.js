@@ -12,9 +12,7 @@ import {
   TableHead,
   TableRow,
   Chip,
-  IconButton,
   Tooltip,
-  Button,
   useMediaQuery,
   useTheme,
   Checkbox,
@@ -24,11 +22,13 @@ import {
   DialogActions,
   Stack,
   MenuItem,
-  InputAdornment
+  InputAdornment,
+  IconButton,
+  Button
 } from '@mui/material';
+import { Refresh, Add } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
-import { Download, Refresh, Edit, Add, Delete } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 import { createWarehouseOrder } from '../../api/warehouseOrderApi';
 import { getStoreInventory } from '../../api/inventoryApi';
 import { createStoreOrder } from '../../api/storeOrderApi';
@@ -257,7 +257,7 @@ const InventoryManagement = () => {
           });
           
           if (hasOtherType) {
-            toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+            ToastNotification.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
             // Không thêm sản phẩm này vào đơn
             setSelected(prev => {
               const next = new Set(prev);
@@ -292,7 +292,7 @@ const InventoryManagement = () => {
           return [...filteredLines, { sku, name, qty: quantity, price }];
         });
         // Không mở modal ngay, chỉ thông báo đã thêm
-        toast.info(`Đã thêm ${row.name} (SL gợi ý: ${quantity}) vào đơn nháp`);
+        ToastNotification.info(`Đã thêm ${row.name} (SL gợi ý: ${quantity}) vào đơn nháp`);
       }
     }
   };
@@ -517,7 +517,7 @@ const InventoryManagement = () => {
           });
           
           if (hasOtherType) {
-            toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+            ToastNotification.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
             // Xóa dòng hiện tại vì không hợp lệ
             return updated.filter((_, i) => i !== idx);
           }
@@ -632,29 +632,29 @@ const InventoryManagement = () => {
 
   const handleCreateOrder = async () => {
       if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
-        toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+        ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
         return;
       }
     if (!target || target.trim() === '') {
-      toast.error('Vui lòng nhập tên kho nhận hàng');
+      ToastNotification.error('Vui lòng nhập tên kho nhận hàng');
       return;
     }
 
     // Validation: Không cho phép nhập chung hàng tươi sống với hàng thường
     if (hasPerishableInLines && hasNonPerishableInLines) {
-      toast.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
+      ToastNotification.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
       return;
     }
 
     // Validation: Hàng tươi sống phải chọn "hàng không lưu kho"
     if (hasPerishableInLines && storageType !== 'direct') {
-      toast.error('Hàng tươi sống phải chọn "Hàng không lưu kho (nhập trực tiếp)"');
+      ToastNotification.error('Hàng tươi sống phải chọn "Hàng không lưu kho (nhập trực tiếp)"');
       return;
     }
 
     // Validation: Hàng thường phải chọn "hàng lưu kho"
     if (hasNonPerishableInLines && !hasPerishableInLines && storageType !== 'stored') {
-      toast.error('Hàng thường phải chọn "Hàng lưu kho"');
+      ToastNotification.error('Hàng thường phải chọn "Hàng lưu kho"');
       return;
     }
 
@@ -666,21 +666,21 @@ const InventoryManagement = () => {
         continue;
       }
       if (!l.sku || l.sku.trim() === '') {
-        toast.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
         return;
       }
       if (!l.name || l.name.trim() === '') {
-        toast.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
         return;
       }
       const qty = parseInt(l.qty);
       if (isNaN(qty) || qty <= 0) {
-        toast.error(`Dòng ${i + 1}: Số lượng thùng phải lớn hơn 0`);
+        ToastNotification.error(`Dòng ${i + 1}: Số lượng thùng phải lớn hơn 0`);
         return;
       }
       const price = parseFloat(l.price);
       if (isNaN(price) || price <= 0) {
-        toast.error(`Dòng ${i + 1}: Đơn giá mỗi thùng phải lớn hơn 0`);
+        ToastNotification.error(`Dòng ${i + 1}: Đơn giá mỗi thùng phải lớn hơn 0`);
         return;
       }
       const skuTrimmed = (l.sku || '').trim();
@@ -706,7 +706,7 @@ const InventoryManagement = () => {
     }
 
     if (validItems.length === 0) {
-      toast.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
       return;
     }
 
@@ -726,7 +726,7 @@ const InventoryManagement = () => {
       const result = await createStoreOrder(payload);
       
       if (result.err === 0) {
-        toast.success('Tạo đơn hàng thành công!');
+        ToastNotification.success('Tạo đơn hàng thành công!');
         // Reset đơn nhập
         setLines([]);
         setPerishable(false);
@@ -741,11 +741,11 @@ const InventoryManagement = () => {
         }
         setOpenCreateOrderModal(false);
       } else {
-        toast.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
+        ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
       }
     } catch (error) {
       console.error('Error creating order:', error);
-      toast.error('Lỗi khi tạo đơn hàng: ' + error.message);
+      ToastNotification.error('Lỗi khi tạo đơn hàng: ' + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -772,20 +772,19 @@ const InventoryManagement = () => {
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {
             <>
-              <Button
-                variant="contained"
+              <PrimaryButton
                 color="primary"
                 size={isMobile ? 'small' : 'medium'}
                 onClick={() => {
                 if (selected.size === 0 && orderItemsCount === 0) {
-                  toast.warn('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
+                  ToastNotification.warning('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
                   return;
                 }
                 setOpenCreateOrderModal(true);
               }}
               >
                 Lên đơn nhập {orderItemsCount > 0 ? `(${orderItemsCount})` : ''}
-              </Button>
+              </PrimaryButton>
               <Tooltip title="Tải lại">
                 <span>
                   <IconButton onClick={fetchData} disabled={loading} size={isMobile ? 'small' : 'medium'}>
@@ -795,9 +794,13 @@ const InventoryManagement = () => {
               </Tooltip>
               <Tooltip title="Xuất CSV">
                 <span>
-                  <IconButton onClick={() => exportCsv(filtered)} disabled={!filtered.length} size={isMobile ? 'small' : 'medium'}>
-                    <Download />
-                  </IconButton>
+                  <ActionButton
+                    icon={<Icon name="Download" />}
+                    onClick={() => exportCsv(filtered)}
+                    disabled={!filtered.length}
+                    size={isMobile ? 'small' : 'medium'}
+                    tooltip="Tải xuống"
+                  />
                 </span>
               </Tooltip>
             </>
@@ -981,7 +984,12 @@ const InventoryManagement = () => {
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={() => removeLine(idx)}><Delete /></IconButton>
+                      <ActionButton
+                        icon={<Icon name="Delete" />}
+                        action="delete"
+                        size="small"
+                        onClick={() => removeLine(idx)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1003,12 +1011,12 @@ const InventoryManagement = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenCreateOrderModal(false)} variant="outlined" disabled={submitting}>
+          <SecondaryButton onClick={() => setOpenCreateOrderModal(false)} disabled={submitting}>
             Hủy
-          </Button>
-          <Button onClick={handleCreateOrder} variant="contained" disabled={submitting || !lines.length}>
-            {submitting ? 'Đang tạo...' : 'Tạo đơn hàng'}
-          </Button>
+          </SecondaryButton>
+          <PrimaryButton onClick={handleCreateOrder} disabled={submitting || !lines.length} loading={submitting}>
+            Tạo đơn hàng
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
     </Box>

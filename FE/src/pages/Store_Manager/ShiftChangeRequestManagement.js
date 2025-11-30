@@ -3,7 +3,6 @@ import {
     Box,
     Typography,
     Chip,
-    Button,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -17,6 +16,7 @@ import {
     Divider,
     Tabs,
     Tab,
+    Button,
 } from '@mui/material';
 import {
     CheckCircle,
@@ -25,7 +25,7 @@ import {
     CalendarToday,
     Person,
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, Icon } from '../../components/common';
 import {
     getShiftChangeRequests,
     reviewShiftChangeRequest,
@@ -113,10 +113,10 @@ const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
             if (myStoreId) {
                 setStoreId(myStoreId);
             } else {
-                toast.error('Không tìm thấy thông tin cửa hàng');
+                ToastNotification.error('Không tìm thấy thông tin cửa hàng');
             }
         } catch (error) {
-            toast.error('Không thể tải thông tin cửa hàng');
+            ToastNotification.error('Không thể tải thông tin cửa hàng');
         }
     }, [user.id]);
 
@@ -171,10 +171,10 @@ const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
                 }
                 fetchRequestStats();
             } else {
-                toast.error(res?.msg || 'Không thể tải danh sách yêu cầu');
+                ToastNotification.error(res?.msg || 'Không thể tải danh sách yêu cầu');
             }
         } catch (error) {
-            toast.error('Có lỗi xảy ra khi tải danh sách yêu cầu');
+            ToastNotification.error('Có lỗi xảy ra khi tải danh sách yêu cầu');
             console.error(error);
         } finally {
             setLoading(false);
@@ -199,10 +199,10 @@ const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
                 setSelectedRequest(res.data);
                 setOpenDetailDialog(true);
             } else {
-                toast.error('Không thể tải chi tiết yêu cầu');
+                ToastNotification.error('Không thể tải chi tiết yêu cầu');
             }
         } catch (error) {
-            toast.error('Có lỗi xảy ra');
+            ToastNotification.error('Có lỗi xảy ra');
             console.error(error);
         }
     };
@@ -224,16 +224,16 @@ const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
                 reviewNotes || null
             );
             if (res.err === 0) {
-                toast.success(`Đã ${reviewStatus === 'approved' ? 'duyệt' : 'từ chối'} yêu cầu thành công`);
+                ToastNotification.success(`Đã ${reviewStatus === 'approved' ? 'duyệt' : 'từ chối'} yêu cầu thành công`);
                 setOpenReviewDialog(false);
                 setSelectedRequest(null);
                 loadRequests();
                 fetchRequestStats();
             } else {
-                toast.error(res.msg || 'Xử lý yêu cầu thất bại');
+                ToastNotification.error(res.msg || 'Xử lý yêu cầu thất bại');
             }
         } catch (error) {
-            toast.error('Có lỗi xảy ra khi xử lý yêu cầu');
+            ToastNotification.error('Có lỗi xảy ra khi xử lý yêu cầu');
             console.error(error);
         }
     };

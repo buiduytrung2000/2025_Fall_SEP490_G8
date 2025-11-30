@@ -9,14 +9,12 @@ import {
     Card,
     CardContent,
     TextField,
-    Button,
     List,
     ListItem,
     ListItemText,
-    Divider,
-    IconButton
+    Divider
 } from '@mui/material';
-import { ArrowBack, AttachMoney } from '@mui/icons-material';
+import { PrimaryButton, ActionButton, Icon } from '../../components/common';
 import { getProduct, getProductPriceHistory } from '../../api/productApi';
 import { getInventoryByProduct } from '../../api/inventoryApi';
 
@@ -94,11 +92,12 @@ const ProductDetail = () => {
 
         <Box sx={{ p: 3 }}>
             {/* Header with back button */}
-            <Box Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }
-            }>
-                <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-                    <ArrowBack />
-                </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <ActionButton
+                    icon={<Icon name="ArrowBack" />}
+                    onClick={() => navigate(-1)}
+                    sx={{ mr: 2 }}
+                />
                 <Box>
                     <Typography variant="h5" component="h1">
                         Chi tiết sản phẩm
@@ -193,7 +192,7 @@ const ProductDetail = () => {
                     <Card>
                         <CardContent>
                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                <AttachMoney sx={{ mr: 1 }} />
+                                <Icon name="AttachMoney" sx={{ mr: 1 }} />
                                 <Typography variant="h6">
                                     Lịch sử thay đổi giá
                                 </Typography>
@@ -281,7 +280,7 @@ const ProductDetail = () => {
                     <Card>
                         <CardContent>
                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                <AttachMoney sx={{ mr: 1 }} />
+                                <Icon name="AttachMoney" sx={{ mr: 1 }} />
                                 <Typography variant="h6">
                                     Thay đổi giá
                                 </Typography>
@@ -341,15 +340,13 @@ const ProductDetail = () => {
                             />
 
                             {/* Update Button */}
-                            <Button
+                            <PrimaryButton
                                 fullWidth
-                                variant="contained"
-                                color="primary"
                                 onClick={handlePriceUpdate}
                                 disabled={!newPrice || !effectiveDate}
                             >
                                 Cập nhật giá
-                            </Button>
+                            </PrimaryButton>
                         </CardContent>
                     </Card>
                 </Grid>

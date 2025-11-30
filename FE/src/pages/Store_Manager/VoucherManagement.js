@@ -3,7 +3,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -18,14 +17,18 @@ import {
   Chip,
   Tabs,
   Tab,
-  IconButton,
   Stack
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, CardGiftcard as GiftIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
-import { toast } from 'react-toastify';
 import * as voucherTemplateApi from '../../api/voucherTemplateApi';
 import * as customerApi from '../../api/customerApi';
+import {
+    PrimaryButton,
+    SecondaryButton,
+    ActionButton,
+    ToastNotification,
+    Icon
+} from '../../components/common';
 
 function VoucherManagement() {
     const [templates, setTemplates] = useState([]);
@@ -62,11 +65,11 @@ function VoucherManagement() {
                 setTemplates(res.data || []);
             } else {
                 console.error('Error loading templates:', res);
-                toast.error(res?.msg || 'Lỗi khi tải danh sách voucher template');
+                ToastNotification.error(res?.msg || 'Lỗi khi tải danh sách voucher template');
             }
         } catch (error) {
             console.error('Exception loading templates:', error);
-            toast.error('Lỗi khi tải danh sách voucher template: ' + error.message);
+            ToastNotification.error('Lỗi khi tải danh sách voucher template: ' + error.message);
         }
     };
 
@@ -77,7 +80,7 @@ function VoucherManagement() {
                 setCustomers(res.data);
             }
         } catch (error) {
-            toast.error('Lỗi khi tải danh sách khách hàng');
+            ToastNotification.error('Lỗi khi tải danh sách khách hàng');
         }
     };
 
@@ -88,7 +91,7 @@ function VoucherManagement() {
                 setAvailableTemplates(res.data);
             }
         } catch (error) {
-            toast.error('Lỗi khi tải danh sách voucher khả dụng');
+            ToastNotification.error('Lỗi khi tải danh sách voucher khả dụng');
         }
     };
 
@@ -138,14 +141,14 @@ function VoucherManagement() {
             }
 
             if (res && res.err === 0) {
-                toast.success(editingTemplate ? 'Cập nhật voucher template thành công' : 'Tạo voucher template thành công');
+                ToastNotification.success(editingTemplate ? 'Cập nhật voucher template thành công' : 'Tạo voucher template thành công');
                 handleCloseTemplateModal();
                 loadTemplates();
             } else {
-                toast.error(res.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(res.msg || 'Có lỗi xảy ra');
             }
         } catch (error) {
-            toast.error('Lỗi khi lưu voucher template');
+            ToastNotification.error('Lỗi khi lưu voucher template');
         }
     };
 
@@ -154,13 +157,13 @@ function VoucherManagement() {
             try {
                 const res = await voucherTemplateApi.deleteVoucherTemplate(id);
                 if (res && res.err === 0) {
-                    toast.success('Xóa voucher template thành công');
+                    ToastNotification.success('Xóa voucher template thành công');
                     loadTemplates();
                 } else {
-                    toast.error(res.msg || 'Có lỗi xảy ra');
+                    ToastNotification.error(res.msg || 'Có lỗi xảy ra');
                 }
             } catch (error) {
-                toast.error('Lỗi khi xóa voucher template');
+                ToastNotification.error('Lỗi khi xóa voucher template');
             }
         }
     };
@@ -175,13 +178,13 @@ function VoucherManagement() {
         try {
             const res = await voucherTemplateApi.addVoucherFromTemplate(selectedCustomer.customer_id, templateId);
             if (res && res.err === 0) {
-                toast.success(res.msg || 'Thêm voucher thành công');
+                ToastNotification.success(res.msg || 'Thêm voucher thành công');
                 await loadAvailableTemplatesForCustomer(selectedCustomer.customer_id);
             } else {
-                toast.error(res.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(res.msg || 'Có lỗi xảy ra');
             }
         } catch (error) {
-            toast.error('Lỗi khi thêm voucher');
+            ToastNotification.error('Lỗi khi thêm voucher');
         }
     };
 
@@ -278,18 +281,16 @@ function VoucherManagement() {
                 <Tab label="Danh sách Voucher" />
                 <Tab label="Gán Voucher cho Khách hàng" />
             </Tabs>
-
             {tabValue === 0 && (
                 <Paper sx={{ p: 2 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                        <Typography variant="h6" fontWeight={600}>Danh sách Voucher Template</Typography>
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
+                        <Typography variant="h6" fontWeight={600}>Danh sách Voucher</Typography>
+                        <PrimaryButton
+                            startIcon={<Icon name="Add" />}
                             onClick={() => handleShowTemplateModal()}
                         >
                             Tạo mới
-                        </Button>
+                        </PrimaryButton>
                     </Stack>
                     <MaterialReactTable
                         columns={templateColumns}
@@ -304,20 +305,16 @@ function VoucherManagement() {
                         positionActionsColumn="last"
                         renderRowActions={({ row }) => (
                             <Box sx={{ display: 'flex', gap: 1 }}>
-                                <IconButton
-                                    color="warning"
-                                    size="small"
+                                <ActionButton
+                                    icon={<Icon name="Edit" />}
+                                    action="edit"
                                     onClick={() => handleShowTemplateModal(row.original)}
-                                >
-                                    <EditIcon />
-                                </IconButton>
-                                <IconButton
-                                    color="error"
-                                    size="small"
+                                />
+                                <ActionButton
+                                    icon={<Icon name="Delete" />}
+                                    action="delete"
                                     onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
-                                >
-                                    <DeleteIcon />
-                                </IconButton>
+                                />
                             </Box>
                         )}
                         muiTableContainerProps={{
@@ -383,15 +380,14 @@ function VoucherManagement() {
                         enableRowActions={true}
                         positionActionsColumn="last"
                         renderRowActions={({ row }) => (
-                            <Button
-                                variant="contained"
-                                color="success"
+                            <PrimaryButton
                                 size="small"
-                                startIcon={<PersonAddIcon />}
+                                startIcon={<Icon name="Add" />}
                                 onClick={() => handleShowAssignModal(row.original)}
+                                sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
                             >
                                 Thêm voucher
-                            </Button>
+                            </PrimaryButton>
                         )}
                         muiTableContainerProps={{
                             sx: { maxHeight: { xs: '70vh', md: 'none' } }
@@ -502,10 +498,10 @@ function VoucherManagement() {
                     </Stack>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseTemplateModal} variant="outlined">Hủy</Button>
-                    <Button onClick={handleSaveTemplate} variant="contained">
+                    <SecondaryButton onClick={handleCloseTemplateModal}>Hủy</SecondaryButton>
+                    <PrimaryButton onClick={handleSaveTemplate}>
                         {editingTemplate ? 'Cập nhật' : 'Tạo mới'}
-                    </Button>
+                    </PrimaryButton>
                 </DialogActions>
             </Dialog>
 
@@ -574,15 +570,14 @@ function VoucherManagement() {
                             enableRowActions={true}
                             positionActionsColumn="last"
                             renderRowActions={({ row }) => (
-                                <Button
-                                    variant="contained"
-                                    color="success"
+                                <PrimaryButton
                                     size="small"
-                                    startIcon={<GiftIcon />}
+                                    startIcon={<Icon name="Add" />}
                                     onClick={() => handleAssignVoucher(row.original.voucher_template_id)}
+                                    sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
                                 >
                                     Thêm
-                                </Button>
+                                </PrimaryButton>
                             )}
                             muiTableContainerProps={{
                                 sx: { maxHeight: '60vh' }
@@ -604,7 +599,7 @@ function VoucherManagement() {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setShowAssignModal(false)} variant="outlined">Đóng</Button>
+                    <SecondaryButton onClick={() => setShowAssignModal(false)}>Đóng</SecondaryButton>
                 </DialogActions>
             </Dialog>
         </Box>

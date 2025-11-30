@@ -8,8 +8,8 @@ import {
 import { getInventoryByProduct } from '../../api/inventoryApi';
 import { MaterialReactTable } from 'material-react-table';
 import { useNavigate } from 'react-router-dom';
-import { Box, IconButton, Button, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
-import { Edit, AttachMoney, CheckCircle, Cancel, Delete } from '@mui/icons-material';
+import { Box, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
+import { PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from '../../components/common';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -20,7 +20,7 @@ import Select from '@mui/material/Select';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import AddIcon from '@mui/icons-material/Add';
-import { toast } from 'react-toastify';
+import { ToastNotification } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Hàm helper format tiền
@@ -212,7 +212,7 @@ const ProductManagement = () => {
             const result = await toggleProductStatus(productToToggle.product_id);
             if (result.err === 0) {
                 const newStatus = result.data?.is_active;
-                toast.success(
+                ToastNotification.success(
                     newStatus
                         ? `✓ Đã kích hoạt sản phẩm "${productToToggle.name}"`
                         : `✓ Đã tắt sản phẩm "${productToToggle.name}"`
@@ -221,10 +221,10 @@ const ProductManagement = () => {
                 setShowToggleConfirm(false);
                 setProductToToggle(null);
             } else {
-                toast.error(result.msg || 'Không thể thay đổi trạng thái sản phẩm');
+                ToastNotification.error(result.msg || 'Không thể thay đổi trạng thái sản phẩm');
             }
         } catch (err) {
-            toast.error('Lỗi khi thay đổi trạng thái: ' + err.message);
+            ToastNotification.error('Lỗi khi thay đổi trạng thái: ' + err.message);
         } finally {
             setTogglingStatus(false);
         }
@@ -358,7 +358,7 @@ const ProductManagement = () => {
             if (isEditMode) {
                 result = await updateProduct(editData.product_id, productData);
                 if (result.err === 0) {
-                    toast.success('Cập nhật sản phẩm thành công');
+                    ToastNotification.success('Cập nhật sản phẩm thành công');
                     await loadData();
                     setShowEditDialog(false);
                 } else {
@@ -367,7 +367,7 @@ const ProductManagement = () => {
             } else {
                 result = await createProduct(productData);
                 if (result.err === 0) {
-                    toast.success('Thêm sản phẩm thành công');
+                    ToastNotification.success('Thêm sản phẩm thành công');
                     await loadData();
                     setShowEditDialog(false);
                 } else {
@@ -467,7 +467,7 @@ const ProductManagement = () => {
     const handleSavePrice = async (e) => {
         e.preventDefault();
         if (!selectedProduct) {
-            toast.error('Vui lòng chọn sản phẩm');
+            ToastNotification.error('Vui lòng chọn sản phẩm');
             return;
         }
 
@@ -478,12 +478,12 @@ const ProductManagement = () => {
 
         const priceValueNum = parseFloat(priceValue);
         if (isNaN(priceValueNum) || priceValueNum < 0) {
-            toast.error('Giá trị không hợp lệ. Vui lòng nhập số dương');
+            ToastNotification.error('Giá trị không hợp lệ. Vui lòng nhập số dương');
             return;
         }
 
         if (!startDate) {
-            toast.error('Vui lòng chọn ngày bắt đầu');
+            ToastNotification.error('Vui lòng chọn ngày bắt đầu');
             return;
         }
 
@@ -495,7 +495,7 @@ const ProductManagement = () => {
         startDateObj.setHours(0, 0, 0, 0);
 
         if (endDate && new Date(endDate) < new Date(actualStartDate)) {
-            toast.error('Ngày kết thúc phải sau ngày bắt đầu áp dụng');
+            ToastNotification.error('Ngày kết thúc phải sau ngày bắt đầu áp dụng');
             return;
         }
 
@@ -522,7 +522,7 @@ const ProductManagement = () => {
                 
                 // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
                 if (startDateObj.getTime() === latestStartDate.getTime()) {
-                    toast.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
+                    ToastNotification.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
                     return;
                 }
             }
@@ -631,7 +631,7 @@ const ProductManagement = () => {
                             }
                         } catch (splitErr) {
                             console.error('Lỗi khi tách quy tắc cũ:', splitErr);
-                            toast.error('Lỗi khi tách quy tắc cũ');
+                            ToastNotification.error('Lỗi khi tách quy tắc cũ');
                         }
                     }
                     
@@ -668,7 +668,7 @@ const ProductManagement = () => {
                             }
                         } catch (deleteErr) {
                             console.error('Lỗi khi xóa quy tắc:', deleteErr);
-                            toast.error('Lỗi khi xóa quy tắc cũ');
+                            ToastNotification.error('Lỗi khi xóa quy tắc cũ');
                         }
                     }
                     
@@ -695,7 +695,7 @@ const ProductManagement = () => {
                                 await updatePricingRule(previousRule.rule_id, {
                                     end_date: endDateStr
                                 });
-                                toast.info('Đã tự động cập nhật ngày kết thúc của quy tắc trước đó');
+                                ToastNotification.info('Đã tự động cập nhật ngày kết thúc của quy tắc trước đó');
                             } catch (updateErr) {
                                 console.error('Lỗi khi cập nhật quy tắc cũ:', updateErr);
                             }
@@ -705,7 +705,7 @@ const ProductManagement = () => {
             }
 
             if (response.err === 0) {
-                toast.success(editingRule ? 'Cập nhật giá thành công' : 'Tạo quy tắc giá thành công');
+                ToastNotification.success(editingRule ? 'Cập nhật giá thành công' : 'Tạo quy tắc giá thành công');
                 handleClosePriceModal();
                 await loadPriceHistory(selectedProduct.product_id);
                 // Reload active pricing rules to update the table
@@ -715,10 +715,10 @@ const ProductManagement = () => {
                 if (errorMsg.includes('Overlapping pricing rule')) {
                     errorMsg = 'Quy tắc giá bị trùng lặp. Vui lòng kiểm tra lịch sử giá và chọn khoảng thời gian khác.';
                 }
-                toast.error(errorMsg);
+                ToastNotification.error(errorMsg);
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         }
     };
 
@@ -734,7 +734,7 @@ const ProductManagement = () => {
         try {
             const response = await deletePricingRule(ruleToDelete);
             if (response.err === 0) {
-                toast.success('Xóa quy tắc giá thành công');
+                ToastNotification.success('Xóa quy tắc giá thành công');
                 if (selectedProduct) {
                     await loadPriceHistory(selectedProduct.product_id);
                 }
@@ -743,10 +743,10 @@ const ProductManagement = () => {
                 setShowDeleteConfirm(false);
                 setRuleToDelete(null);
             } else {
-                toast.error(response.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(response.msg || 'Có lỗi xảy ra');
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setDeletingRule(false);
         }
@@ -777,7 +777,7 @@ const ProductManagement = () => {
                 setProductDetail(productRes.data);
                 setDetailPriceValue(productRes.data.latest_import_price || '0');
             } else {
-                toast.error(productRes.msg || 'Không thể tải thông tin sản phẩm');
+                ToastNotification.error(productRes.msg || 'Không thể tải thông tin sản phẩm');
             }
 
             if (inventoryRes.err === 0) {
@@ -816,7 +816,7 @@ const ProductManagement = () => {
                 setDetailStartDate(defaultStartDate);
             }
         } catch (err) {
-            toast.error('Lỗi khi tải chi tiết sản phẩm: ' + err.message);
+            ToastNotification.error('Lỗi khi tải chi tiết sản phẩm: ' + err.message);
         } finally {
             setLoadingDetail(false);
         }
@@ -854,7 +854,7 @@ const ProductManagement = () => {
         }
 
         if (isActive) {
-            toast.error('Không thể sửa giá đang áp dụng');
+            ToastNotification.error('Không thể sửa giá đang áp dụng');
             return;
         }
 
@@ -874,7 +874,7 @@ const ProductManagement = () => {
     const handleSavePriceInDetail = async (e) => {
         e.preventDefault();
         if (!productDetail) {
-            toast.error('Vui lòng chọn sản phẩm');
+            ToastNotification.error('Vui lòng chọn sản phẩm');
             return;
         }
 
@@ -885,12 +885,12 @@ const ProductManagement = () => {
 
         const priceValueNum = parseFloat(detailPriceValue);
         if (isNaN(priceValueNum) || priceValueNum < 0) {
-            toast.error('Giá trị không hợp lệ. Vui lòng nhập số dương');
+            ToastNotification.error('Giá trị không hợp lệ. Vui lòng nhập số dương');
             return;
         }
 
         if (!detailStartDate) {
-            toast.error('Vui lòng chọn ngày bắt đầu');
+            ToastNotification.error('Vui lòng chọn ngày bắt đầu');
             return;
         }
 
@@ -902,7 +902,7 @@ const ProductManagement = () => {
         startDateObj.setHours(0, 0, 0, 0);
 
         if (detailEndDate && new Date(detailEndDate) < new Date(actualStartDateDetail)) {
-            toast.error('Ngày kết thúc phải sau ngày bắt đầu áp dụng');
+            ToastNotification.error('Ngày kết thúc phải sau ngày bắt đầu áp dụng');
             return;
         }
 
@@ -929,7 +929,7 @@ const ProductManagement = () => {
                 
                 // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
                 if (startDateObj.getTime() === latestStartDate.getTime()) {
-                    toast.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
+                    ToastNotification.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
                     return;
                 }
             }
@@ -959,7 +959,7 @@ const ProductManagement = () => {
             }
 
             if (isActive) {
-                toast.error('Không thể sửa giá đang áp dụng');
+                ToastNotification.error('Không thể sửa giá đang áp dụng');
                 return;
             }
         }
@@ -1068,7 +1068,7 @@ const ProductManagement = () => {
                             }
                         } catch (splitErr) {
                             console.error('Lỗi khi tách quy tắc cũ:', splitErr);
-                            toast.error('Lỗi khi tách quy tắc cũ');
+                            ToastNotification.error('Lỗi khi tách quy tắc cũ');
                         }
                     }
                     
@@ -1105,7 +1105,7 @@ const ProductManagement = () => {
                             }
                         } catch (deleteErr) {
                             console.error('Lỗi khi xóa quy tắc:', deleteErr);
-                            toast.error('Lỗi khi xóa quy tắc cũ');
+                            ToastNotification.error('Lỗi khi xóa quy tắc cũ');
                         }
                     }
                     
@@ -1132,7 +1132,7 @@ const ProductManagement = () => {
                                 await updatePricingRule(previousRule.rule_id, {
                                     end_date: endDateStr
                                 });
-                                toast.info('Đã tự động cập nhật ngày kết thúc của quy tắc trước đó');
+                                ToastNotification.info('Đã tự động cập nhật ngày kết thúc của quy tắc trước đó');
                             } catch (updateErr) {
                                 console.error('Lỗi khi cập nhật quy tắc cũ:', updateErr);
                             }
@@ -1142,7 +1142,7 @@ const ProductManagement = () => {
             }
 
             if (response.err === 0) {
-                toast.success(detailEditingRule ? 'Cập nhật giá thành công' : 'Tạo quy tắc giá thành công');
+                ToastNotification.success(detailEditingRule ? 'Cập nhật giá thành công' : 'Tạo quy tắc giá thành công');
                 // Reset form
                 setDetailEditingRule(null);
                 setDetailPriceType('fixed_price');
@@ -1187,10 +1187,10 @@ const ProductManagement = () => {
                 if (errorMsg.includes('Overlapping pricing rule')) {
                     errorMsg = 'Quy tắc giá bị trùng lặp. Vui lòng kiểm tra lịch sử giá và chọn khoảng thời gian khác.';
                 }
-                toast.error(errorMsg);
+                ToastNotification.error(errorMsg);
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setSavingPrice(false);
         }
@@ -1208,7 +1208,7 @@ const ProductManagement = () => {
         try {
             const response = await deletePricingRule(ruleToDelete);
             if (response.err === 0) {
-                toast.success('Xóa quy tắc giá thành công');
+                ToastNotification.success('Xóa quy tắc giá thành công');
                 // Reload price history
                 if (productDetail) {
                     const priceHistoryRes = await getProductPriceHistory(productDetail.product_id, selectedStoreId);
@@ -1221,10 +1221,10 @@ const ProductManagement = () => {
                 setShowDeleteConfirm(false);
                 setRuleToDelete(null);
             } else {
-                toast.error(response.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(response.msg || 'Có lỗi xảy ra');
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setDeletingRule(false);
         }
@@ -1305,7 +1305,7 @@ const ProductManagement = () => {
                 size: 120,
                 Cell: ({ cell }) => (
                     <Chip
-                        icon={cell.getValue() ? <CheckCircle /> : <Cancel />}
+                        icon={cell.getValue() ? <Icon name="CheckCircle" /> : <Icon name="Cancel" />}
                         label={cell.getValue() ? 'Hoạt động' : 'Đã tắt'}
                         color={cell.getValue() ? 'success' : 'default'}
                         size="small"
@@ -1480,15 +1480,14 @@ const ProductManagement = () => {
                 </FormControl>
 
                 {(filterCategory || filterSupplier) && (
-                    <Button
-                        variant="outlined"
+                    <SecondaryButton
                         onClick={() => {
                             setFilterCategory('');
                             setFilterSupplier('');
                         }}
                     >
                         Xóa bộ lọc
-                    </Button>
+                    </SecondaryButton>
                 )}
             </Box>
 
@@ -1509,25 +1508,25 @@ const ProductManagement = () => {
                 })}
                 // Nút "Thêm sản phẩm" ở trên đầu bảng
                 renderTopToolbarCustomActions={() => (
-                    <Button
-                        variant="contained" color="success"
-                        startIcon={<AddIcon />}
+                    <PrimaryButton
+                        startIcon={<Icon name="Add" />}
                         onClick={handleOpenAdd}
-                    >Thêm sản phẩm mới</Button>
+                        sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
+                    >Thêm sản phẩm mới</PrimaryButton>
                 )}
                 // Nút Sửa và Toggle trạng thái ở mỗi hàng
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <Tooltip title="Chỉnh sửa sản phẩm">
-                            <IconButton
-                                color="warning"
+                            <ActionButton
+                                icon={<Icon name="Edit" />}
+                                action="edit"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleOpenEdit(row.original);
                                 }}
-                            >
-                                <Edit />
-                            </IconButton>
+                                tooltip="Chỉnh sửa sản phẩm"
+                            />
                         </Tooltip>
                         <Tooltip title={row.original.is_active ? "Tắt sản phẩm" : "Bật sản phẩm"}>
                             <Switch
@@ -1682,8 +1681,8 @@ const ProductManagement = () => {
                         />
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={handleCloseEditDialog} color="secondary" variant="outlined">Huỷ</Button>
-                        <Button type="submit" variant="contained" color="primary">{isEditMode ? 'Lưu' : 'Thêm'}</Button>
+                        <SecondaryButton onClick={handleCloseEditDialog}>Huỷ</SecondaryButton>
+                        <PrimaryButton type="submit">{isEditMode ? 'Lưu' : 'Thêm'}</PrimaryButton>
                     </DialogActions>
                 </form>
             </Dialog>
@@ -1697,9 +1696,7 @@ const ProductManagement = () => {
                     </DialogTitle>
                     <DialogContent dividers>
                         <Box sx={{ mb: 3 }}>
-                            <Button
-                                variant="contained"
-                                color="primary"
+                            <PrimaryButton
                                 sx={{ mb: 2 }}
                                 onClick={() => {
                                     setEditingRule(null);
@@ -1726,7 +1723,7 @@ const ProductManagement = () => {
                                 }}
                             >
                                 Thêm quy tắc giá mới
-                            </Button>
+                            </PrimaryButton>
                         </Box>
 
                         <TextField
@@ -1806,24 +1803,22 @@ const ProductManagement = () => {
                                                         </TableCell>
                                                         <TableCell align="center">
                                                             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                                <IconButton
-                                                                    color="primary"
+                                                                <ActionButton
+                                                                    icon={<Icon name="Edit" size="small" />}
+                                                                    action="edit"
                                                                     size="small"
                                                                     onClick={() => handleEditRule(rule)}
-                                                                    title="Chỉnh sửa"
-                                                                disabled={rule.status === 'active'}
-                                                                >
-                                                                    <Edit fontSize="small" />
-                                                                </IconButton>
-                                                                <IconButton
-                                                                    color="error"
+                                                                    tooltip="Chỉnh sửa"
+                                                                    disabled={rule.status === 'active'}
+                                                                />
+                                                                <ActionButton
+                                                                    icon={<Icon name="Delete" size="small" />}
+                                                                    action="delete"
                                                                     size="small"
                                                                     onClick={() => handleDeleteRule(rule.rule_id)}
-                                                                    title="Xóa"
-                                                                disabled={rule.status === 'active'}
-                                                                >
-                                                                <Delete fontSize="small" />
-                                                                </IconButton>
+                                                                    tooltip="Xóa"
+                                                                    disabled={rule.status === 'active'}
+                                                                />
                                                             </Box>
                                                         </TableCell>
                                                     </TableRow>
@@ -1843,12 +1838,12 @@ const ProductManagement = () => {
                         )}
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={handleClosePriceModal} color="secondary" variant="outlined">
+                        <SecondaryButton onClick={handleClosePriceModal}>
                             Đóng
-                        </Button>
-                        <Button type="submit" variant="contained" color="primary">
+                        </SecondaryButton>
+                        <PrimaryButton type="submit">
                             {editingRule ? 'Cập nhật' : 'Tạo mới'}
-                        </Button>
+                        </PrimaryButton>
                     </DialogActions>
                 </form>
             </Dialog>
@@ -2019,7 +2014,7 @@ const ProductManagement = () => {
                                     <Card sx={{ minWidth: '850px', maxWidth: '100%' }}>
                                         <CardContent sx={{ p: 4 }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                                                <AttachMoney sx={{ mr: 1 }} />
+                                                <Icon name="AttachMoney" sx={{ mr: 1 }} />
                                                 <Typography variant="h6">
                                                     {detailEditingRule ? 'Sửa quy tắc giá' : 'Thêm quy tắc giá mới'}
                                                 </Typography>
@@ -2073,9 +2068,7 @@ const ProductManagement = () => {
                                                     <Grid item xs={12} sx={{ mt: 2 }}>
                                                         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                                                             {detailEditingRule && (
-                                                                <Button
-                                                                    variant="outlined"
-                                                                    color="secondary"
+                                                                <SecondaryButton
                                                                     onClick={() => {
                                                                         setDetailEditingRule(null);
                                                                         setDetailPriceType('fixed_price');
@@ -2101,17 +2094,15 @@ const ProductManagement = () => {
                                                                     }}
                                                                 >
                                                                     Hủy
-                                                                </Button>
+                                                                </SecondaryButton>
                                                             )}
-                                                            <Button
+                                                            <PrimaryButton
                                                                 type="submit"
-                                                                variant="contained"
-                                                                color="primary"
                                                                 disabled={savingPrice}
-                                                                startIcon={savingPrice ? <CircularProgress size={20} /> : null}
+                                                                loading={savingPrice}
                                                             >
                                                                 {savingPrice ? 'Đang lưu...' : (detailEditingRule ? 'Cập nhật' : 'Tạo mới')}
-                                                            </Button>
+                                                            </PrimaryButton>
                                                         </Box>
                                                     </Grid>
                                                 </Grid>
@@ -2127,7 +2118,7 @@ const ProductManagement = () => {
                                     <Card sx={{ minWidth: '850px', maxWidth: '100%' }}>
                                         <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, px: 2, pt: 2 }}>
-                                                <AttachMoney sx={{ mr: 1 }} />
+                                                <Icon name="AttachMoney" sx={{ mr: 1 }} />
                                                 <Typography variant="h6">
                                                     Lịch sử thay đổi giá
                                                 </Typography>
@@ -2161,24 +2152,22 @@ const ProductManagement = () => {
 
                                                         return (
                                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                                <IconButton
+                                                                <ActionButton
+                                                                    icon={<Icon name="Edit" size="small" />}
+                                                                    action="edit"
                                                                     size="small"
-                                                                    color="warning"
                                                                     onClick={() => handleEditPriceInDetail(item)}
-                                                                    title="Sửa"
+                                                                    tooltip="Sửa"
                                                                     disabled={isActive}
-                                                                >
-                                                                    <Edit fontSize="small" />
-                                                                </IconButton>
-                                                                <IconButton
+                                                                />
+                                                                <ActionButton
+                                                                    icon={<Icon name="Delete" size="small" />}
+                                                                    action="delete"
                                                                     size="small"
-                                                                    color="error"
                                                                     onClick={() => handleDeletePriceInDetail(item.rule_id)}
-                                                                    title="Xóa"
+                                                                    tooltip="Xóa"
                                                                     disabled={isActive}
-                                                                >
-                                                                    <Delete fontSize="small" />
-                                                                </IconButton>
+                                                                />
                                                             </Box>
                                                         );
                                                     }}
@@ -2198,9 +2187,9 @@ const ProductManagement = () => {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDetailModal} variant="outlined">
+                    <SecondaryButton onClick={handleCloseDetailModal}>
                         Đóng
-                    </Button>
+                    </SecondaryButton>
                 </DialogActions>
             </Dialog>
 
@@ -2225,24 +2214,23 @@ const ProductManagement = () => {
                     </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button
+                    <SecondaryButton
                         onClick={() => {
                             setShowToggleConfirm(false);
                             setProductToToggle(null);
                         }}
                         disabled={togglingStatus}
-                        variant="outlined"
                     >
                         Hủy
-                    </Button>
-                    <Button
+                    </SecondaryButton>
+                    <PrimaryButton
                         onClick={confirmToggleStatus}
                         disabled={togglingStatus}
                         variant="contained"
                         color={productToToggle?.is_active ? 'warning' : 'success'}
                     >
                         {togglingStatus ? 'Đang xử lý...' : (productToToggle?.is_active ? 'Tắt' : 'Kích hoạt')}
-                    </Button>
+                    </PrimaryButton>
                 </DialogActions>
             </Dialog>
 
@@ -2260,17 +2248,16 @@ const ProductManagement = () => {
                     </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button
+                    <SecondaryButton
                         onClick={() => {
                             setShowDeleteConfirm(false);
                             setRuleToDelete(null);
                         }}
                         disabled={deletingRule}
-                        variant="outlined"
                     >
                         Hủy
-                    </Button>
-                    <Button
+                    </SecondaryButton>
+                    <DangerButton
                         onClick={() => {
                             if (productDetail) {
                                 confirmDeletePriceInDetail();
@@ -2279,11 +2266,10 @@ const ProductManagement = () => {
                             }
                         }}
                         disabled={deletingRule}
-                        variant="contained"
-                        color="error"
+                        loading={deletingRule}
                     >
-                        {deletingRule ? 'Đang xóa...' : 'Xóa'}
-                    </Button>
+                        Xóa
+                    </DangerButton>
                 </DialogActions>
             </Dialog>
         </div>

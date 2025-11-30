@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Stack,
   TextField,
   MenuItem,
@@ -17,9 +16,7 @@ import {
   TableRow,
   TablePagination,
   Chip,
-  IconButton,
   CircularProgress,
-  Alert,
   Grid,
   Checkbox,
   Dialog,
@@ -31,19 +28,7 @@ import {
   FormControlLabel,
   Tooltip
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  Refresh as RefreshIcon,
-  Visibility as ViewIcon,
-  Edit as EditIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  Error as ErrorIcon,
-  Inventory2 as InventoryIcon,
-  ShoppingCart as ShoppingCartIcon,
-  Delete as DeleteIcon
-} from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Alert, Icon } from '../../components/common';
 import {
   getAllWarehouseInventory
 } from '../../api/inventoryApi';
@@ -68,10 +53,10 @@ const statusLabels = {
 };
 
 const statusIcons = {
-  normal: <CheckIcon fontSize="small" />,
-  low: <WarningIcon fontSize="small" />,
-  critical: <ErrorIcon fontSize="small" />,
-  out_of_stock: <ErrorIcon fontSize="small" />
+  normal: <Icon name="CheckCircle" fontSize="small" />,
+  low: <Icon name="Warning" fontSize="small" />,
+  critical: <Icon name="Error" fontSize="small" />,
+  out_of_stock: <Icon name="Error" fontSize="small" />
 };
 
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
@@ -162,7 +147,7 @@ const InventoryList = () => {
 
   const handleOpenCreateOrder = () => {
     if (!selectedProducts.length) {
-      toast.warning('Vui lòng chọn ít nhất 1 sản phẩm');
+      ToastNotification.warning('Vui lòng chọn ít nhất 1 sản phẩm');
       return;
     }
 
@@ -206,13 +191,13 @@ const InventoryList = () => {
     });
 
     if (productsWithoutSupplier.length > 0) {
-      toast.warning(`${productsWithoutSupplier.length} sản phẩm không có nhà cung cấp và sẽ bị bỏ qua`);
+      ToastNotification.warning(`${productsWithoutSupplier.length} sản phẩm không có nhà cung cấp và sẽ bị bỏ qua`);
     }
 
     const supplierGroups = Object.values(groupedBySupplier);
 
     if (supplierGroups.length === 0) {
-      toast.error('Không có sản phẩm nào có nhà cung cấp');
+      ToastNotification.error('Không có sản phẩm nào có nhà cung cấp');
       return;
     }
 
@@ -266,20 +251,20 @@ const InventoryList = () => {
   };
 
   const handleSubmitOrder = async () => {
-    if (!orderItems.length) return toast.error('Phiếu nhập hàng phải có ít nhất 1 nhà cung cấp');
+    if (!orderItems.length) return ToastNotification.error('Phiếu nhập hàng phải có ít nhất 1 nhà cung cấp');
 
     // Validate all items
     for (const group of orderItems) {
       if (!group.items.length) {
-        return toast.error(`Nhà cung cấp ${group.supplier_name} không có sản phẩm nào`);
+        return ToastNotification.error(`Nhà cung cấp ${group.supplier_name} không có sản phẩm nào`);
       }
 
       for (const item of group.items) {
         if (!item.quantity || Number(item.quantity) <= 0) {
-          return toast.error(`Số lượng phải > 0: ${item.product_name}`);
+          return ToastNotification.error(`Số lượng phải > 0: ${item.product_name}`);
         }
         if (!item.unit_price || Number(item.unit_price) <= 0) {
-          return toast.error(`Đơn giá phải > 0: ${item.product_name}`);
+          return ToastNotification.error(`Đơn giá phải > 0: ${item.product_name}`);
         }
       }
     }
@@ -312,15 +297,15 @@ const InventoryList = () => {
         const { successCount, failCount } = res.data;
 
         if (failCount === 0) {
-          toast.success(`Đã tạo thành công ${successCount} phiếu nhập hàng cho ${successCount} nhà cung cấp`);
+          ToastNotification.success(`Đã tạo thành công ${successCount} phiếu nhập hàng cho ${successCount} nhà cung cấp`);
         } else {
-          toast.warning(`Đã tạo ${successCount} phiếu nhập hàng thành công, ${failCount} phiếu nhập hàng thất bại`);
+          ToastNotification.warning(`Đã tạo ${successCount} phiếu nhập hàng thành công, ${failCount} phiếu nhập hàng thất bại`);
 
           // Show details of failed orders
           if (res.data.failed && res.data.failed.length > 0) {
             res.data.failed.forEach(fail => {
               const supplierGroup = orderItems[fail.index];
-              toast.error(`Lỗi tạo đơn cho ${supplierGroup?.supplier_name}: ${fail.error}`);
+              ToastNotification.error(`Lỗi tạo đơn cho ${supplierGroup?.supplier_name}: ${fail.error}`);
             });
           }
         }
@@ -332,10 +317,10 @@ const InventoryList = () => {
         try { window.dispatchEvent(new CustomEvent('warehouse-order:created')); } catch { }
         loadInventory();
       } else {
-        toast.error(res.msg || 'Không thể tạo phiếu nhập hàng');
+        ToastNotification.error(res.msg || 'Không thể tạo phiếu nhập hàng');
       }
     } catch (e) {
-      toast.error('Lỗi kết nối: ' + e.message);
+      ToastNotification.error('Lỗi kết nối: ' + e.message);
     } finally {
       setCreatingOrder(false);
     }
@@ -360,10 +345,10 @@ const InventoryList = () => {
         setInventory(response.data.inventory);
         setTotalItems(response.data.pagination.totalItems);
       } else {
-        toast.error(response.msg || 'Không thể tải dữ liệu');
+        ToastNotification.error(response.msg || 'Không thể tải dữ liệu');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -411,7 +396,7 @@ const InventoryList = () => {
       <Stack direction={{ xs: 'column', md: 'row' }} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between" sx={{ mb: 3 }} spacing={2}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
-            <InventoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <Icon name="Inventory" sx={{ mr: 1, verticalAlign: 'middle' }} />
             Quản lý Tồn Kho Tổng
           </Typography>
           <Typography color="text.secondary">
@@ -420,18 +405,19 @@ const InventoryList = () => {
         </Box>
         <Stack direction="row" spacing={2}>
           {selectedProducts.length > 0 && (
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<ShoppingCartIcon />}
+            <PrimaryButton
+              startIcon={<Icon name="ShoppingCart" />}
               onClick={handleOpenCreateOrder}
             >
               Tạo Phiếu Nhập Hàng ({selectedProducts.length})
-            </Button>
+            </PrimaryButton>
           )}
-          <IconButton onClick={handleSearch} color="primary" title="Làm mới">
-            <RefreshIcon />
-          </IconButton>
+          <ActionButton
+            icon={<Icon name="Refresh" />}
+            onClick={handleSearch}
+            color="primary"
+            tooltip="Làm mới"
+          />
         </Stack>
       </Stack>
 
@@ -451,7 +437,7 @@ const InventoryList = () => {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color="action" />
+                  <Icon name="Search" color="action" />
                 </InputAdornment>
               )
             }}
@@ -742,7 +728,7 @@ const InventoryList = () => {
                                   Đơn vị: {getDisplayUnitLabel(item) || '—'}
                                 </Typography>
                                 {item.package_conversion && (
-                                  <Button
+                                  <SecondaryButton
                                     size="small"
                                     variant="text"
                                     onClick={() => handleUnitToggle(supplierIndex, itemIndex)}
@@ -751,7 +737,7 @@ const InventoryList = () => {
                                       ? `Sang ${item.base_unit_label || 'đơn vị lẻ'}`
                                       : `Sang ${item.package_unit_label || 'thùng'}`
                                     }
-                                  </Button>
+                                  </SecondaryButton>
                                 )}
                               </Stack>
                             </Stack>
@@ -787,13 +773,12 @@ const InventoryList = () => {
                             </Typography>
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton
+                            <ActionButton
+                              icon={<Icon name="Delete" />}
+                              action="delete"
                               size="small"
                               onClick={() => handleRemoveOrderItem(supplierIndex, itemIndex)}
-                              color="error"
-                            >
-                              <DeleteIcon />
-                            </IconButton>
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -829,14 +814,14 @@ const InventoryList = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseCreateOrder}>Hủy</Button>
-          <Button
-            variant="contained"
+          <SecondaryButton onClick={handleCloseCreateOrder}>Hủy</SecondaryButton>
+          <PrimaryButton
             onClick={handleSubmitOrder}
             disabled={creatingOrder || orderItems.length === 0}
+            loading={creatingOrder}
           >
-            {creatingOrder ? <CircularProgress size={24} /> : `Tạo ${orderItems.length} Phiếu Nhập Hàng`}
-          </Button>
+            Tạo {orderItems.length} Phiếu Nhập Hàng
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
     </Box>

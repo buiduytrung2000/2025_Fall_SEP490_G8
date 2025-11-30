@@ -2,23 +2,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MaterialReactTable } from 'material-react-table';
 import {
     Box,
-    Button,
-    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
     TextField,
     CircularProgress,
-    Alert,
     MenuItem
 } from '@mui/material';
 import {
-    Add as AddIcon,
-    Edit as EditIcon,
-    Delete as DeleteIcon
-} from '@mui/icons-material';
-import { toast } from 'react-toastify';
+    PrimaryButton,
+    SecondaryButton,
+    DangerButton,
+    ActionButton,
+    ToastNotification,
+    Alert,
+    Icon
+} from '../../components/common';
 import {
     getAllSuppliers,
     createSupplier,
@@ -63,11 +63,11 @@ const SupplierManagement = () => {
                 setSuppliers(response.data || []);
             } else {
                 setError(response.msg || 'Không thể tải danh sách nhà cung cấp');
-                toast.error(response.msg || 'Không thể tải danh sách nhà cung cấp');
+                ToastNotification.error(response.msg || 'Không thể tải danh sách nhà cung cấp');
             }
         } catch (err) {
             setError('Lỗi kết nối: ' + err.message);
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -79,10 +79,10 @@ const SupplierManagement = () => {
             if (res.err === 0) {
                 setSupplierAccounts(res.data || []);
             } else {
-                toast.error(res.msg || 'Không thể tải danh sách tài khoản Supplier');
+                ToastNotification.error(res.msg || 'Không thể tải danh sách tài khoản Supplier');
             }
         } catch (error) {
-            toast.error('Lỗi kết nối tài khoản: ' + error.message);
+            ToastNotification.error('Lỗi kết nối tài khoản: ' + error.message);
         }
     };
 
@@ -162,7 +162,7 @@ const SupplierManagement = () => {
         e.preventDefault();
 
         if (!validateForm()) {
-            toast.error('Vui lòng kiểm tra lại thông tin');
+            ToastNotification.error('Vui lòng kiểm tra lại thông tin');
             return;
         }
 
@@ -182,14 +182,14 @@ const SupplierManagement = () => {
             }
 
             if (response.err === 0) {
-                toast.success(modalMode === 'create' ? 'Tạo nhà cung cấp thành công' : 'Cập nhật nhà cung cấp thành công');
+                ToastNotification.success(modalMode === 'create' ? 'Tạo nhà cung cấp thành công' : 'Cập nhật nhà cung cấp thành công');
                 handleCloseModal();
                 await loadSuppliers();
             } else {
-                toast.error(response.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(response.msg || 'Có lỗi xảy ra');
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setSubmitting(false);
         }
@@ -203,13 +203,13 @@ const SupplierManagement = () => {
         try {
             const response = await deleteSupplier(supplier.supplier_id);
             if (response.err === 0) {
-                toast.success('Xóa nhà cung cấp thành công');
+                ToastNotification.success('Xóa nhà cung cấp thành công');
                 await loadSuppliers();
             } else {
-                toast.error(response.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(response.msg || 'Có lỗi xảy ra');
             }
         } catch (err) {
-            toast.error('Lỗi kết nối: ' + err.message);
+            ToastNotification.error('Lỗi kết nối: ' + err.message);
         }
     };
 
@@ -305,23 +305,25 @@ const SupplierManagement = () => {
                 enableColumnFilters
                 enableFacetedValues
                 renderTopToolbarCustomActions={() => (
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<AddIcon />}
+                    <PrimaryButton
+                        startIcon={<Icon name="Add" />}
                         onClick={() => handleOpenModal('create')}
                     >
                         Thêm nhà cung cấp
-                    </Button>
+                    </PrimaryButton>
                 )}
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '0.5rem' }}>
-                        <IconButton color="primary" onClick={() => handleOpenModal('edit', row.original)}>
-                            <EditIcon />
-                        </IconButton>
-                        <IconButton color="error" onClick={() => handleDelete(row.original)}>
-                            <DeleteIcon />
-                        </IconButton>
+                        <ActionButton
+                            icon={<Icon name="Edit" />}
+                            action="edit"
+                            onClick={() => handleOpenModal('edit', row.original)}
+                        />
+                        <ActionButton
+                            icon={<Icon name="Delete" />}
+                            action="delete"
+                            onClick={() => handleDelete(row.original)}
+                        />
                     </Box>
                 )}
                 muiTableHeadCellProps={{
@@ -405,17 +407,16 @@ const SupplierManagement = () => {
                         </Box>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={handleCloseModal} disabled={submitting}>
+                        <SecondaryButton onClick={handleCloseModal} disabled={submitting}>
                             Hủy
-                        </Button>
-                        <Button
+                        </SecondaryButton>
+                        <PrimaryButton
                             type="submit"
-                            variant="contained"
-                            color="primary"
                             disabled={submitting}
+                            loading={submitting}
                         >
-                            {submitting ? <CircularProgress size={24} /> : (modalMode === 'create' ? 'Tạo' : 'Cập nhật')}
-                        </Button>
+                            {modalMode === 'create' ? 'Tạo' : 'Cập nhật'}
+                        </PrimaryButton>
                     </DialogActions>
                 </form>
             </Dialog>

@@ -7,11 +7,8 @@ import {
   Card,
   CardContent,
   TextField,
-  Button,
   Typography,
-  Alert,
   InputAdornment,
-  IconButton,
   Stack,
   Link,
   MenuItem,
@@ -19,8 +16,7 @@ import {
   FormControl,
   InputLabel
 } from "@mui/material";
-import { Lock, AccountCircle, Visibility, VisibilityOff, Store, LockOutlined } from "@mui/icons-material";
-import { toast } from "react-toastify";
+import { PrimaryButton, Icon, ToastNotification, Alert } from "../../components/common";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -63,12 +59,12 @@ const Register = () => {
 
     const response = await register(userData);
     if (response.success) {
-      toast.success(response.message || "Đăng ký thành công!");
+      ToastNotification.success(response.message || "Đăng ký thành công!");
       navigate(roleToPath[response.user.role] || "/");
     } else {
       const msg = response.message || "Đăng ký thất bại";
       setError(msg);
-      toast.error(msg);
+      ToastNotification.error(msg);
     }
     setSubmitting(false);
   };
@@ -102,7 +98,7 @@ const Register = () => {
               Create Account
             </Typography>
             <Box sx={{ position: 'absolute', left: 20, bottom: -34, width: 84, height: 84, borderRadius: '50%', bgcolor: '#fff', boxShadow: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Store sx={{ fontSize: 36, color: '#3a57e8' }} />
+              <Icon name="Store" sx={{ fontSize: 36, color: '#3a57e8' }} />
             </Box>
           </Box>
 
@@ -139,7 +135,7 @@ const Register = () => {
                   helperText={touched.username && errors.username}
                   InputProps={{
                     startAdornment: (
-                      <InputAdornment position="start"><AccountCircle /></InputAdornment>
+                      <InputAdornment position="start"><Icon name="AccountCircle" /></InputAdornment>
                     )
                   }}
                 />
@@ -178,13 +174,15 @@ const Register = () => {
                   helperText={touched.password && errors.password}
                   InputProps={{
                     startAdornment: (
-                      <InputAdornment position="start"><Lock /></InputAdornment>
+                      <InputAdornment position="start"><Icon name="Lock" /></InputAdornment>
                     ),
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton aria-label="toggle password visibility" onClick={() => setShowPass(v => !v)} edge="end" size="small">
-                          {showPass ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                        <Icon
+                          name={showPass ? "VisibilityOff" : "Visibility"}
+                          onClick={() => setShowPass(v => !v)}
+                          sx={{ cursor: 'pointer', mr: 1 }}
+                        />
                       </InputAdornment>
                     )
                   }}
@@ -203,13 +201,15 @@ const Register = () => {
                   helperText={touched.confirmPassword && errors.confirmPassword}
                   InputProps={{
                     startAdornment: (
-                      <InputAdornment position="start"><LockOutlined /></InputAdornment>
+                      <InputAdornment position="start"><Icon name="LockOutlined" /></InputAdornment>
                     ),
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton aria-label="toggle password visibility" onClick={() => setShowConfirmPass(v => !v)} edge="end" size="small">
-                          {showConfirmPass ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                        <Icon
+                          name={showConfirmPass ? "VisibilityOff" : "Visibility"}
+                          onClick={() => setShowConfirmPass(v => !v)}
+                          sx={{ cursor: 'pointer', mr: 1 }}
+                        />
                       </InputAdornment>
                     )
                   }}
@@ -241,16 +241,16 @@ const Register = () => {
                   helperText={touched.store_id && errors.store_id}
                 />
 
-                <Button
+                <PrimaryButton
                   fullWidth
                   type="submit"
                   size="large"
-                  variant="contained"
                   disabled={isSubmitting}
+                  loading={isSubmitting}
                   sx={{ mt: 1.5, borderRadius: 2, fontWeight: 700, boxShadow: 2, textTransform: 'none' }}
                 >
-                  {isSubmitting ? "Đang đăng ký..." : "Register"}
-                </Button>
+                  Register
+                </PrimaryButton>
               </Form>
             )}
           </Formik>

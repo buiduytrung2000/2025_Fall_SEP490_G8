@@ -3,7 +3,6 @@ import {
     Box,
     Typography,
     Paper,
-    Button,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -34,7 +33,7 @@ import {
     CalendarToday,
     Person,
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, Icon } from '../../components/common';
 import {
     getMySchedules,
     getShiftTemplates,
@@ -130,7 +129,7 @@ const ShiftChangeRequest = () => {
             const empRes = await fetchEmployeeById(user.id);
             const myStoreId = empRes?.data?.store_id || empRes?.data?.store?.store_id;
             if (!myStoreId) {
-                toast.error('Không tìm thấy thông tin cửa hàng');
+                ToastNotification.error('Không tìm thấy thông tin cửa hàng');
                 setLoading(false);
                 return;
             }
@@ -239,7 +238,7 @@ const ShiftChangeRequest = () => {
                 }
             }
         } catch (error) {
-            toast.error('Không thể tải dữ liệu');
+            ToastNotification.error('Không thể tải dữ liệu');
             console.error(error);
         } finally {
             setLoading(false);
@@ -397,18 +396,18 @@ const ShiftChangeRequest = () => {
 
     const handleSubmit = async () => {
         if (!formData.from_schedule_id) {
-            toast.error('Vui lòng chọn ca muốn đổi');
+            ToastNotification.error('Vui lòng chọn ca muốn đổi');
             return;
         }
 
         // Kiểm tra nếu chọn option "manual" thì phải chọn ca/nhân viên
         if (formData.request_type === 'swap' && formData.swap_option === 'manual' && !formData.to_schedule_id) {
-            toast.error('Vui lòng chọn ca muốn đổi với');
+            ToastNotification.error('Vui lòng chọn ca muốn đổi với');
             return;
         }
 
         if ((formData.request_type === 'give_away' || formData.request_type === 'take_over') && formData.swap_option === 'manual' && !formData.to_user_id) {
-            toast.error('Vui lòng chọn nhân viên');
+            ToastNotification.error('Vui lòng chọn nhân viên');
             return;
         }
 
@@ -446,14 +445,14 @@ const ShiftChangeRequest = () => {
 
             const res = await createShiftChangeRequest(requestData);
             if (res.err === 0) {
-                toast.success('Gửi yêu cầu thành công');
+                ToastNotification.success('Gửi yêu cầu thành công');
                 handleCloseDialog();
                 loadData();
             } else {
-                toast.error(res.msg || 'Gửi yêu cầu thất bại');
+                ToastNotification.error(res.msg || 'Gửi yêu cầu thất bại');
             }
         } catch (error) {
-            toast.error('Có lỗi xảy ra khi gửi yêu cầu');
+            ToastNotification.error('Có lỗi xảy ra khi gửi yêu cầu');
             console.error(error);
         }
     };
@@ -683,14 +682,13 @@ const ShiftChangeRequest = () => {
                                         return (
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
                                                 {canSwap ? (
-                                                    <Button
+                                                    <SecondaryButton
                                                         size="small"
-                                                        variant="outlined"
-                                                        startIcon={<SwapHoriz />}
+                                                        startIcon={<Icon name="SwapHoriz" />}
                                                         onClick={() => handleOpenDialog(schedule)}
                                                     >
                                                         Đổi ca
-                                                    </Button>
+                                                    </SecondaryButton>
                                                 ) : (
                                                     <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', alignSelf: 'center' }}>
                                                         Không thể đổi
@@ -860,30 +858,29 @@ const ShiftChangeRequest = () => {
                                                                 Gửi lúc: {request.requested_at ? new Date(request.requested_at).toLocaleString('vi-VN') : 'N/A'}
                                                             </Typography>
                                                             {request.status === 'pending' && (
-                                                                <Button
+                                                                <DangerButton
                                                                     size="small"
                                                                     variant="outlined"
-                                                                    color="error"
-                                                                    startIcon={<Cancel />}
+                                                                    startIcon={<Icon name="Cancel" />}
                                                                     onClick={async () => {
                                                                         if (window.confirm('Bạn có chắc muốn hủy yêu cầu này?')) {
                                                                             try {
                                                                                 const res = await cancelShiftChangeRequest(request.request_id);
                                                                                 if (res.err === 0) {
-                                                                                    toast.success('Hủy yêu cầu thành công');
+                                                                                    ToastNotification.success('Hủy yêu cầu thành công');
                                                                                     loadData();
                                                                                 } else {
-                                                                                    toast.error(res.msg || 'Hủy yêu cầu thất bại');
+                                                                                    ToastNotification.error(res.msg || 'Hủy yêu cầu thất bại');
                                                                                 }
                                                                             } catch (error) {
-                                                                                toast.error('Có lỗi xảy ra khi hủy yêu cầu');
+                                                                                ToastNotification.error('Có lỗi xảy ra khi hủy yêu cầu');
                                                                                 console.error(error);
                                                                             }
                                                                         }
                                                                     }}
                                                                 >
                                                                     Hủy
-                                                                </Button>
+                                                                </DangerButton>
                                                             )}
                                                         </Box>
                                                     </CardContent>
@@ -1185,10 +1182,10 @@ const ShiftChangeRequest = () => {
                     </Box>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>Hủy</Button>
-                    <Button variant="contained" onClick={handleSubmit} startIcon={<Send />}>
+                    <SecondaryButton onClick={handleCloseDialog}>Hủy</SecondaryButton>
+                    <PrimaryButton onClick={handleSubmit} startIcon={<Icon name="Send" />}>
                         Gửi yêu cầu
-                    </Button>
+                    </PrimaryButton>
                 </DialogActions>
             </Dialog>
         </Box>

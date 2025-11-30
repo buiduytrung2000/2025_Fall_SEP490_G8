@@ -5,10 +5,8 @@ import {
   Paper,
   Stack,
   Typography,
-  Button,
   Chip,
   CircularProgress,
-  Alert,
   Grid,
   TextField,
   Dialog,
@@ -23,7 +21,7 @@ import {
   CalendarToday as CalendarIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, Alert, Icon } from '../../../components/common';
 import {
   getWarehouseSupplierOrderDetail,
   updateWarehouseSupplierOrderStatus,
@@ -92,7 +90,7 @@ export default function OrderDetail() {
     if (!order) return;
     const options = nextTransitions[order.status] || [];
     if (options.length === 0) {
-      toast.info('Không thể thay đổi trạng thái của đơn hàng này');
+      ToastNotification.info('Không thể thay đổi trạng thái của đơn hàng này');
       return;
     }
     setNewStatus(options[0]);
@@ -105,14 +103,14 @@ export default function OrderDetail() {
     try {
       const res = await updateWarehouseSupplierOrderStatus(order.order_id, newStatus);
       if (res.err === 0) {
-        toast.success('Cập nhật trạng thái thành công');
+        ToastNotification.success('Cập nhật trạng thái thành công');
         setUpdateDialog(false);
         loadDetail();
       } else {
-        toast.error(res.msg || 'Không thể cập nhật trạng thái');
+        ToastNotification.error(res.msg || 'Không thể cập nhật trạng thái');
       }
     } catch (e) {
-      toast.error('Lỗi kết nối: ' + e.message);
+      ToastNotification.error('Lỗi kết nối: ' + e.message);
     } finally {
       setUpdating(false);
     }
@@ -120,15 +118,15 @@ export default function OrderDetail() {
 
   const handleUpdateDelivery = async () => {
     if (!deliveryDate) {
-      toast.error('Vui lòng chọn ngày giao hàng');
+      ToastNotification.error('Vui lòng chọn ngày giao hàng');
       return;
     }
     if (order.status !== 'pending') {
-      toast.error('Chỉ có thể cập nhật ngày giao cho đơn hàng đang chờ');
+      ToastNotification.error('Chỉ có thể cập nhật ngày giao cho đơn hàng đang chờ');
       return;
     }
     if (deliveryDate === originalDeliveryDate) {
-      toast.info('Ngày giao hàng không thay đổi');
+      ToastNotification.info('Ngày giao hàng không thay đổi');
       return;
     }
 
@@ -137,12 +135,12 @@ export default function OrderDetail() {
       const res = await updateWarehouseSupplierExpectedDelivery(order.order_id, deliveryDate);
 
       if (res.err === 0) {
-        toast.success('Cập nhật ngày giao thành công');
+        ToastNotification.success('Cập nhật ngày giao thành công');
         setOriginalDeliveryDate(deliveryDate);
         loadDetail();
-      } else toast.error(res.msg || 'Không thể cập nhật ngày giao');
+      } else ToastNotification.error(res.msg || 'Không thể cập nhật ngày giao');
     } catch (e) {
-      toast.error('Lỗi kết nối: ' + e.message);
+      ToastNotification.error('Lỗi kết nối: ' + e.message);
     } finally {
       setUpdatingDelivery(false);
     }
@@ -185,8 +183,8 @@ export default function OrderDetail() {
   const hasDeliveryDateChanges = deliveryDate !== originalDeliveryDate;
 
   if (loading) return <Box p={2}><CircularProgress /></Box>;
-  if (error) return <Box p={2}><Alert severity="error">{error}</Alert></Box>;
-  if (!order) return <Box p={2}><Alert severity="info">Không tìm thấy đơn hàng</Alert></Box>;
+  if (error) return <Box p={2}><Alert severity="error" message={error} /></Box>;
+  if (!order) return <Box p={2}><Alert severity="info" message="Không tìm thấy đơn hàng" /></Box>;
 
   return (
     <Box p={2}>
@@ -208,17 +206,15 @@ export default function OrderDetail() {
             color={statusColors[order.status] || 'default'}
             label={statusLabels[order.status] || order.status}
           />
-          <Button variant="outlined" onClick={() => navigate('/warehouse/orders')}>Quay lại</Button>
+          <SecondaryButton onClick={() => navigate('/warehouse/orders')}>Quay lại</SecondaryButton>
           {(nextTransitions[order.status] || []).length > 0 && (
-            <Button variant="contained" onClick={handleUpdateStatus}>Cập nhật trạng thái</Button>
+            <PrimaryButton onClick={handleUpdateStatus}>Cập nhật trạng thái</PrimaryButton>
           )}
         </Stack>
       </Stack>
 
       {!isEditable && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Đơn hàng này đã được {order.status === 'confirmed' ? 'xác nhận' : 'hủy'} và không thể chỉnh sửa.
-        </Alert>
+        <Alert severity="info" message={`Đơn hàng này đã được ${order.status === 'confirmed' ? 'xác nhận' : 'hủy'} và không thể chỉnh sửa.`} sx={{ mb: 2 }} />
       )}
 
       {/* Order Information */}
@@ -244,15 +240,15 @@ export default function OrderDetail() {
                   sx={{ flexGrow: 1 }}
                 />
                 {isEditable && hasDeliveryDateChanges && (
-                  <Button
-                    variant="contained"
+                  <PrimaryButton
                     size="small"
-                    startIcon={<SaveIcon />}
+                    startIcon={<Icon name="Save" />}
                     onClick={handleUpdateDelivery}
                     disabled={updatingDelivery}
+                    loading={updatingDelivery}
                   >
-                    {updatingDelivery ? 'Đang lưu...' : 'Lưu'}
-                  </Button>
+                    Lưu
+                  </PrimaryButton>
                 )}
               </Stack>
               <Typography variant="caption" color="text.secondary">
@@ -293,21 +289,17 @@ export default function OrderDetail() {
             ))}
           </TextField>
           {newStatus === 'confirmed' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!
-            </Alert>
+            <Alert severity="info" message="Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
           {newStatus === 'cancelled' && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!
-            </Alert>
+            <Alert severity="warning" message="Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</Button>
-          <Button onClick={confirmUpdateStatus} variant="contained" disabled={updating || !newStatus}>
-            {updating ? 'Đang cập nhật...' : 'Xác nhận'}
-          </Button>
+          <SecondaryButton onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</SecondaryButton>
+          <PrimaryButton onClick={confirmUpdateStatus} disabled={updating || !newStatus} loading={updating}>
+            Xác nhận
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
 

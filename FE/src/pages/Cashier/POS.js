@@ -17,7 +17,7 @@ import { getAvailableVouchers, validateVoucher, updateCustomerLoyaltyPoints, gen
 import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
 import CashPaymentModal from '../../components/CashPaymentModal';
-import { toast } from 'react-toastify';
+import { ToastNotification } from '../../components/common';
 
 // Hàm helper để format tiền tệ
 const formatCurrency = (number) => {
@@ -392,13 +392,13 @@ const POS = () => {
             const itemInCart = currentCart.find(item => item.id === product.id);
             if (itemInCart) {
                 // Tăng số lượng
-                toast.info(`Đã thêm ${product.name} (số lượng: ${itemInCart.qty + 1})`);
+                ToastNotification.info(`Đã thêm ${product.name} (số lượng: ${itemInCart.qty + 1})`);
                 return currentCart.map(item =>
                     item.id === product.id ? { ...item, qty: item.qty + 1 } : item
                 );
             } else {
                 // Thêm mới
-                toast.success(`Đã thêm ${product.name} vào giỏ hàng`);
+                ToastNotification.success(`Đã thêm ${product.name} vào giỏ hàng`);
                 return [...currentCart, { ...product, qty: 1 }];
             }
         });
@@ -433,7 +433,7 @@ const POS = () => {
         } catch (error) {
             console.error('Error clearing cart from localStorage:', error);
         }
-        toast.success('Đã xóa toàn bộ giỏ hàng');
+        ToastNotification.success('Đã xóa toàn bộ giỏ hàng');
         setShowClearCartModal(false);
     };
 
@@ -503,7 +503,7 @@ const POS = () => {
             }
         } catch (error) {
             console.error('Error searching customer:', error);
-            toast.error('Lỗi khi tìm kiếm khách hàng');
+            ToastNotification.error('Lỗi khi tìm kiếm khách hàng');
         } finally {
             setIsSearching(false);
         }
@@ -515,7 +515,7 @@ const POS = () => {
         setCustomerPhone('');
         setSearchResults([]);
         setShowCreateForm(false);
-        toast.success(`Đã chọn khách hàng: ${customer.name}`);
+        ToastNotification.success(`Đã chọn khách hàng: ${customer.name}`);
 
         // Load vouchers for selected customer
         await loadCustomerVouchers(customer.customer_id);
@@ -536,12 +536,12 @@ const POS = () => {
                 // Nếu không có voucher nào, tự động tạo voucher cho khách hàng
                 if (res.data.length === 0) {
                     console.log('No vouchers found, generating...');
-                    toast.info('Đang tạo voucher cho khách hàng...');
+                    ToastNotification.info('Đang tạo voucher cho khách hàng...');
                     const generateRes = await generateVouchersForCustomer(customerId);
                     console.log('Generate vouchers response:', generateRes);
 
                     if (generateRes && generateRes.err === 0) {
-                        toast.success(generateRes.msg);
+                        ToastNotification.success(generateRes.msg);
                         // Reload vouchers
                         const reloadRes = await getAvailableVouchers(customerId);
                         console.log('Reloaded vouchers:', reloadRes);
@@ -567,13 +567,13 @@ const POS = () => {
     // Xử lý chọn voucher
     const handleSelectVoucher = async (voucher) => {
         if (cart.length === 0) {
-            toast.warning('Vui lòng thêm sản phẩm vào giỏ hàng trước khi áp dụng voucher');
+            ToastNotification.warning('Vui lòng thêm sản phẩm vào giỏ hàng trước khi áp dụng voucher');
             return;
         }
 
         // Check minimum purchase amount
         if (subtotal < voucher.min_purchase_amount) {
-            toast.error(`Đơn hàng tối thiểu ${formatCurrency(voucher.min_purchase_amount)} để sử dụng voucher này`);
+            ToastNotification.error(`Đơn hàng tối thiểu ${formatCurrency(voucher.min_purchase_amount)} để sử dụng voucher này`);
             return;
         }
 
@@ -581,20 +581,20 @@ const POS = () => {
             const res = await validateVoucher(voucher.voucher_code, selectedCustomer.customer_id, subtotal);
             if (res && res.err === 0) {
                 setSelectedVoucher(voucher);
-                toast.success(`Đã áp dụng voucher: ${voucher.voucher_name}`);
+                ToastNotification.success(`Đã áp dụng voucher: ${voucher.voucher_name}`);
             } else {
-                toast.error(res.msg || 'Không thể áp dụng voucher');
+                ToastNotification.error(res.msg || 'Không thể áp dụng voucher');
             }
         } catch (error) {
             console.error('Error validating voucher:', error);
-            toast.error('Lỗi khi áp dụng voucher');
+            ToastNotification.error('Lỗi khi áp dụng voucher');
         }
     };
 
     // Xử lý hủy voucher
     const handleRemoveVoucher = () => {
         setSelectedVoucher(null);
-        toast.info('Đã hủy áp dụng voucher');
+        ToastNotification.info('Đã hủy áp dụng voucher');
     };
 
     // Xử lý chọn phương thức thanh toán
@@ -606,17 +606,17 @@ const POS = () => {
     const handleCheckout = async () => {
         // Kiểm tra ca làm việc
         if (!isShiftActive) {
-            toast.error('Vui lòng bắt đầu ca làm việc trước khi thanh toán');
+            ToastNotification.error('Vui lòng bắt đầu ca làm việc trước khi thanh toán');
             return;
         }
 
         if (cart.length === 0) {
-            toast.warning('Giỏ hàng trống');
+            ToastNotification.warning('Giỏ hàng trống');
             return;
         }
 
         if (!selectedPaymentMethod) {
-            toast.warning('Vui lòng chọn phương thức thanh toán');
+            ToastNotification.warning('Vui lòng chọn phương thức thanh toán');
             return;
         }
 
@@ -676,13 +676,13 @@ const POS = () => {
                     setQrPaymentData(qrData);
                     setShowPaymentModal(true);
                 } else {
-                    toast.error(res.msg || 'Không thể tạo mã QR thanh toán');
+                    ToastNotification.error(res.msg || 'Không thể tạo mã QR thanh toán');
                 }
             }
 
         } catch (error) {
             console.error('Error during checkout:', error);
-            toast.error('Lỗi khi thanh toán');
+            ToastNotification.error('Lỗi khi thanh toán');
         } finally {
             setIsProcessingPayment(false);
         }
@@ -690,7 +690,7 @@ const POS = () => {
 
     // Xử lý khi thanh toán QR thành công
     const handleQRPaymentSuccess = async (transactionId) => {
-        toast.success('Thanh toán QR thành công!');
+        ToastNotification.success('Thanh toán QR thành công!');
 
         // Refresh shift data to update sales totals (wait a bit for backend to commit)
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -702,7 +702,7 @@ const POS = () => {
             const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
             if (customerRes && customerRes.err === 0 && customerRes.data) {
                 setSelectedCustomer(customerRes.data);
-                toast.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+                ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
             }
 
             // Reload vouchers
@@ -726,31 +726,31 @@ const POS = () => {
         try {
             const { generateAndPrintInvoice } = await import('../utils/invoicePDF');
             await generateAndPrintInvoice(transactionId);
-            toast.success('Đang mở cửa sổ in...');
+            ToastNotification.success('Đang mở cửa sổ in...');
         } catch (error) {
             console.error('Error printing invoice:', error);
-            toast.error('Lỗi khi in hóa đơn');
+            ToastNotification.error('Lỗi khi in hóa đơn');
         }
     };
 
     // Xử lý tạo khách hàng mới
     const handleCreateCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) {
-            toast.error('Vui lòng nhập tên và số điện thoại');
+            ToastNotification.error('Vui lòng nhập tên và số điện thoại');
             return;
         }
 
         try {
             const res = await createCustomer(newCustomer);
             if (res && res.err === 0) {
-                toast.success('Tạo khách hàng thành công');
+                ToastNotification.success('Tạo khách hàng thành công');
                 handleSelectCustomer(res.data);
             } else {
-                toast.error(res.msg || 'Tạo khách hàng thất bại');
+                ToastNotification.error(res.msg || 'Tạo khách hàng thất bại');
             }
         } catch (error) {
             console.error('Error creating customer:', error);
-            toast.error('Lỗi khi tạo khách hàng');
+            ToastNotification.error('Lỗi khi tạo khách hàng');
         }
     };
 
@@ -791,7 +791,7 @@ const POS = () => {
             console.log('Cash payment response:', res);
 
             if (res && res.err === 0) {
-                toast.success('Thanh toán thành công!');
+                ToastNotification.success('Thanh toán thành công!');
 
                 // Update cash payment data with transaction info
                 setCashPaymentData(prev => ({
@@ -819,11 +819,11 @@ const POS = () => {
                 setSelectedVoucher(null);
                 setSelectedPaymentMethod(null);
             } else {
-                toast.error(res?.msg || 'Thanh toán thất bại');
+                ToastNotification.error(res?.msg || 'Thanh toán thất bại');
             }
         } catch (error) {
             console.error('Error completing cash payment:', error);
-            toast.error('Lỗi khi hoàn thành thanh toán: ' + error.message);
+            ToastNotification.error('Lỗi khi hoàn thành thanh toán: ' + error.message);
         }
     };
 
@@ -1426,14 +1426,14 @@ const POS = () => {
                         onClick={async () => {
                             // Kiểm tra lại có lịch làm việc hôm nay không
                             if (!hasTodaySchedule) {
-                                toast.error('Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.');
+                                ToastNotification.error('Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.');
                                 setShowCheckinModal(false);
                                 return;
                             }
                             
                             const open = Number(openingCashInput);
                             if (isNaN(open) || open < 0) {
-                                toast.error('Vui lòng nhập số tiền hợp lệ');
+                                ToastNotification.error('Vui lòng nhập số tiền hợp lệ');
                                 return;
                             }
                             const storedStoreId = (() => {
@@ -1470,9 +1470,9 @@ const POS = () => {
                                 
                                 setShowCheckinModal(false);
                                 setOpeningCashInput(''); // Reset input cho lần mở modal sau
-                                toast.success('Bắt đầu ca thành công!');
+                                ToastNotification.success('Bắt đầu ca thành công!');
                             } else {
-                                toast.error(resp?.msg || 'Không thể bắt đầu ca');
+                                ToastNotification.error(resp?.msg || 'Không thể bắt đầu ca');
                             }
                         }}
                     >
@@ -1542,11 +1542,11 @@ const POS = () => {
                         onClick={async () => {
                             const actual = Number(closingCashInput);
                             if (isNaN(actual) || actual < 0) {
-                                toast.error('Vui lòng nhập số tiền hợp lệ');
+                                ToastNotification.error('Vui lòng nhập số tiền hợp lệ');
                                 return;
                             }
                             if (!shiftId) {
-                                toast.error('Không tìm thấy ca làm việc');
+                                ToastNotification.error('Không tìm thấy ca làm việc');
                                 return;
                             }
                             const resp = await checkoutShift({ shift_id: shiftId, closing_cash: actual });
@@ -1566,9 +1566,9 @@ const POS = () => {
                                 processSchedules(todaySchedules);
                                 
                                 setShowCheckoutModal(false);
-                                toast.success('Kết ca thành công!');
+                                ToastNotification.success('Kết ca thành công!');
                             } else {
-                                toast.error(resp?.msg || 'Không thể kết ca');
+                                ToastNotification.error(resp?.msg || 'Không thể kết ca');
                             }
                         }}
                     >

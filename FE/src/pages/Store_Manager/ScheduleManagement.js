@@ -12,7 +12,7 @@ import { fetchEmployees, fetchEmployeeById } from "../../api/employeeApi";
 import ChangeShiftModal from "./ChangeShiftModal";
 import ShiftChangeRequestManagement from "./ShiftChangeRequestManagement";
 import { useAuth } from "../../contexts/AuthContext";
-import { toast } from "react-toastify";
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from "../../components/common";
 
 import {
   Table,
@@ -22,11 +22,9 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Button,
   Typography,
   Box,
   CircularProgress,
-  IconButton,
   Tooltip,
   Chip,
   useTheme,
@@ -45,6 +43,8 @@ import {
   ListItemText,
   Tabs,
   Tab,
+  IconButton,
+  Button,
 } from "@mui/material";
 import {
   ChevronLeft,
@@ -408,7 +408,7 @@ const ScheduleManagement = () => {
         const me = await fetchEmployeeById(user.id);
         const myStoreId = me?.data?.store_id || me?.data?.store?.store_id;
         if (!myStoreId) {
-          toast.error("Manager chưa gán cửa hàng");
+          ToastNotification.error("Manager chưa gán cửa hàng");
           setLoading(false);
           return;
         }
@@ -449,7 +449,7 @@ const ScheduleManagement = () => {
         });
         setSchedule(grid);
       } catch (e) {
-        toast.error("Tải dữ liệu lịch thất bại");
+        ToastNotification.error("Tải dữ liệu lịch thất bại");
       } finally {
         setLoading(false);
       }
@@ -553,9 +553,9 @@ const ScheduleManagement = () => {
 
         if (list.length === 0) {
           if (scheduleIdToReplace && userIdToReplace) {
-            toast.warning("Đã hết nhân viên để thay đổi cho ca này");
+            ToastNotification.warning("Đã hết nhân viên để thay đổi cho ca này");
           } else {
-            toast.warning("Đã hết nhân viên để thêm vào ca này");
+            ToastNotification.warning("Đã hết nhân viên để thêm vào ca này");
           }
           return;
         }
@@ -564,7 +564,7 @@ const ScheduleManagement = () => {
         setShowModal(true);
       }
     } catch (error) {
-      toast.error("Không thể tải danh sách nhân viên");
+      ToastNotification.error("Không thể tải danh sách nhân viên");
     }
   };
   const handleCloseModal = () => setShowModal(false);
@@ -578,7 +578,7 @@ const ScheduleManagement = () => {
           status: "confirmed",
         });
         if (res.err === 0) {
-          toast.success("Đổi nhân viên thành công");
+          ToastNotification.success("Đổi nhân viên thành công");
           setSchedule((prev) => {
             const dayObj = prev[dayKey] || {};
             const list = dayObj[templateId] ? [...dayObj[templateId]] : [];
@@ -602,7 +602,7 @@ const ScheduleManagement = () => {
             return { ...prev, shiftList: updatedList };
           });
         } else {
-          toast.error(res.msg || "Đổi nhân viên thất bại");
+          ToastNotification.error(res.msg || "Đổi nhân viên thất bại");
         }
       } else {
         // Thêm nhân viên mới
@@ -614,7 +614,7 @@ const ScheduleManagement = () => {
           status: "confirmed",
         });
         if (res.err === 0) {
-          toast.success("Thêm nhân viên vào ca thành công");
+          ToastNotification.success("Thêm nhân viên vào ca thành công");
           const newItem = {
             schedule_id: res?.data?.schedule_id,
             user_id: newEmployeeId,
@@ -635,7 +635,7 @@ const ScheduleManagement = () => {
             return { ...prev, shiftList: updated };
           });
         } else {
-          toast.error(res.msg || "Thêm nhân viên thất bại");
+          ToastNotification.error(res.msg || "Thêm nhân viên thất bại");
         }
       }
     } finally {
@@ -668,7 +668,7 @@ const ScheduleManagement = () => {
     try {
       const res = await apiDeleteSchedule(scheduleId);
       if (res.err === 0) {
-        toast.success("Xóa nhân viên khỏi ca thành công");
+        ToastNotification.success("Xóa nhân viên khỏi ca thành công");
         setSchedule((prev) => {
           const dayObj = prev[dayKey] || {};
           const list = dayObj[templateId] ? [...dayObj[templateId]] : [];
@@ -683,10 +683,10 @@ const ScheduleManagement = () => {
           return { ...prev, shiftList: updatedList };
         });
       } else {
-        toast.error(res.msg || "Xóa thất bại");
+        ToastNotification.error(res.msg || "Xóa thất bại");
       }
     } catch (e) {
-      toast.error("Không thể xóa lịch");
+      ToastNotification.error("Không thể xóa lịch");
     } finally {
       setConfirmDeleteOpen(false);
       setDeleteTarget(null);
@@ -853,16 +853,20 @@ const ScheduleManagement = () => {
               boxShadow: 1,
             }}
           >
-            <IconButton onClick={handlePrevWeek} color="primary">
-              <ChevronLeft />
-            </IconButton>
+            <ActionButton
+              icon={<Icon name="ArrowBack" />}
+              onClick={handlePrevWeek}
+              color="primary"
+            />
             <Typography variant="subtitle1" fontWeight={600}>
               Tuần {getWeekNumber(startOfWeek)} ({formatDate(startOfWeek)} -{" "}
               {formatDate(endOfWeek)})
             </Typography>
-            <IconButton onClick={handleNextWeek} color="primary">
-              <ChevronRight />
-            </IconButton>
+            <ActionButton
+              icon={<Icon name="ArrowForward" />}
+              onClick={handleNextWeek}
+              color="primary"
+            />
           </Box>
 
           {/* Schedule Content */}
@@ -1319,8 +1323,8 @@ const ScheduleManagement = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseConfirm} variant="outlined">Hủy</Button>
-          <Button onClick={handleConfirmDelete} color="error" variant="contained">Xóa</Button>
+          <SecondaryButton onClick={handleCloseConfirm}>Hủy</SecondaryButton>
+          <DangerButton onClick={handleConfirmDelete}>Xóa</DangerButton>
         </DialogActions>
       </Dialog>
     </Box>

@@ -4,7 +4,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   TextField,
   Autocomplete,
   Stack,
@@ -13,7 +12,7 @@ import {
   Alert,
   MenuItem
 } from '@mui/material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton } from './common';
 import { getAllProducts, getProductUnits } from '../api/orderApi';
 
 /**
@@ -60,10 +59,10 @@ export default function ProductSelectorDialog({
         );
         setProducts(availableProducts);
       } else {
-        toast.error('Không thể tải danh sách sản phẩm');
+        ToastNotification.error('Không thể tải danh sách sản phẩm');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -90,19 +89,19 @@ export default function ProductSelectorDialog({
   const handleAdd = async () => {
     // Validation
     if (!selectedProduct) {
-      toast.error('Vui lòng chọn sản phẩm');
+      ToastNotification.error('Vui lòng chọn sản phẩm');
       return;
     }
     if (!quantity || quantity <= 0) {
-      toast.error('Số lượng phải lớn hơn 0');
+      ToastNotification.error('Số lượng phải lớn hơn 0');
       return;
     }
     if (!unitPrice || parseFloat(unitPrice) <= 0) {
-      toast.error('Đơn giá phải lớn hơn 0');
+      ToastNotification.error('Đơn giá phải lớn hơn 0');
       return;
     }
     if (!selectedUnit) {
-      toast.error('Vui lòng chọn đơn vị');
+      ToastNotification.error('Vui lòng chọn đơn vị');
       return;
     }
 
@@ -119,9 +118,9 @@ export default function ProductSelectorDialog({
     try {
       await onAdd(newItem);
       handleClose();
-      toast.success('Đã thêm sản phẩm vào đơn hàng');
+      ToastNotification.success('Đã thêm sản phẩm vào đơn hàng');
     } catch (error) {
-      toast.error(error.message || 'Không thể thêm sản phẩm');
+      ToastNotification.error(error.message || 'Không thể thêm sản phẩm');
     } finally {
       setAdding(false);
     }
@@ -235,16 +234,16 @@ export default function ProductSelectorDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleClose} disabled={adding}>
+        <SecondaryButton onClick={handleClose} disabled={adding}>
           Hủy
-        </Button>
-        <Button 
-          onClick={handleAdd} 
-          variant="contained" 
+        </SecondaryButton>
+        <PrimaryButton
+          onClick={handleAdd}
           disabled={adding || !selectedProduct || loading}
+          loading={adding}
         >
-          {adding ? 'Đang thêm...' : 'Thêm sản phẩm'}
-        </Button>
+          Thêm sản phẩm
+        </PrimaryButton>
       </DialogActions>
     </Dialog>
   );

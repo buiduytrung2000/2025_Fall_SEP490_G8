@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { getUsers } from '../../api/mockApi';
 import { MaterialReactTable } from 'material-react-table';
-import { Box, IconButton } from '@mui/material';
-import { Edit, Delete } from '@mui/icons-material';
+import { Box } from '@mui/material';
+import { ActionButton, Icon } from '../../components/common';
 
 const AdminPermissions = () => {
     const [users, setUsers] = useState([]);
@@ -49,22 +49,20 @@ const AdminPermissions = () => {
                 positionActionsColumn="last"
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '1rem' }}>
-                        <IconButton
-                            color="warning"
+                        <ActionButton
+                            icon={<Icon name="Edit" />}
+                            action="edit"
                             onClick={() => {
                                 console.log('Edit user:', row.original);
                             }}
-                        >
-                            <Edit />
-                        </IconButton>
-                        <IconButton
-                            color="error"
+                        />
+                        <ActionButton
+                            icon={<Icon name="Delete" />}
+                            action="delete"
                             onClick={() => {
                                 console.log('Delete user:', row.original);
                             }}
-                        >
-                            <Delete />
-                        </IconButton>
+                        />
                     </Box>
                 )}
                 // Thêm các thuộc tính internationalization (tiếng Việt) nếu muốn

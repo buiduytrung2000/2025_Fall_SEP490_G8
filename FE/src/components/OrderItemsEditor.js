@@ -7,16 +7,13 @@ import {
   TableBody,
   TableContainer,
   TextField,
-  IconButton,
-  Button,
   Stack,
   Typography,
   Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-  Alert
+  DialogActions
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -26,7 +23,8 @@ import {
   Add as AddIcon,
   Lock as LockIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from './common';
+import { Alert } from '@mui/material';
 
 /**
  * OrderItemsEditor Component
@@ -75,7 +73,7 @@ export default function OrderItemsEditor({
   const handleQuantityChange = (index, newQuantity) => {
     const qty = parseInt(newQuantity) || 0;
     if (qty < 0) {
-      toast.error('Số lượng phải là số dương');
+      ToastNotification.error('Số lượng phải là số dương');
       return;
     }
 
@@ -101,14 +99,14 @@ export default function OrderItemsEditor({
       setItems(prevItems => prevItems.filter((_, idx) => idx !== itemToDelete.index));
       setDeleteDialog(false);
       setItemToDelete(null);
-      toast.success('Đã xóa sản phẩm');
+      ToastNotification.success('Đã xóa sản phẩm');
     }
   };
 
   // Enter edit mode
   const handleEdit = () => {
     if (!isEditable) {
-      toast.warning('Không thể chỉnh sửa đơn hàng đã khóa');
+      ToastNotification.warning('Không thể chỉnh sửa đơn hàng đã khóa');
       return;
     }
     setEditMode(true);
@@ -135,12 +133,12 @@ export default function OrderItemsEditor({
     );
 
     if (hasInvalidQuantity) {
-      toast.error('Tất cả sản phẩm phải có số lượng lớn hơn 0');
+      ToastNotification.error('Tất cả sản phẩm phải có số lượng lớn hơn 0');
       return;
     }
 
     if (items.length === 0) {
-      toast.error('Đơn hàng phải có ít nhất 1 sản phẩm');
+      ToastNotification.error('Đơn hàng phải có ít nhất 1 sản phẩm');
       return;
     }
 
@@ -156,9 +154,9 @@ export default function OrderItemsEditor({
     try {
       await onSave(updatedItems);
       setEditMode(false);
-      toast.success('Cập nhật đơn hàng thành công');
+      ToastNotification.success('Cập nhật đơn hàng thành công');
     } catch (error) {
-      toast.error(error.message || 'Không thể cập nhật đơn hàng');
+      ToastNotification.error(error.message || 'Không thể cập nhật đơn hàng');
     } finally {
       setSaving(false);
     }
@@ -175,57 +173,53 @@ export default function OrderItemsEditor({
             <>
               {isEditable && (
                 <>
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
+                  <SecondaryButton
+                    startIcon={<Icon name="Add" />}
                     onClick={onAddProduct}
                     size="small"
                   >
                     Thêm sản phẩm
-                  </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<EditIcon />}
+                  </SecondaryButton>
+                  <PrimaryButton
+                    startIcon={<Icon name="Edit" />}
                     onClick={handleEdit}
                     size="small"
                   >
                     Chỉnh sửa
-                  </Button>
+                  </PrimaryButton>
                 </>
               )}
               {!isEditable && (
                 <Tooltip title="Đơn hàng đã khóa, không thể chỉnh sửa">
-                  <Button
-                    variant="outlined"
-                    startIcon={<LockIcon />}
+                  <SecondaryButton
+                    startIcon={<Icon name="Lock" />}
                     disabled
                     size="small"
                   >
                     Đã khóa
-                  </Button>
+                  </SecondaryButton>
                 </Tooltip>
               )}
             </>
           ) : (
             <>
-              <Button
-                variant="outlined"
-                startIcon={<CancelIcon />}
+              <SecondaryButton
+                startIcon={<Icon name="Cancel" />}
                 onClick={handleCancel}
                 disabled={saving}
                 size="small"
               >
                 Hủy
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
+              </SecondaryButton>
+              <PrimaryButton
+                startIcon={<Icon name="Save" />}
                 onClick={handleSave}
                 disabled={saving || !hasChanges}
+                loading={saving}
                 size="small"
               >
-                {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-              </Button>
+                Lưu thay đổi
+              </PrimaryButton>
             </>
           )}
         </Stack>
@@ -301,14 +295,14 @@ export default function OrderItemsEditor({
                     {editMode && (
                       <TableCell align="center">
                         <Tooltip title="Xóa sản phẩm">
-                          <IconButton
+                          <ActionButton
+                            icon={<Icon name="Delete" />}
+                            action="delete"
                             size="small"
-                            color="error"
                             onClick={() => confirmDelete(item, idx)}
                             disabled={items.length === 1}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                            tooltip="Xóa sản phẩm"
+                          />
                         </Tooltip>
                       </TableCell>
                     )}
@@ -347,10 +341,10 @@ export default function OrderItemsEditor({
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog(false)}>Hủy</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
+          <SecondaryButton onClick={() => setDeleteDialog(false)}>Hủy</SecondaryButton>
+          <DangerButton onClick={handleDelete}>
             Xóa
-          </Button>
+          </DangerButton>
         </DialogActions>
       </Dialog>
     </>

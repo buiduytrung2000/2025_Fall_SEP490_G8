@@ -39,7 +39,7 @@ import {
   Legend,
 } from 'chart.js';
 import { getTodayKPIs, getRevenueLast7Days, getTopSellingProducts, getTodaySchedules, getEmployeeStats } from '../../api/dashboardApi';
-import { toast } from 'react-toastify';
+import { ToastNotification } from '../../components/common';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -136,7 +136,7 @@ const ManagerDashboard = () => {
           setKpis(kpisRes.data);
         } else {
           console.error('KPIs error:', kpisRes);
-          toast.error(kpisRes.msg || 'Không thể tải KPIs');
+          ToastNotification.error(kpisRes.msg || 'Không thể tải KPIs');
           // Set default values to show something
           setKpis({ todayRevenue: 0, todayOrders: 0, newCustomers: 0 });
         }
@@ -145,7 +145,7 @@ const ManagerDashboard = () => {
           setRevenueData(revenueRes.data || []);
         } else {
           console.error('Revenue error:', revenueRes);
-          toast.error(revenueRes.msg || 'Không thể tải doanh thu');
+          ToastNotification.error(revenueRes.msg || 'Không thể tải doanh thu');
           setRevenueData([]);
         }
 
@@ -153,7 +153,7 @@ const ManagerDashboard = () => {
           setTopProducts(productsRes.data || []);
         } else {
           console.error('Products error:', productsRes);
-          toast.error(productsRes.msg || 'Không thể tải sản phẩm');
+          ToastNotification.error(productsRes.msg || 'Không thể tải sản phẩm');
           setTopProducts([]);
         }
 
@@ -161,7 +161,7 @@ const ManagerDashboard = () => {
           setTodaySchedules(schedulesRes.data || []);
         } else {
           console.error('Schedules error:', schedulesRes);
-          toast.error(schedulesRes.msg || 'Không thể tải lịch làm việc');
+          ToastNotification.error(schedulesRes.msg || 'Không thể tải lịch làm việc');
           setTodaySchedules([]);
         }
 
@@ -171,7 +171,7 @@ const ManagerDashboard = () => {
           console.error('Employee stats error:', empStatsRes);
         }
       } catch (error) {
-        toast.error('Lỗi khi tải dữ liệu dashboard: ' + error.message);
+        ToastNotification.error('Lỗi khi tải dữ liệu dashboard: ' + error.message);
       } finally {
         setLoading(false);
       }

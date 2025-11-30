@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, InputGroup, ListGroup, Button, Spinner } from 'react-bootstrap';
 import { FaSearch, FaUserCircle, FaTimes } from 'react-icons/fa';
 import { searchCustomerByPhone, createCustomer } from '../../api/customerApi';
-import { toast } from 'react-toastify';
+import { ToastNotification } from './index';
 
 const CustomerSearchModal = ({ show, onHide, onSelectCustomer }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -45,7 +45,7 @@ const CustomerSearchModal = ({ show, onHide, onSelectCustomer }) => {
             }
         } catch (error) {
             console.error('Error searching customer:', error);
-            toast.error('Lỗi khi tìm kiếm khách hàng');
+            ToastNotification.error('Lỗi khi tìm kiếm khách hàng');
         } finally {
             setLoading(false);
         }
@@ -58,22 +58,22 @@ const CustomerSearchModal = ({ show, onHide, onSelectCustomer }) => {
 
     const handleCreateCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) {
-            toast.error('Vui lòng nhập tên và số điện thoại');
+            ToastNotification.error('Vui lòng nhập tên và số điện thoại');
             return;
         }
 
         try {
             const res = await createCustomer(newCustomer);
             if (res && res.err === 0) {
-                toast.success('Tạo khách hàng thành công');
+                ToastNotification.success('Tạo khách hàng thành công');
                 onSelectCustomer(res.data);
                 handleClose();
             } else {
-                toast.error(res.msg || 'Tạo khách hàng thất bại');
+                ToastNotification.error(res.msg || 'Tạo khách hàng thất bại');
             }
         } catch (error) {
             console.error('Error creating customer:', error);
-            toast.error('Lỗi khi tạo khách hàng');
+            ToastNotification.error('Lỗi khi tạo khách hàng');
         }
     };
 

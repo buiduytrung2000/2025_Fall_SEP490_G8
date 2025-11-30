@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import { MaterialReactTable } from "material-react-table";
 import { getBranchProductSales } from "../../api/dashboardApi";
-import { toast } from "react-toastify";
+import { ToastNotification } from "../../components/common";
 
 const summaryBoxSx = {
   borderRadius: 2,
@@ -84,7 +84,7 @@ export default function CEORevenueBoard() {
           throw new Error(response.msg || "Không tải được dữ liệu.");
         }
       } catch (error) {
-        toast.error(error.message || "Không tải được dữ liệu doanh thu.");
+        ToastNotification.error(error.message || "Không tải được dữ liệu doanh thu.");
       } finally {
         setLoading(false);
       }

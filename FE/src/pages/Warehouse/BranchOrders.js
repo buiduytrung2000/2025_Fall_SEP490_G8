@@ -11,22 +11,14 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Button,
   MenuItem,
   TextField,
   Stack,
   TablePagination,
-  IconButton,
   Tooltip,
   CircularProgress
 } from '@mui/material';
-import {
-  Visibility as ViewIcon,
-  Refresh as RefreshIcon,
-  FilterList as FilterIcon,
-  LocalShipping as ShippingIcon
-} from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { PrimaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 import { getAllWarehouseOrders } from '../../api/warehouseOrderApi';
 
 const statusColors = {
@@ -90,10 +82,10 @@ const BranchOrders = () => {
         setOrders(response.data.orders || []);
         setTotalOrders(response.data.pagination.totalOrders || 0);
       } else {
-        toast.error(response.msg || 'Không thể tải danh sách đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể tải danh sách đơn hàng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -151,9 +143,11 @@ const BranchOrders = () => {
           </Typography>
         </Box>
         <Tooltip title="Làm mới">
-          <IconButton onClick={handleRefresh} color="primary">
-            <RefreshIcon />
-          </IconButton>
+          <ActionButton
+            icon={<Icon name="Refresh" />}
+            onClick={handleRefresh}
+            color="primary"
+          />
         </Tooltip>
       </Stack>
 
@@ -185,14 +179,13 @@ const BranchOrders = () => {
             sx={{ flexGrow: 1 }}
           />
 
-          <Button
-            variant="contained"
-            startIcon={<FilterIcon />}
+          <PrimaryButton
+            startIcon={<Icon name="Filter" />}
             onClick={handleSearch}
             sx={{ minWidth: 120 }}
           >
             Tìm kiếm
-          </Button>
+          </PrimaryButton>
         </Stack>
       </Paper>
 
@@ -274,27 +267,21 @@ const BranchOrders = () => {
                   </TableCell>
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
-                      <Tooltip title="Xem chi tiết">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleViewDetail(order.order_id)}
-                        >
-                          <ViewIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <ActionButton
+                        icon={<Icon name="View" />}
+                        action="view"
+                        onClick={() => handleViewDetail(order.order_id)}
+                        tooltip="Xem chi tiết"
+                      />
                       {['confirmed', 'shipped'].includes(
                         order.status === 'preparing' ? 'confirmed' : order.status
                       ) && (
-                        <Tooltip title="Xuất đơn hàng">
-                          <IconButton
-                            size="small"
-                            color="success"
-                            onClick={() => handleShipOrder(order.order_id)}
-                          >
-                            <ShippingIcon />
-                          </IconButton>
-                        </Tooltip>
+                        <ActionButton
+                          icon={<Icon name="Upload" />}
+                          onClick={() => handleShipOrder(order.order_id)}
+                          color="success"
+                          tooltip="Xuất đơn hàng"
+                        />
                       )}
                     </Stack>
                   </TableCell>

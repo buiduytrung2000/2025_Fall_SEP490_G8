@@ -5,9 +5,10 @@ import { getMySchedules, getShiftTemplates } from '../../api/scheduleApi';
 // Import các component từ Material-UI (MUI)
 import {
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, Typography, Box, CircularProgress, IconButton, Chip, Tooltip
+    Paper, Typography, Box, CircularProgress, Chip, Tooltip
 } from '@mui/material';
-import { ChevronLeft, ChevronRight, CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
+import { ActionButton, Icon } from '../../components/common';
+import { CheckCircle, RadioButtonUnchecked } from '@mui/icons-material';
 
 // --- HÀM HELPER VỀ NGÀY THÁNG (Copy từ ScheduleManagement) ---
 const getStartOfWeek = (date) => {
@@ -175,11 +176,17 @@ const MySchedule = () => {
 
             {/* --- Bộ chọn tuần --- */}
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 2 }}>
-                <IconButton onClick={handlePrevWeek}><ChevronLeft /></IconButton>
+                <ActionButton
+                  icon={<Icon name="ArrowBack" />}
+                  onClick={handlePrevWeek}
+                />
                 <Typography variant="h6" sx={{ mx: 2 }}>
                     Tuần {getWeekNumber(currentDate)} ({formatDate(startOfWeek)} - {formatDate(endOfWeek)})
                 </Typography>
-                <IconButton onClick={handleNextWeek}><ChevronRight /></IconButton>
+                <ActionButton
+                  icon={<Icon name="ArrowForward" />}
+                  onClick={handleNextWeek}
+                />
             </Box>
             
             {/* --- Bảng lịch --- */}

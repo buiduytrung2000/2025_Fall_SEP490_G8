@@ -11,12 +11,11 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Button,
   MenuItem,
   TextField,
   Stack
 } from '@mui/material';
-import { toast } from 'react-toastify';
+import { PrimaryButton, DangerButton, ToastNotification } from '../../components/common';
 import { getAllWarehouseOrders, updateWarehouseOrderStatus } from '../../api/warehouseOrderApi';
 
 const STATUS_OPTIONS = [
@@ -59,12 +58,12 @@ const IncomingOrders = () => {
       if (response.err === 0) {
         setOrders(response.data?.orders || []);
       } else {
-        toast.error(response.msg || 'Không thể tải danh sách đơn');
+        ToastNotification.error(response.msg || 'Không thể tải danh sách đơn');
         setOrders([]);
       }
     } catch (error) {
       console.error('Error loading warehouse orders:', error);
-      toast.error('Lỗi kết nối máy chủ');
+      ToastNotification.error('Lỗi kết nối máy chủ');
       setOrders([]);
     } finally {
       setLoading(false);
@@ -83,14 +82,14 @@ const IncomingOrders = () => {
     try {
       const response = await updateWarehouseOrderStatus(orderId, nextStatus);
       if (response.err === 0) {
-        toast.success(response.msg || 'Cập nhật trạng thái thành công');
+        ToastNotification.success(response.msg || 'Cập nhật trạng thái thành công');
         await fetchOrders();
       } else {
-        toast.error(response.msg || 'Không thể cập nhật trạng thái');
+        ToastNotification.error(response.msg || 'Không thể cập nhật trạng thái');
       }
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast.error('Lỗi kết nối máy chủ');
+      ToastNotification.error('Lỗi kết nối máy chủ');
     } finally {
       setUpdatingId(null);
     }
@@ -169,28 +168,25 @@ const IncomingOrders = () => {
                   <TableCell>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { xs: 200, sm: 'auto' } }}>
                       {action && (
-                        <Button 
+                        <PrimaryButton 
                           disabled={updatingId === r.store_order_id}
-                          variant="contained"
-                          color="primary"
                           size="small"
                           onClick={() => handleUpdateStatus(r.store_order_id, action.nextStatus)}
                           sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
                         >
                           {action.label}
-                        </Button>
+                        </PrimaryButton>
                       )}
                       {canCancel && (
-                        <Button 
+                        <DangerButton 
                           disabled={updatingId === r.store_order_id}
-                          variant="outlined" 
-                          color="error"
+                          variant="outlined"
                           size="small"
                           onClick={() => handleUpdateStatus(r.store_order_id, 'cancelled')}
                           sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
                         >
                           Hủy đơn
-                        </Button>
+                        </DangerButton>
                       )}
                     </Stack>
                   </TableCell>

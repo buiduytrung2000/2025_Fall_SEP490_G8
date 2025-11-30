@@ -6,20 +6,25 @@ import {
 } from 'material-react-table';
 import {
     Box,
-    Button,
     CircularProgress,
-    Alert,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
     Chip,
 } from '@mui/material';
-import { Add, Edit, Delete, Refresh } from '@mui/icons-material';
-import { toast } from 'react-toastify';
 import { getAllUsers, deleteUser, reactivateUser } from '../../api/userApi';
 import UserDialog from '../../components/common/UserDialog';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+    PrimaryButton,
+    SecondaryButton,
+    DangerButton,
+    ActionButton,
+    ToastNotification,
+    Alert,
+    Icon
+} from '../../components/common';
 import './UserManagement.css';
 
 const UserManagement = () => {
@@ -47,12 +52,12 @@ const UserManagement = () => {
                 setUsers(response.response || []);
             } else {
                 setError(response.msg || 'Không thể tải danh sách người dùng');
-                toast.error(response.msg || 'Không thể tải danh sách người dùng');
+                ToastNotification.error(response.msg || 'Không thể tải danh sách người dùng');
             }
         } catch (error) {
             const errorMsg = error.response?.data?.msg || error.message || 'Có lỗi xảy ra';
             setError(errorMsg);
-            toast.error(errorMsg);
+            ToastNotification.error(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -75,7 +80,7 @@ const UserManagement = () => {
     const handleDeleteClick = (userToDelete) => {
         // Prevent self-deletion
         if (userToDelete.user_id === currentUser.user_id) {
-            toast.warning('Bạn không thể vô hiệu hóa tài khoản của chính mình');
+            ToastNotification.warning('Bạn không thể vô hiệu hóa tài khoản của chính mình');
             return;
         }
         setDeleteConfirm(userToDelete);
@@ -87,13 +92,13 @@ const UserManagement = () => {
         try {
             const response = await deleteUser(deleteConfirm.user_id);
             if (response.err === 0) {
-                toast.success('Người dùng đã được vô hiệu hóa thành công');
+                ToastNotification.success('Người dùng đã được vô hiệu hóa thành công');
                 fetchUsers();
             } else {
-                toast.error(response.msg || 'Lỗi khi vô hiệu hóa người dùng');
+                ToastNotification.error(response.msg || 'Lỗi khi vô hiệu hóa người dùng');
             }
         } catch (error) {
-            toast.error('Lỗi khi vô hiệu hóa người dùng');
+            ToastNotification.error('Lỗi khi vô hiệu hóa người dùng');
         } finally {
             setDeleteConfirm(null);
         }
@@ -103,13 +108,13 @@ const UserManagement = () => {
         try {
             const response = await reactivateUser(userToReactivate.user_id);
             if (response.err === 0) {
-                toast.success('Người dùng đã được kích hoạt lại thành công');
+                ToastNotification.success('Người dùng đã được kích hoạt lại thành công');
                 fetchUsers();
             } else {
-                toast.error(response.msg || 'Lỗi khi kích hoạt lại người dùng');
+                ToastNotification.error(response.msg || 'Lỗi khi kích hoạt lại người dùng');
             }
         } catch (error) {
-            toast.error('Lỗi khi kích hoạt lại người dùng');
+            ToastNotification.error('Lỗi khi kích hoạt lại người dùng');
         }
     };
 
@@ -280,37 +285,31 @@ const UserManagement = () => {
             const userData = row.original;
             return (
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                        variant="outlined"
+                    <SecondaryButton
                         size="small"
-                        startIcon={<Edit />}
+                        startIcon={<Icon name="Edit" />}
                         onClick={() => handleOpenDialog(userData)}
-                        sx={{ textTransform: 'none' }}
                     >
                         Sửa
-                    </Button>
+                    </SecondaryButton>
                     {userData.is_active ? (
-                        <Button
+                        <DangerButton
                             variant="outlined"
-                            color="error"
                             size="small"
-                            startIcon={<Delete />}
+                            startIcon={<Icon name="Delete" />}
                             onClick={() => handleDeleteClick(userData)}
                             disabled={userData.user_id === currentUser.user_id}
-                            sx={{ textTransform: 'none' }}
                         >
                             Vô hiệu hóa
-                        </Button>
+                        </DangerButton>
                     ) : (
-                        <Button
-                            variant="outlined"
-                            color="success"
+                        <SecondaryButton
                             size="small"
                             onClick={() => handleReactivate(userData)}
-                            sx={{ textTransform: 'none' }}
+                            sx={{ color: 'success.main', borderColor: 'success.main' }}
                         >
                             Kích hoạt
-                        </Button>
+                        </SecondaryButton>
                     )}
                 </Box>
             );
@@ -347,27 +346,24 @@ const UserManagement = () => {
                     <p>Quản lý danh sách tất cả người dùng trong hệ thống</p>
                 </div>
                 <div className="header-actions">
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<Add />}
+                    <PrimaryButton
+                        startIcon={<Icon name="Add" />}
                         onClick={() => handleOpenDialog()}
                     >
                         Thêm Người dùng
-                    </Button>
-                    <Button
-                        variant="outlined"
-                        startIcon={<Refresh />}
+                    </PrimaryButton>
+                    <SecondaryButton
+                        startIcon={<Icon name="Refresh" />}
                         onClick={fetchUsers}
                         disabled={loading}
                     >
                         Làm mới
-                    </Button>
+                    </SecondaryButton>
                 </div>
             </div>
 
             {error && (
-                <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+                <Alert severity="error" dismissible onClose={() => setError(null)}>
                     {error}
                 </Alert>
             )}
@@ -444,18 +440,16 @@ const UserManagement = () => {
                     Bạn có chắc chắn muốn vô hiệu hóa người dùng <strong>{deleteConfirm?.username}</strong> không?
                 </DialogContent>
                 <DialogActions sx={{ p: 2, gap: 1 }}>
-                    <Button
-                        variant="secondary"
+                    <SecondaryButton
                         onClick={() => setDeleteConfirm(null)}
                     >
                         Hủy
-                    </Button>
-                    <Button
-                        variant="danger"
+                    </SecondaryButton>
+                    <DangerButton
                         onClick={confirmDelete}
                     >
                         Vô hiệu hóa
-                    </Button>
+                    </DangerButton>
                 </DialogActions>
             </Dialog>
         </div>

@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Stack,
   Divider,
   Grid,
@@ -20,7 +19,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
   CircularProgress,
   Alert,
   Stepper,
@@ -35,7 +33,7 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, ActionButton, Icon } from '../../components/common';
 import {
   getWarehouseOrderDetail,
   updateWarehouseOrderStatus,
@@ -118,24 +116,24 @@ const OrderShipment = () => {
           orderData.status === 'preparing' ? 'confirmed' : orderData.status;
 
         if (normalizedStatus === 'pending') {
-          toast.warning('Đơn hàng này chưa được xác nhận');
+          ToastNotification.warning('Đơn hàng này chưa được xác nhận');
           navigate('/warehouse/branch-orders');
           return;
         }
 
         if (normalizedStatus === 'cancelled') {
-          toast.error('Đơn hàng này đã bị hủy');
+          ToastNotification.error('Đơn hàng này đã bị hủy');
           navigate('/warehouse/branch-orders');
           return;
         }
 
         setOrder({ ...orderData, status: normalizedStatus });
       } else {
-        toast.error(response.msg || 'Không thể tải thông tin đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể tải thông tin đơn hàng');
         navigate('/warehouse/branch-orders');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
       navigate('/warehouse/branch-orders');
     } finally {
       setLoading(false);
@@ -210,7 +208,7 @@ const OrderShipment = () => {
     const qty = parseInt(editingQuantity);
 
     if (isNaN(qty) || qty < 0) {
-      toast.error('Số lượng không hợp lệ');
+      ToastNotification.error('Số lượng không hợp lệ');
       return;
     }
 
@@ -218,14 +216,14 @@ const OrderShipment = () => {
     try {
       const response = await updateOrderItemQuantity(itemId, qty);
       if (response.err === 0) {
-        toast.success('Cập nhật số lượng thực tế thành công!');
+        ToastNotification.success('Cập nhật số lượng thực tế thành công!');
         handleCancelEdit();
         loadOrderDetail();
       } else {
-        toast.error(response.msg || 'Không thể cập nhật số lượng');
+        ToastNotification.error(response.msg || 'Không thể cập nhật số lượng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -238,7 +236,7 @@ const OrderShipment = () => {
   const handleOpenConfirmDialog = () => {
     const next = getNextStatus(order.status);
     if (!next) {
-      toast.warning('Không thể cập nhật trạng thái tiếp theo');
+      ToastNotification.warning('Không thể cập nhật trạng thái tiếp theo');
       return;
     }
     setNextStatus(next);
@@ -252,14 +250,14 @@ const OrderShipment = () => {
     try {
       const response = await updateWarehouseOrderStatus(id, nextStatus);
       if (response.err === 0) {
-        toast.success(response.msg || 'Cập nhật trạng thái thành công!');
+        ToastNotification.success(response.msg || 'Cập nhật trạng thái thành công!');
         setConfirmDialog(false);
         loadOrderDetail();
       } else {
-        toast.error(response.msg || 'Không thể cập nhật trạng thái');
+        ToastNotification.error(response.msg || 'Không thể cập nhật trạng thái');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -583,30 +581,26 @@ const OrderShipment = () => {
                             {order.status !== 'delivered' && order.status !== 'shipped' && (
                               isEditing ? (
                                 <Stack direction="row" spacing={0.5} justifyContent="center">
-                                  <IconButton
+                                  <ActionButton
+                                    icon={<Icon name="Save" />}
                                     size="small"
-                                    color="success"
                                     onClick={() => handleSaveQuantity(item.order_item_id)}
-                                  >
-                                    <SaveIcon fontSize="small" />
-                                  </IconButton>
-                                  <IconButton
+                                    sx={{ color: 'success.main' }}
+                                  />
+                                  <ActionButton
+                                    icon={<Icon name="Cancel" />}
+                                    action="delete"
                                     size="small"
-                                    color="error"
                                     onClick={handleCancelEdit}
-                                  >
-                                    <CancelIcon fontSize="small" />
-                                  </IconButton>
+                                  />
                                 </Stack>
                               ) : (
-                                <IconButton
+                                <ActionButton
+                                  icon={<Icon name="Edit" />}
                                   size="small"
-                                  color="primary"
                                   onClick={() => handleEditQuantity(item)}
                                   disabled={stockAvailable === 0 || (stockInPackages !== null && stockInPackages < 1)}
-                                >
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
+                                />
                               )
                             )}
                           </TableCell>
@@ -644,17 +638,15 @@ const OrderShipment = () => {
                     <Alert severity="info" sx={{ mb: 2 }}>
                       Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
                     </Alert>
-                    <Button
+                    <PrimaryButton
                       fullWidth
-                      variant="contained"
-                      color="primary"
                       size="large"
                       startIcon={getStatusActionIcon(next)}
                       onClick={handleOpenConfirmDialog}
                       sx={{ py: 1.5, fontWeight: 600 }}
                     >
                       {getStatusActionLabel(next)}
-                    </Button>
+                    </PrimaryButton>
                   </>
                 ) : order.status === 'delivered' ? (
                   <Alert severity="success">
@@ -719,18 +711,18 @@ const OrderShipment = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setConfirmDialog(false)} disabled={updating}>
+          <SecondaryButton onClick={() => setConfirmDialog(false)} disabled={updating}>
             Hủy
-          </Button>
-          <Button
+          </SecondaryButton>
+          <PrimaryButton
             onClick={handleUpdateStatus}
-            variant="contained"
             disabled={updating}
-            color={nextStatus === 'delivered' ? 'success' : 'primary'}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : getStatusActionIcon(nextStatus)}
+            loading={updating}
+            startIcon={getStatusActionIcon(nextStatus)}
+            sx={nextStatus === 'delivered' ? { bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } } : {}}
           >
-            {updating ? 'Đang cập nhật...' : 'Xác nhận'}
-          </Button>
+            Xác nhận
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
     </Box>
