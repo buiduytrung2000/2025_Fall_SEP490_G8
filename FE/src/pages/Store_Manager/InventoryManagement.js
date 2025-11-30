@@ -28,6 +28,7 @@ import {
 } from '@mui/material';
 import { Refresh, Add } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 import { createWarehouseOrder } from '../../api/warehouseOrderApi';
 import { getStoreInventory } from '../../api/inventoryApi';
@@ -850,9 +851,7 @@ const InventoryManagement = () => {
           isLoading: loading,
           showProgressBars: loading
         }}
-        localization={{
-          noRecordsToDisplay: 'Không có dữ liệu'
-        }}
+        localization={MRT_Localization_VI}
         initialState={{
           pagination: { pageSize: 10, pageIndex: 0 },
         }}

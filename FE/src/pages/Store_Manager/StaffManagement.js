@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Spinner, Modal, Form, Button } from 'react-bootstrap';
+import { Modal, Form, Button } from 'react-bootstrap';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
-import { Box } from '@mui/material';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
+import { Box, Typography } from '@mui/material';
 import { PrimaryButton, ActionButton, ToastNotification, Icon } from '../../components/common'; 
 
 const StaffManagement = () => {
     const { user } = useAuth();
     const [staffList, setStaffList] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [showFormModal, setShowFormModal] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentStaff, setCurrentStaff] = useState(null);
@@ -19,7 +19,6 @@ const StaffManagement = () => {
     const [errors, setErrors] = useState({});
 
     const loadEmployees = async () => {
-        setLoading(true);
         const res = await fetchEmployees({ limit: 100 });
         if (res && res.err === 0) {
             const mapped = (res.data || []).map(u => ({
@@ -36,7 +35,6 @@ const StaffManagement = () => {
         } else {
             ToastNotification.error(res?.msg || 'Tải danh sách nhân viên thất bại');
         }
-        setLoading(false);
     };
 
     useEffect(() => { 
@@ -179,20 +177,66 @@ const StaffManagement = () => {
 
     const columns = useMemo(
         () => [
-            { id: 'stt', header: 'STT', size: 50, enableSorting: false, Cell: ({ row }) => row.index + 1 },
-            { accessorKey: 'name', header: 'Họ và Tên' },
-            { accessorKey: 'phone', header: 'Số điện thoại' },
-            { accessorKey: 'address', header: 'Địa chỉ' },
-            { accessorKey: 'role', header: 'Vai trò' },
+            { 
+                id: 'stt', 
+                header: 'STT', 
+                size: 50, 
+                enableSorting: false, 
+                Cell: ({ row }) => row.index + 1,
+                muiTableHeadCellProps: {
+                    align: 'center',
+                },
+                muiTableBodyCellProps: {
+                    align: 'center',
+                },
+            },
+            { 
+                accessorKey: 'name', 
+                header: 'Họ và Tên',
+                muiTableHeadCellProps: {
+                    align: 'center',
+                },
+                muiTableBodyCellProps: {
+                    align: 'center',
+                },
+            },
+            { 
+                accessorKey: 'phone', 
+                header: 'Số điện thoại',
+                muiTableHeadCellProps: {
+                    align: 'center',
+                },
+                muiTableBodyCellProps: {
+                    align: 'center',
+                },
+            },
+            { 
+                accessorKey: 'address', 
+                header: 'Địa chỉ',
+                muiTableHeadCellProps: {
+                    align: 'center',
+                },
+                muiTableBodyCellProps: {
+                    align: 'center',
+                },
+            },
+            { 
+                accessorKey: 'role', 
+                header: 'Vai trò',
+                muiTableHeadCellProps: {
+                    align: 'center',
+                },
+                muiTableBodyCellProps: {
+                    align: 'center',
+                },
+            },
         ],
         [],
     );
 
-    if (loading) return <Spinner animation="border" />;
-
     return (
-        <div>
-            <h2 className="mb-3">Quản lý nhân viên</h2>
+        <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý nhân viên</Typography>
             <MaterialReactTable
                 columns={columns}
                 data={staffList}
@@ -206,6 +250,29 @@ const StaffManagement = () => {
                     },
                 }}
 
+                enableStickyHeader
+                layoutMode="grid"
+                initialState={{ 
+                    density: 'compact',
+                    pagination: { pageSize: 10, pageIndex: 0 }
+                }}
+                localization={MRT_Localization_VI}
+                muiTableContainerProps={{
+                    sx: { maxHeight: { xs: '70vh', md: '600px' } }
+                }}
+                muiTablePaperProps={{
+                    elevation: 0,
+                    sx: { boxShadow: 'none' }
+                }}
+                muiTableHeadCellProps={{
+                    sx: {
+                        fontWeight: 700,
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }
+                }}
+                muiTableBodyCellProps={{
+                    sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
+                }}
                 renderTopToolbarCustomActions={() => (
                     <PrimaryButton
                         startIcon={<Icon name="Add" />}
@@ -318,7 +385,7 @@ const StaffManagement = () => {
                 title="Xác nhận xóa"
                 message={`Bạn có chắc chắn muốn xóa nhân viên "${staffToDelete?.name}" không?`}
             />
-        </div>
+        </Box>
     );
 };
 export default StaffManagement;

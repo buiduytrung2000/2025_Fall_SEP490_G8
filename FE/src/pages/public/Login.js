@@ -17,10 +17,34 @@ import { ToastNotification } from "../../components/common";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
+const REMEMBER_ME_KEY = "rememberedEmail";
+
 const Login = () => {
   const [showPass, setShowPass] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Load remembered email from localStorage
+  const getRememberedEmail = () => {
+    try {
+      return localStorage.getItem(REMEMBER_ME_KEY) || "";
+    } catch {
+      return "";
+    }
+  };
+
+  // Save email to localStorage
+  const saveRememberedEmail = (email) => {
+    try {
+      if (email) {
+        localStorage.setItem(REMEMBER_ME_KEY, email);
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+      }
+    } catch (error) {
+      console.error("Error saving remembered email:", error);
+    }
+  };
 
   const roleToPath = {
     Admin: "/admin/permissions",
@@ -36,6 +60,13 @@ const Login = () => {
   const handleSubmit = async (values, { setSubmitting }) => {
     const response = await login(values.email, values.password);
     if (response.success) {
+      // Save email if rememberMe is checked
+      if (values.rememberMe) {
+        saveRememberedEmail(values.email);
+      } else {
+        // Remove saved email if rememberMe is unchecked
+        saveRememberedEmail("");
+      }
       ToastNotification.success("Đăng nhập thành công");
       navigate(roleToPath[response.user.role] || "/");
     } else {
@@ -104,8 +135,14 @@ const Login = () => {
           </Box>
 
           <Formik
-            initialValues={{ email: "", password: "" }}
+            initialValues={{ 
+              email: getRememberedEmail(), 
+              password: "",
+              rememberMe: !!getRememberedEmail()
+            }}
             validationSchema={validationSchema}
+            validateOnChange={true}
+            validateOnBlur={true}
             onSubmit={handleSubmit}
           >
             {({
@@ -113,6 +150,7 @@ const Login = () => {
               touched,
               isSubmitting,
               handleChange,
+              handleBlur,
               values,
               setFieldValue,
             }) => (
@@ -124,11 +162,12 @@ const Login = () => {
                   type="email"
                   value={values.email}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   margin="normal"
                   autoFocus
                   placeholder="Nhập email của bạn "
-                  error={touched.email && Boolean(errors.email)}
-                  helperText={touched.email && errors.email}
+                  error={(touched.email || values.email) && Boolean(errors.email)}
+                  helperText={(touched.email || values.email) && errors.email}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -145,10 +184,11 @@ const Login = () => {
                   type={showPass ? "text" : "password"}
                   value={values.password}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   margin="normal"
                   placeholder="Nhập mật khẩu của bạn"
-                  error={touched.password && Boolean(errors.password)}
-                  helperText={touched.password && errors.password}
+                  error={(touched.password || values.password) && Boolean(errors.password)}
+                  helperText={(touched.password || values.password) && errors.password}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -174,6 +214,7 @@ const Login = () => {
                     <Checkbox
                       size="small"
                       color="primary"
+                      checked={values.rememberMe || false}
                       onChange={(e) =>
                         setFieldValue("rememberMe", e.target.checked)
                       }

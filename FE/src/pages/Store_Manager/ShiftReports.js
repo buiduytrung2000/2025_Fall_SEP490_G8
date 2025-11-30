@@ -2,10 +2,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
-  Chip, Stack, CircularProgress, Alert,
+  Chip, Stack, Alert,
   Select, MenuItem, FormControl, InputLabel, Tabs, Tab
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { getShiftReport } from '../../api/shiftApi';
 import { fetchEmployees } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,15 +39,6 @@ const formatDate = (dateString) => {
     minute: '2-digit'
   });
 };
-
-const KpiCard = ({ title, value, color }) => (
-  <Card sx={{ boxShadow: 2 }}>
-    <CardContent>
-      <Typography color="text.secondary" gutterBottom variant="body2">{title}</Typography>
-      <Typography variant="h5" color={color || 'inherit'} fontWeight={600}>{value}</Typography>
-    </CardContent>
-  </Card>
-);
 
 const ShiftReports = () => {
   const { user } = useAuth();
@@ -83,8 +75,10 @@ const ShiftReports = () => {
     }
   }, [user]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const storeId = user?.store_id || null;
@@ -100,15 +94,15 @@ const ShiftReports = () => {
         setSummary(resp.data.summary || null);
       } else {
         setError(resp?.msg || 'Không thể tải dữ liệu');
-        setShifts([]);
-        setSummary(null);
+        // Không clear dữ liệu để tránh nháy
       }
     } catch (e) {
       setError('Lỗi khi tải dữ liệu: ' + e.message);
-      setShifts([]);
-      setSummary(null);
+      // Không clear dữ liệu để tránh nháy
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, [from, to, cashierId, user]);
 
@@ -117,28 +111,40 @@ const ShiftReports = () => {
   }, [loadCashiers]);
 
   useEffect(() => { 
-    load(); 
+    // Không hiển thị loading khi filter thay đổi
+    load(false); 
   }, [load]);
 
   useEffect(() => {
     const range = getRangeForPeriod(periodView);
-    setFrom(range.start);
-    setTo(range.end);
-  }, [periodView]);
-
-  // Tính toán KPIs từ summary
-  const kpis = useMemo(() => {
-    if (!summary) return null;
-    const avgOrderValue = summary.total_transactions > 0 
-      ? summary.total_sales / summary.total_transactions 
-      : 0;
-    return {
-      totalSales: summary.total_sales,
-      totalTransactions: summary.total_transactions,
-      avgOrderValue: avgOrderValue,
-      totalShifts: summary.total_shifts
-    };
-  }, [summary]);
+    const newFrom = range.start;
+    const newTo = range.end;
+    setFrom(newFrom);
+    setTo(newTo);
+    // Load trực tiếp với dates mới, không hiển thị loading và giữ dữ liệu cũ để tránh nháy
+    if (user?.store_id) {
+      const storeId = user?.store_id || null;
+      setError(null);
+      getShiftReport({ 
+        store_id: storeId,
+        cashier_id: cashierId || null,
+        date_from: newFrom,
+        date_to: newTo
+      }).then(resp => {
+        if (resp && resp.err === 0 && resp.data) {
+          // Chỉ update khi có dữ liệu mới
+          setShifts(resp.data.shifts || []);
+          setSummary(resp.data.summary || null);
+        } else {
+          // Chỉ set error, không clear dữ liệu để tránh nháy
+          setError(resp?.msg || 'Không thể tải dữ liệu');
+        }
+      }).catch(e => {
+        // Chỉ set error, không clear dữ liệu để tránh nháy
+        setError('Lỗi khi tải dữ liệu: ' + e.message);
+      });
+    }
+  }, [periodView, cashierId, user]);
 
   // Định nghĩa cột cho bảng shift reports
   const getDiscrepancy = useCallback((shift) => {
@@ -160,24 +166,48 @@ const ShiftReports = () => {
       header: 'STT',
       size: 60,
       Cell: ({ row }) => row.index + 1,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'shift_id',
       header: 'Mã ca',
       size: 100,
       Cell: ({ cell }) => `#${cell.getValue()}`,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'opened_at',
       header: 'Ngày giờ',
       size: 150,
       Cell: ({ cell }) => formatDate(cell.getValue()),
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'cashier.username',
       header: 'Thu ngân',
       size: 120,
       Cell: ({ row }) => row.original.cashier?.username || '—',
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'transaction_count',
@@ -185,6 +215,12 @@ const ShiftReports = () => {
       size: 100,
       Cell: ({ cell }) => cell.getValue() || 0,
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'cash_sales_total',
@@ -192,6 +228,12 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'bank_transfer_total',
@@ -199,6 +241,12 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'total_sales',
@@ -210,6 +258,12 @@ const ShiftReports = () => {
         </Typography>
       ),
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'opening_cash',
@@ -217,6 +271,12 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'closing_cash',
@@ -224,6 +284,12 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
       enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
     {
       accessorKey: 'discrepancy',
@@ -243,13 +309,20 @@ const ShiftReports = () => {
           </Typography>
         );
       },
+      enableColumnFilter: false,
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
     },
   ], [getDiscrepancy]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Báo cáo & Tổng kết ca</Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>Theo dõi hiệu quả theo từng ca làm việc</Typography>
+      <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Tổng kết ca làm việc</Typography>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>Xem tổng kết các ca làm việc</Typography>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -257,71 +330,20 @@ const ShiftReports = () => {
         </Alert>
       )}
 
-      {loading && (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
-      )}
-
-      {kpis && !loading && (
+      {summary && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng doanh thu" 
-              value={formatCurrency(kpis.totalSales)} 
-              color="success.main" 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng số giao dịch" 
-              value={kpis.totalTransactions} 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Giá trị đơn TB" 
-              value={formatCurrency(kpis.avgOrderValue)} 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng số ca" 
-              value={kpis.totalShifts} 
-            />
-          </Grid>
-        </Grid>
-      )}
-
-      {summary && !loading && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}>
-            <Card sx={{ boxShadow: 2 }}>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ boxShadow: 2, minWidth: '500px' }}>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
-                  Tổng tiền mặt
+                  Tổng doanh thu
                 </Typography>
-                <Typography variant="h6" fontWeight={600}>
-                  {formatCurrency(summary.total_cash_sales)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Tiền đầu ca: {formatCurrency(summary.total_opening_cash)} • 
-                  Tiền cuối ca: {formatCurrency(summary.total_closing_cash)}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Card sx={{ boxShadow: 2 }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Tổng chuyển khoản
-                </Typography>
-                <Typography variant="h6" fontWeight={600} color="info.main">
-                  {formatCurrency(summary.total_bank_transfer)}
+                <Typography variant="h6" fontWeight={600} color="success.main">
+                  {formatCurrency(summary.total_sales)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Tổng doanh thu: {formatCurrency(summary.total_sales)}
+                  Tiền mặt: {formatCurrency(summary.total_cash_sales)} • 
+                  Chuyển khoản: {formatCurrency(summary.total_bank_transfer)}
                 </Typography>
               </CardContent>
             </Card>
@@ -379,31 +401,28 @@ const ShiftReports = () => {
               ))}
             </Select>
           </FormControl>
-          <Box flexGrow={1} sx={{ display: { xs: 'none', md: 'block' } }} />
-          {summary && (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                Tổng doanh thu: {formatCurrency(summary.total_sales)}
-              </Typography>
-              <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                Tổng giao dịch: {summary.total_transactions}
-              </Typography>
-            </Stack>
-          )}
         </Stack>
       </Paper>
 
       <MaterialReactTable
         columns={columns}
         data={shifts}
+        enableStickyHeader
         enableColumnActions={false}
         enableColumnFilters={false}
         enableSorting={true}
         enableTopToolbar={false}
         enableBottomToolbar={true}
         enablePagination={true}
+        layoutMode="grid"
+        initialState={{ 
+          density: 'compact',
+          pagination: { pageSize: 10, pageIndex: 0 }
+        }}
+        state={{ isLoading: loading }}
+        localization={MRT_Localization_VI}
         muiTableContainerProps={{
-          sx: { maxHeight: { xs: '70vh', md: 'none' } }
+          sx: { maxHeight: { xs: '70vh', md: '600px' } }
         }}
         muiTablePaperProps={{
           elevation: 0,
@@ -415,11 +434,8 @@ const ShiftReports = () => {
             fontSize: { xs: '0.75rem', sm: '0.875rem' }
           }
         }}
-        localization={{
-          noRecordsToDisplay: 'Không có dữ liệu'
-        }}
-        initialState={{
-          pagination: { pageSize: 10, pageIndex: 0 },
+        muiTableBodyCellProps={{
+          sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
         }}
       />
 
