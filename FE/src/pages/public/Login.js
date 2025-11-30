@@ -26,7 +26,7 @@ const Login = () => {
     Admin: "/admin/permissions",
     Manager: "/manager/dashboard",
     CEO: "/ceo/dashboard",
-    Cashier: "/my-schedule",
+    Cashier: "/cashier/pos",
     Warehouse: "/warehouse/inventory",
     Supplier: "/supplier/portal",
   };

@@ -51,11 +51,13 @@ CREATE TABLE IF NOT EXISTS User (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Admin') NOT NULL,
+    role ENUM('Admin', 'CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Supplier') NOT NULL,
     store_id INT NULL,
     email VARCHAR(255),
     phone VARCHAR(20),
     address TEXT,
+    full_name VARCHAR(255) NULL,
+    is_active BOOLEAN DEFAULT TRUE,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -63,7 +65,8 @@ CREATE TABLE IF NOT EXISTS User (
     INDEX idx_user_store (store_id),
     INDEX idx_user_role (role),
     INDEX idx_user_status (status),
-    INDEX idx_user_username (username)
+    INDEX idx_user_username (username),
+    INDEX idx_user_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS Product (
