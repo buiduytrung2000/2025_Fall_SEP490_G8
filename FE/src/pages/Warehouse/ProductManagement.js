@@ -1,5 +1,5 @@
 // src/pages/Warehouse/ProductManagement.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Alert } from 'react-bootstrap';
 import {
     getAllProducts, createProduct, updateProduct, toggleProductStatus, getAllCategories, getAllSuppliers,
@@ -7,7 +7,6 @@ import {
 } from '../../api/productApi';
 import { getInventoryByProduct } from '../../api/inventoryApi';
 import { MaterialReactTable } from 'material-react-table';
-import { useNavigate } from 'react-router-dom';
 import { Box, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
 import { PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from '../../components/common';
 import Dialog from '@mui/material/Dialog';
@@ -19,9 +18,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
-import AddIcon from '@mui/icons-material/Add';
 import { ToastNotification } from '../../components/common';
-import { useAuth } from '../../contexts/AuthContext';
 
 // Hàm helper format tiền
 const formatCurrency = (number) =>
@@ -60,8 +57,6 @@ const getEndDateLabel = (value) => {
 };
 
 const ProductManagement = () => {
-    const navigate = useNavigate();
-    const { user } = useAuth();
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
@@ -131,11 +126,6 @@ const ProductManagement = () => {
         return stored ? parseInt(stored) : 1;
     })();
 
-    // Load products, categories, suppliers
-    useEffect(() => {
-        loadData();
-    }, []);
-
     const loadActivePricingRules = async () => {
         try {
             const pricingRulesRes = await getAllPricingRules({ store_id: selectedStoreId, status: 'active' });
@@ -153,7 +143,7 @@ const ProductManagement = () => {
         }
     };
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setError(null);
         try {
             const [productsRes, categoriesRes, suppliersRes, unitsRes, pricingRulesRes] = await Promise.all([
@@ -197,7 +187,12 @@ const ProductManagement = () => {
         } catch (err) {
             setError('Lỗi khi tải dữ liệu: ' + err.message);
         }
-    };
+    }, [selectedStoreId]);
+
+    // Load products, categories, suppliers
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const handleToggleStatus = (product) => {
         setProductToToggle(product);
@@ -413,6 +408,7 @@ const ProductManagement = () => {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleShowPriceModal = async (product) => {
         setSelectedProduct(product);
         setEditingRule(null);
@@ -1511,7 +1507,6 @@ const ProductManagement = () => {
                     <PrimaryButton
                         startIcon={<Icon name="Add" />}
                         onClick={handleOpenAdd}
-                        sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
                     >Thêm sản phẩm mới</PrimaryButton>
                 )}
                 // Nút Sửa và Toggle trạng thái ở mỗi hàng

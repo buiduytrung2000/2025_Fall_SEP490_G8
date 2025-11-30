@@ -12,7 +12,7 @@ import {
     FaStore, FaUsersCog, FaBox, FaChartLine,
     FaWarehouse, FaTruck, FaSignOutAlt, FaUserFriends, FaCalendarAlt,
     FaBars, FaUserClock, FaCashRegister, FaChartPie, FaExchangeAlt,
-    FaBoxes, FaTags, FaHistory, FaClipboardList, FaGift, FaBuilding,
+    FaBoxes, FaHistory, FaClipboardList, FaGift, FaBuilding,
     FaUserCircle
 } from 'react-icons/fa';
 
@@ -48,6 +48,7 @@ const navLinks = {
     Warehouse: [
         // - Quản lý tồn kho tổng
         { to: "/warehouse/inventory", icon: <FaBoxes />, text: "Quản lý Tồn kho" },
+        { to: "/warehouse/stock-count-reports", icon: <FaChartPie />, text: "Báo cáo Kiểm kê" },
         // Đơn hàng
         { to: "/warehouse/orders", icon: <FaClipboardList />, text: "Đơn đặt hàng (Kho → NCC)" },
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },
@@ -70,6 +71,18 @@ const getMenuHeading = (role) => {
         case 'Supplier': return 'Đối tác';
         case 'Cashier': return 'Nghiệp vụ';
         default: return 'Menu';
+    }
+};
+
+const getRoleLabel = (role) => {
+    switch (role) {
+        case 'Admin': return 'Quản trị viên';
+        case 'Manager': return 'Quản lý cửa hàng';
+        case 'CEO': return 'Giám đốc';
+        case 'Warehouse': return 'Tổng kho';
+        case 'Supplier': return 'Nhà cung cấp';
+        case 'Cashier': return 'Thu ngân';
+        default: return role;
     }
 };
 
@@ -131,8 +144,8 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
             <div className="sidebar-footer">
                 {user && (
                     <div className="user-info">
-                        <span className="user-name">{user.name}</span>
-                        <span className="user-role">{user.role}</span>
+                     
+                        <span className="user-role">{getRoleLabel(user.role)}</span>
                     </div>
                 )}
                 <Button

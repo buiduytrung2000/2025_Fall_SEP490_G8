@@ -142,6 +142,29 @@ CREATE TABLE IF NOT EXISTS WarehouseInventory (
     INDEX idx_warehouse_inventory_location (location)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS StockCountReport (
+    report_id INT PRIMARY KEY AUTO_INCREMENT,
+    warehouse_inventory_id INT NOT NULL,
+    product_id INT NOT NULL,
+    system_stock BIGINT NOT NULL COMMENT 'Số lượng tồn kho trong hệ thống',
+    actual_stock BIGINT NOT NULL COMMENT 'Số lượng thực tế khi kiểm kê',
+    difference BIGINT NOT NULL COMMENT 'Chênh lệch (actual_stock - system_stock)',
+    report_type ENUM('shortage', 'excess', 'normal') NOT NULL COMMENT 'shortage = thiếu, excess = thừa, normal = đúng',
+    reason TEXT NULL COMMENT 'Lý do kiểm kê',
+    notes TEXT NULL COMMENT 'Ghi chú bổ sung',
+    reported_by INT NOT NULL COMMENT 'Người tạo báo cáo',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (warehouse_inventory_id) REFERENCES WarehouseInventory(warehouse_inventory_id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Product(product_id) ON DELETE CASCADE,
+    FOREIGN KEY (reported_by) REFERENCES User(user_id) ON DELETE CASCADE,
+    INDEX idx_stock_count_report_inventory (warehouse_inventory_id),
+    INDEX idx_stock_count_report_product (product_id),
+    INDEX idx_stock_count_report_type (report_type),
+    INDEX idx_stock_count_report_reported_by (reported_by),
+    INDEX idx_stock_count_report_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS PricingRule (
     rule_id INT PRIMARY KEY AUTO_INCREMENT,
     product_id INT NOT NULL,

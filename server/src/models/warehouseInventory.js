@@ -17,6 +17,13 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'product',
                 onDelete: 'CASCADE'
             });
+
+            // WarehouseInventory has many StockCountReports
+            WarehouseInventory.hasMany(models.StockCountReport, {
+                foreignKey: 'warehouse_inventory_id',
+                as: 'stockCountReports',
+                onDelete: 'CASCADE'
+            });
         }
     }
 

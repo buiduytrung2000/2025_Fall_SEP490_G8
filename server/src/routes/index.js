@@ -11,6 +11,7 @@ import scheduleRouter from './schedule'
 import employeeRouter from './employee'
 import inventoryRouter from './inventory'
 import warehouseInventoryRouter from './warehouseInventory'
+import stockCountReportRouter from './stockCountReport'
 import orderRouter from './order'
 import storeOrderRouter from './storeOrder'
 import warehouseOrderRouter from './warehouseOrder'
@@ -36,6 +37,7 @@ const initRoutes = (app) => {
     app.use('/api/v1/employee', employeeRouter)
     app.use('/api/v1/inventory', inventoryRouter)
     app.use('/api/v1/warehouse-inventory', warehouseInventoryRouter)
+    app.use('/api/v1/stock-count-reports', stockCountReportRouter)
     app.use('/api/v1/order', orderRouter) // Warehouse-to-supplier orders
     app.use('/api/v1/store-order', storeOrderRouter) // Store-to-warehouse/supplier orders
     app.use('/api/v1/warehouse-order', warehouseOrderRouter) // Warehouse order management

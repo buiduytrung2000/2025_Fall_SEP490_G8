@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -23,14 +22,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider,
-  Switch,
-  FormControlLabel,
-  Tooltip
+  Divider
 } from '@mui/material';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Alert, Icon } from '../../components/common';
 import {
-  getAllWarehouseInventory
+  getAllWarehouseInventory,
+  adjustWarehouseStock,
+  createBatchStockCountReports
 } from '../../api/inventoryApi';
 import { createBatchWarehouseOrders } from '../../api/warehouseOrderApi';
 
@@ -98,8 +96,6 @@ const getDisplaySubtotal = (item) => {
 // =====================================================
 
 const InventoryList = () => {
-  const navigate = useNavigate();
-
   // State
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +119,14 @@ const InventoryList = () => {
   const [orderItems, setOrderItems] = useState([]);
   const [creatingOrder, setCreatingOrder] = useState(false);
 
+  // =============================
+  // Stock Count (Kiểm kê tồn kho)
+  // =============================
+  const [stockCountDialog, setStockCountDialog] = useState(false);
+  const [stockCountItems, setStockCountItems] = useState([]);
+  const [stockCountNotes, setStockCountNotes] = useState('');
+  const [processingStockCount, setProcessingStockCount] = useState(false);
+
   const handleSelectProduct = (item) => {
     const id = item.warehouse_inventory_id || item.inventory_id;
     const exists = selectedProducts.some(p => (p.warehouse_inventory_id || p.inventory_id) === id);
@@ -144,6 +148,152 @@ const InventoryList = () => {
   };
 
   const isSelected = (item) => selectedProducts.some(p => (p.warehouse_inventory_id || p.inventory_id) === (item.warehouse_inventory_id || item.inventory_id));
+
+  const handleOpenStockCount = () => {
+    if (!selectedProducts.length) {
+      ToastNotification.warning('Vui lòng chọn ít nhất 1 sản phẩm để kiểm kê');
+      return;
+    }
+
+    // Initialize stock count items with current stock
+    const items = selectedProducts.map(item => ({
+      inventory_id: item.warehouse_inventory_id || item.inventory_id,
+      product_id: item.product?.product_id,
+      product_name: item.product?.name || '',
+      sku: item.product?.sku || '',
+      system_stock: Number(item.stock) || 0,
+      actual_stock: Number(item.stock) || 0,
+      base_unit_label: item.product?.base_unit_label || '',
+      package_unit_label: item.package_unit_label || null,
+      stock_in_packages: item.stock_in_packages || null
+    }));
+
+    setStockCountItems(items);
+    setStockCountNotes('');
+    setStockCountDialog(true);
+  };
+
+  const handleCloseStockCount = () => {
+    setStockCountDialog(false);
+    setStockCountItems([]);
+    setStockCountNotes('');
+  };
+
+  const handleStockCountChange = (index, field, value) => {
+    const next = [...stockCountItems];
+    let numValue;
+    if (value === '' || value === null || value === undefined) {
+      numValue = '';
+    } else {
+      numValue = Math.max(0, Number(value));
+      if (isNaN(numValue)) numValue = '';
+    }
+    next[index][field] = numValue;
+    
+    // Recalculate difference
+    const actualStock = numValue === '' ? next[index].system_stock : numValue;
+    next[index].difference = actualStock - next[index].system_stock;
+    
+    setStockCountItems(next);
+  };
+
+  const handleSubmitStockCount = async () => {
+    // Validate all items have actual stock entered
+    for (const item of stockCountItems) {
+      const actualStock = item.actual_stock === '' || item.actual_stock === null || item.actual_stock === undefined
+        ? null
+        : Number(item.actual_stock);
+      
+      if (actualStock === null || isNaN(actualStock)) {
+        ToastNotification.error(`Vui lòng nhập số lượng thực tế cho: ${item.product_name}`);
+        return;
+      }
+    }
+
+    setProcessingStockCount(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      // Prepare reports for items with shortage (thiếu hàng)
+      const shortageReports = [];
+      
+      for (const item of stockCountItems) {
+        const actualStock = Number(item.actual_stock);
+        const adjustment = actualStock - item.system_stock;
+        
+        // Skip if no adjustment needed
+        if (adjustment === 0) {
+          successCount++;
+          continue;
+        }
+
+        const reason = `Kiểm kê tồn kho${stockCountNotes ? ': ' + stockCountNotes : ''}`;
+        const response = await adjustWarehouseStock(item.inventory_id, {
+          adjustment,
+          reason
+        });
+
+        if (response.err === 0) {
+          successCount++;
+          
+          // If shortage (thiếu hàng), create report with reason "Mất hàng"
+          if (adjustment < 0) {
+            shortageReports.push({
+              warehouse_inventory_id: item.inventory_id,
+              product_id: item.product_id,
+              system_stock: item.system_stock,
+              actual_stock: actualStock,
+              reason: 'Mất hàng',
+              notes: stockCountNotes || null
+            });
+          }
+        } else {
+          failCount++;
+          errors.push(`${item.product_name}: ${response.msg || 'Lỗi không xác định'}`);
+        }
+      }
+
+      // Create batch reports for shortage items
+      if (shortageReports.length > 0) {
+        try {
+          const reportResponse = await createBatchStockCountReports(shortageReports);
+          if (reportResponse.err === 0) {
+            ToastNotification.success(
+              `Đã tạo ${shortageReports.length} báo cáo kiểm kê cho các sản phẩm bị thiếu hàng`
+            );
+          } else {
+            ToastNotification.warning(
+              `Không thể tạo báo cáo kiểm kê: ${reportResponse.msg || 'Lỗi không xác định'}`
+            );
+          }
+        } catch (reportError) {
+          ToastNotification.error('Lỗi khi tạo báo cáo kiểm kê: ' + reportError.message);
+        }
+      }
+
+      if (failCount === 0) {
+        ToastNotification.success(
+          successCount === stockCountItems.length
+            ? `Đã kiểm kê thành công ${successCount} sản phẩm`
+            : `Đã kiểm kê thành công ${successCount} sản phẩm (${stockCountItems.length - successCount} sản phẩm không có thay đổi)`
+        );
+      } else {
+        ToastNotification.warning(`Đã kiểm kê ${successCount} sản phẩm, ${failCount} sản phẩm thất bại`);
+        errors.forEach(err => ToastNotification.error(err));
+      }
+
+      handleCloseStockCount();
+      setSelectedProducts([]);
+      setSelectAll(false);
+      loadInventory();
+    } catch (error) {
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setProcessingStockCount(false);
+    }
+  };
 
   const handleOpenCreateOrder = () => {
     if (!selectedProducts.length) {
@@ -356,6 +506,7 @@ const InventoryList = () => {
 
   useEffect(() => {
     loadInventory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, statusFilter, storeFilter, debouncedSearch]);
 
   useEffect(() => {
@@ -369,21 +520,6 @@ const InventoryList = () => {
   const handleSearch = () => {
     setPage(0);
     setDebouncedSearch(searchInput.trim());
-  };
-
-  const handleRefresh = () => {
-    setSearchInput('');
-    setDebouncedSearch('');
-    setStatusFilter('');
-    setStoreFilter('');
-    setPage(0);
-    loadInventory();
-  };
-
-  // FIX: Prevent default navigation and use navigate correctly
-  const handleViewDetail = (e, inventoryId) => {
-    e.preventDefault();
-    navigate(`/warehouse/inventory/${inventoryId}`);
   };
 
   // =====================================================
@@ -405,12 +541,21 @@ const InventoryList = () => {
         </Box>
         <Stack direction="row" spacing={2}>
           {selectedProducts.length > 0 && (
-            <PrimaryButton
-              startIcon={<Icon name="ShoppingCart" />}
-              onClick={handleOpenCreateOrder}
-            >
-              Tạo Phiếu Nhập Hàng ({selectedProducts.length})
-            </PrimaryButton>
+            <>
+              <PrimaryButton
+                startIcon={<Icon name="Inventory2" />}
+                onClick={handleOpenStockCount}
+                variant="outlined"
+              >
+                Kiểm kê tồn kho ({selectedProducts.length})
+              </PrimaryButton>
+              <PrimaryButton
+                startIcon={<Icon name="ShoppingCart" />}
+                onClick={handleOpenCreateOrder}
+              >
+                Tạo Phiếu Nhập Hàng ({selectedProducts.length})
+              </PrimaryButton>
+            </>
           )}
           <ActionButton
             icon={<Icon name="Refresh" />}
@@ -821,6 +966,135 @@ const InventoryList = () => {
             loading={creatingOrder}
           >
             Tạo {orderItems.length} Phiếu Nhập Hàng
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Stock Count Dialog */}
+      <Dialog open={stockCountDialog} onClose={handleCloseStockCount} fullWidth maxWidth="md">
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Kiểm kê tồn kho</Typography>
+            <Chip
+              label={`${stockCountItems.length} sản phẩm`}
+              color="primary"
+              size="small"
+            />
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={2}
+            label="Ghi chú kiểm kê"
+            value={stockCountNotes}
+            onChange={(e) => setStockCountNotes(e.target.value)}
+            sx={{ mb: 3, mt: 1 }}
+            placeholder="Nhập ghi chú (tùy chọn)"
+          />
+
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 700 }}>Sản phẩm</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Tồn kho hệ thống</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Số lượng thực tế</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>Chênh lệch</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stockCountItems.map((item, index) => {
+                  const difference = item.actual_stock - item.system_stock;
+                  const diffColor = difference > 0 ? 'success.main' : difference < 0 ? 'error.main' : 'text.secondary';
+                  
+                  return (
+                    <TableRow key={item.inventory_id}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>{item.product_name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{item.sku}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          {formatQty(item.system_stock)} {item.base_unit_label}
+                        </Typography>
+                        {item.stock_in_packages && item.package_unit_label && (
+                          <Typography variant="caption" color="text.secondary">
+                            ≈ {formatQty(item.stock_in_packages)} {item.package_unit_label}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={item.actual_stock}
+                          onChange={(e) => handleStockCountChange(index, 'actual_stock', e.target.value)}
+                          sx={{ width: 150 }}
+                          slotProps={{
+                            input: {
+                              inputProps: { min: 0, step: 1 },
+                              endAdornment: item.base_unit_label
+                                ? <InputAdornment position="end">{item.base_unit_label}</InputAdornment>
+                                : null
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          color={diffColor}
+                        >
+                          {difference > 0 ? '+' : ''}{formatQty(difference)} {item.base_unit_label}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {stockCountItems.length > 0 && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  Tổng chênh lệch:
+                </Typography>
+                <Typography
+                  variant="h6"
+                  fontWeight={700}
+                  color={
+                    stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) > 0
+                      ? 'success.main'
+                      : stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) < 0
+                      ? 'error.main'
+                      : 'text.secondary'
+                  }
+                >
+                  {(() => {
+                    const totalDiff = stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0);
+                    return totalDiff > 0 ? '+' : '';
+                  })()}
+                  {formatQty(stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0))}
+                </Typography>
+              </Stack>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <SecondaryButton onClick={handleCloseStockCount} disabled={processingStockCount}>
+            Hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleSubmitStockCount}
+            disabled={processingStockCount || stockCountItems.length === 0}
+            loading={processingStockCount}
+          >
+            Xác nhận kiểm kê
           </PrimaryButton>
         </DialogActions>
       </Dialog>
