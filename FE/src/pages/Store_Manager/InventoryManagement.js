@@ -356,11 +356,11 @@ const InventoryManagement = () => {
         const original = row.original;
         const isPerishable = !!(original.is_perishable || original.product?.is_perishable);
         return (
-          <Chip
-            size="small"
-            color={isPerishable ? 'warning' : 'default'}
-            label={isPerishable ? 'Tươi sống' : 'Thường'}
-          />
+              <Chip
+                size="small"
+                color={isPerishable ? 'warning' : 'default'}
+                label={isPerishable ? 'Tươi sống' : 'Thường'}
+              />
         );
       },
       enableColumnFilter: false,
@@ -583,16 +583,16 @@ const InventoryManagement = () => {
   // Kiểm tra xem có hàng tươi sống trong đơn không
   const hasPerishableInLines = useMemo(() => {
     return lines.some((line) => {
-      const sku = (line.sku || '').trim();
-      const name = (line.name || '').trim();
-      if (!sku && !name) return false;
-      const invRow = data.find(
-        (row) =>
-          (row.sku && row.sku === sku) ||
-          (row.name && row.name === name)
-      );
-      return !!invRow?.is_perishable;
-    });
+        const sku = (line.sku || '').trim();
+        const name = (line.name || '').trim();
+        if (!sku && !name) return false;
+        const invRow = data.find(
+          (row) =>
+            (row.sku && row.sku === sku) ||
+            (row.name && row.name === name)
+        );
+        return !!invRow?.is_perishable;
+      });
   }, [lines, data]);
 
   // Kiểm tra xem có hàng thường trong đơn không

@@ -286,13 +286,13 @@ const ProductManagement = () => {
                 }
             }
             
-            setEditData({
-                product_id: prod.product_id,
-                sku: prod.sku || '',
-                name: prod.name || '',
-                hq_price: prod.hq_price || '',
-                category_id: prod.category_id || '',
-                supplier_id: prod.supplier_id || '',
+        setEditData({
+            product_id: prod.product_id,
+            sku: prod.sku || '',
+            name: prod.name || '',
+            hq_price: prod.hq_price || '',
+            category_id: prod.category_id || '',
+            supplier_id: prod.supplier_id || '',
                 description: prod.description || '',
                 base_unit_id: prod.base_unit_id || '',
                 package_unit_id: packageUnitId,

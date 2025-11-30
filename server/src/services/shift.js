@@ -83,18 +83,94 @@ export const checkin = async ({ cashier_id, store_id, opening_cash = 0, note = n
     let foundScheduleId = schedule_id
     if (!foundScheduleId) {
       const today = new Date().toISOString().split('T')[0]
-      const schedule = await db.Schedule.findOne({
+      const now = new Date()
+      
+      console.log('=== Check-in: Tự động tìm schedule ===');
+      console.log('Cashier ID:', cashier_id, 'Store ID:', store_id, 'Today:', today);
+      console.log('Giờ hiện tại:', now.toISOString(), '|', now.toLocaleString('vi-VN'));
+      
+      // Tìm tất cả schedules của ngày hôm nay
+      const allSchedules = await db.Schedule.findAll({
         where: {
           user_id: cashier_id,
           store_id: store_id,
           work_date: today,
           status: 'confirmed'
         },
-        transaction: t
+        include: [{
+          model: db.ShiftTemplate,
+          as: 'shiftTemplate',
+          attributes: ['shift_template_id', 'start_time', 'end_time'],
+          required: true
+        }],
+        transaction: t,
+        raw: false
       })
-      if (schedule) {
-        foundScheduleId = schedule.schedule_id
+      
+      console.log(`Tìm thấy ${allSchedules.length} schedule(s) cho ngày hôm nay:`);
+      allSchedules.forEach(s => {
+        console.log(`  - Schedule ID: ${s.schedule_id}, Shift Template ID: ${s.shift_template_id}, Status: ${s.attendance_status}, Time: ${s.shiftTemplate?.start_time} - ${s.shiftTemplate?.end_time}`);
+      });
+      
+      // Ưu tiên: ca chưa check-in > ca đang trong thời gian làm việc > ca đầu tiên
+      let selectedSchedule = null
+      
+      // 1. Tìm ca chưa check-in (not_checked_in, null, '')
+      const uncheckedSchedules = allSchedules.filter(s => 
+        !s.attendance_status || 
+        s.attendance_status === 'not_checked_in' || 
+        s.attendance_status === '' ||
+        s.attendance_status === 'not_check'
+      )
+      
+      if (uncheckedSchedules.length > 0) {
+        console.log(`Tìm thấy ${uncheckedSchedules.length} ca chưa check-in`);
+        
+        // Nếu có nhiều ca chưa check-in, ưu tiên ca đang trong thời gian làm việc
+        let inTimeSchedule = null
+        for (const s of uncheckedSchedules) {
+          const shiftTemplate = s.shiftTemplate
+          if (!shiftTemplate) continue
+          
+          const [startHour, startMinute] = shiftTemplate.start_time.split(':').map(Number)
+          const [endHour, endMinute] = shiftTemplate.end_time.split(':').map(Number)
+          
+          const shiftStart = new Date(s.work_date)
+          shiftStart.setHours(startHour, startMinute, 0, 0)
+          
+          const shiftEnd = new Date(s.work_date)
+          shiftEnd.setHours(endHour, endMinute, 0, 0)
+          
+          // Xử lý ca qua đêm
+          if (shiftEnd < shiftStart) {
+            shiftEnd.setDate(shiftEnd.getDate() + 1)
+          }
+          
+          // Kiểm tra có đang trong ca không
+          if (now >= shiftStart && now <= shiftEnd) {
+            inTimeSchedule = s
+            console.log(`  → Ca đang trong thời gian làm việc: Schedule ID ${s.schedule_id} (${shiftTemplate.start_time} - ${shiftTemplate.end_time})`);
+            break
+          }
+        }
+        
+        selectedSchedule = inTimeSchedule || uncheckedSchedules[0]
+        console.log(`Chọn schedule: ${selectedSchedule.schedule_id} (Shift Template: ${selectedSchedule.shift_template_id})`);
+      } else {
+        // Không có ca chưa check-in, lấy ca đầu tiên
+        selectedSchedule = allSchedules[0]
+        if (selectedSchedule) {
+          console.log(`Không có ca chưa check-in, chọn ca đầu tiên: ${selectedSchedule.schedule_id}`);
+        }
       }
+      
+      if (selectedSchedule) {
+        foundScheduleId = selectedSchedule.schedule_id
+        console.log(`→ Final schedule_id: ${foundScheduleId}\n`);
+      }
+    } else {
+      console.log('=== Check-in: Sử dụng schedule_id từ request ===');
+      console.log('Schedule ID:', schedule_id);
     }
 
     // Bắt buộc phải có schedule để check-in

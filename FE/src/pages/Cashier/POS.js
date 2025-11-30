@@ -84,7 +84,139 @@ const POS = () => {
     const [closingCashInput, setClosingCashInput] = useState('');
     const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
     const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
+    const [selectedScheduleId, setSelectedScheduleId] = useState(null); // Lưu schedule_id được chọn để check-in
+    const [hasUncheckedSchedule, setHasUncheckedSchedule] = useState(false); // Kiểm tra có ca chưa check-in không
     const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
+
+    // Helper function: Kiểm tra schedule có phải chưa check-in không
+    const isUncheckedSchedule = (schedule) => {
+        const status = schedule?.attendance_status;
+        return status === null || 
+               status === undefined || 
+               status === '' ||
+               status === 'not_check' ||
+               status === 'not_checked_in' ||
+               (typeof status === 'string' && status.trim() === '');
+    };
+
+    // Helper function: Load và xử lý schedules của ngày hôm nay
+    const loadTodaySchedules = async () => {
+        const today = new Date().toISOString().split('T')[0];
+        try {
+            const scheduleResp = await getMySchedules(today, today);
+            if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
+                // Normalize work_date để so sánh
+                const todaySchedules = scheduleResp.data.filter(s => {
+                    if (!s.work_date) return false;
+                    const workDateStr = s.work_date.split('T')[0];
+                    return workDateStr === today;
+                });
+
+                if (todaySchedules.length === 0) {
+                    // Fallback: nếu không tìm thấy theo work_date, dùng tất cả schedules từ API
+                    return scheduleResp.data;
+                }
+                return todaySchedules;
+            }
+            return [];
+        } catch (e) {
+            console.error('Error loading schedules:', e);
+            return [];
+        }
+    };
+
+    // Helper function: Xử lý schedules và cập nhật state
+    const processSchedules = (todaySchedules) => {
+        if (!todaySchedules || todaySchedules.length === 0) {
+            setHasTodaySchedule(false);
+            setScheduleAttendanceStatus(null);
+            setHasUncheckedSchedule(false);
+            setSelectedScheduleId(null);
+            return;
+        }
+
+        // Kiểm tra tất cả các ca có đều absent không
+        const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
+        if (allAbsent) {
+            setHasTodaySchedule(false);
+            setScheduleAttendanceStatus('absent');
+            setHasUncheckedSchedule(false);
+            setSelectedScheduleId(null);
+            return;
+        }
+
+        // Tìm ca đang active (checked_in)
+        const activeSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
+        
+        // Tìm tất cả ca chưa check-in
+        const uncheckedSchedules = todaySchedules.filter(isUncheckedSchedule);
+        
+        // Tìm ca đã checkout
+        const checkedOutSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
+
+        // Xác định schedule được chọn để hiển thị status
+        let selectedSchedule = activeSchedule || uncheckedSchedules[0] || checkedOutSchedule || todaySchedules[0];
+
+        // Cập nhật state
+        setHasTodaySchedule(true);
+        setScheduleAttendanceStatus(selectedSchedule?.attendance_status || null);
+        setHasUncheckedSchedule(uncheckedSchedules.length > 0);
+        
+        // Lưu schedule_id để check-in (ưu tiên ca chưa check-in)
+        if (uncheckedSchedules.length > 0) {
+            console.log('Unchecked schedules:', uncheckedSchedules.map(s => ({
+                schedule_id: s.schedule_id,
+                shift_template_id: s.shift_template_id,
+                work_date: s.work_date,
+                attendance_status: s.attendance_status,
+                shiftTemplate: s.shiftTemplate
+            })));
+            
+            // Nếu có nhiều ca chưa check-in, ưu tiên ca đang trong thời gian làm việc
+            let selectedUncheckedSchedule = null;
+            const now = new Date();
+            
+            for (const s of uncheckedSchedules) {
+                const shiftTemplate = s.shiftTemplate || s.shift_template;
+                if (!shiftTemplate || !shiftTemplate.start_time || !shiftTemplate.end_time) continue;
+                
+                const workDate = new Date(s.work_date);
+                const [startHour, startMinute] = shiftTemplate.start_time.split(':').map(Number);
+                const [endHour, endMinute] = shiftTemplate.end_time.split(':').map(Number);
+                
+                const shiftStart = new Date(workDate);
+                shiftStart.setHours(startHour, startMinute, 0, 0);
+                
+                const shiftEnd = new Date(workDate);
+                shiftEnd.setHours(endHour, endMinute, 0, 0);
+                
+                // Xử lý ca qua đêm
+                if (shiftEnd < shiftStart) {
+                    shiftEnd.setDate(shiftEnd.getDate() + 1);
+                }
+                
+                // Kiểm tra có đang trong ca không
+                if (now >= shiftStart && now <= shiftEnd) {
+                    selectedUncheckedSchedule = s;
+                    console.log(`Ca đang trong thời gian làm việc: Schedule ID ${s.schedule_id} (${shiftTemplate.start_time} - ${shiftTemplate.end_time})`);
+                    break;
+                }
+            }
+            
+            // Nếu không có ca nào đang trong thời gian, chọn ca đầu tiên
+            if (!selectedUncheckedSchedule) {
+                selectedUncheckedSchedule = uncheckedSchedules[0];
+            }
+            
+            const selectedId = selectedUncheckedSchedule.schedule_id;
+            console.log('Selected schedule_id for check-in:', selectedId, 'from shift_template_id:', selectedUncheckedSchedule.shift_template_id);
+            setSelectedScheduleId(selectedId);
+        } else if (selectedSchedule) {
+            setSelectedScheduleId(selectedSchedule.schedule_id);
+        } else {
+            setSelectedScheduleId(null);
+        }
+    };
 
     // Load trạng thái ca từ API (open shift) và check schedule attendance_status
     useEffect(() => {
@@ -94,122 +226,40 @@ const POS = () => {
                 try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
                 return 1;
             })();
+            
             const resp = await getMyOpenShift(storedStoreId);
+            
             if (resp && resp.err === 0 && resp.data) {
+                // Có ca đang mở
                 setIsShiftActive(true);
                 setShiftId(resp.data.shift_id);
                 setOpeningCash(String(resp.data.opening_cash || 0));
                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
                 setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
                 setTotalSales(Number(resp.data.total_sales || 0));
-                // Lưu attendance_status từ schedule nếu có
+                
+                // Nếu có schedule info từ shift, dùng luôn
                 if (resp.data.schedule && resp.data.schedule.attendance_status) {
                     setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
-                    setHasTodaySchedule(true); // Có schedule vì đã check-in thành công
+                    setHasTodaySchedule(true);
+                    setHasUncheckedSchedule(false); // Đang trong ca, không có ca chưa check-in
                 } else {
-                    // Có shift nhưng không có schedule info, vẫn cần check schedule
-                    const today = new Date().toISOString().split('T')[0];
-                    try {
-                        const scheduleResp = await getMySchedules(today, today);
-                        if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
-                            const todaySchedule = scheduleResp.data.find(s => s.work_date === today);
-                            if (todaySchedule) {
-                                setHasTodaySchedule(true);
-                                setScheduleAttendanceStatus(todaySchedule.attendance_status || null);
-                            } else {
-                                setHasTodaySchedule(false);
-                                setScheduleAttendanceStatus(null);
-                            }
-                        } else {
-                            setHasTodaySchedule(false);
-                            setScheduleAttendanceStatus(null);
-                        }
-                    } catch (e) {
-                        setHasTodaySchedule(false);
-                        setScheduleAttendanceStatus(null);
-                    }
+                    // Không có schedule info, load lại từ API
+                    const todaySchedules = await loadTodaySchedules();
+                    processSchedules(todaySchedules);
                 }
             } else {
+                // Không có ca đang mở
                 setIsShiftActive(false);
                 setShiftId(null);
                 setCashSalesTotal(0);
                 setBankTransferTotal(0);
                 setTotalSales(0);
-                // Check schedule của ngày hôm nay để xem đã checkout chưa
-                const today = new Date().toISOString().split('T')[0];
-                try {
-                    const scheduleResp = await getMySchedules(today, today);
-                    console.log('Schedule response:', scheduleResp);
-                    if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
-                        // Lấy tất cả các ca của ngày hôm nay
-                        const todaySchedules = scheduleResp.data.filter(s => s.work_date === today);
-                        console.log('Today schedules:', todaySchedules);
-                        
-                    if (todaySchedules.length > 0) {
-                        // Ưu tiên: checked_in > null/chưa check-in > checked_out > absent
-                        // Tìm ca đang active (checked_in) trước
-                        let selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
-                        
-                        // Nếu không có ca đang active, tìm ca chưa check-in (null hoặc không có status) - ưu tiên cao hơn checked_out
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => 
-                                !s.attendance_status || 
-                                s.attendance_status === null || 
-                                s.attendance_status === ''
-                            );
-                        }
-                        
-                        // Nếu không có ca chưa check-in, tìm ca đã checkout
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
-                        }
-                        
-                        // Nếu tất cả các ca đều absent, mới coi là absent
-                        if (!selectedSchedule) {
-                            const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
-                            if (allAbsent) {
-                                console.log('All schedules are absent');
-                                setHasTodaySchedule(false);
-                                setScheduleAttendanceStatus('absent');
-                            } else {
-                                // Có ít nhất 1 ca không phải absent, tìm ca không phải absent đầu tiên
-                                selectedSchedule = todaySchedules.find(s => s.attendance_status !== 'absent');
-                                if (selectedSchedule) {
-                                    console.log('Using first non-absent schedule:', selectedSchedule);
-                                    setHasTodaySchedule(true);
-                                    setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                                } else {
-                                    // Fallback: lấy ca đầu tiên
-                                    selectedSchedule = todaySchedules[0];
-                                    console.log('Using first schedule (fallback):', selectedSchedule);
-                                    setHasTodaySchedule(true);
-                                    setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                                }
-                            }
-                        } else {
-                            console.log('Selected schedule:', selectedSchedule);
-                            setHasTodaySchedule(true);
-                            if (selectedSchedule.attendance_status === 'checked_out') {
-                                setScheduleAttendanceStatus('checked_out');
-                            } else {
-                                setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                            }
-                        }
-                    } else {
-                            console.log('No schedule found for today');
-                            setHasTodaySchedule(false);
-                            setScheduleAttendanceStatus(null);
-                        }
-                    } else {
-                        console.log('No schedule data in response');
-                        setHasTodaySchedule(false);
-                        setScheduleAttendanceStatus(null);
-                    }
-                } catch (e) {
-                    console.error('Error fetching schedule:', e);
-                    setHasTodaySchedule(false);
-                    setScheduleAttendanceStatus(null);
-                }
+                setOpeningCash('');
+                
+                // Load schedules để kiểm tra có ca nào chưa check-in không
+                const todaySchedules = await loadTodaySchedules();
+                processSchedules(todaySchedules);
             }
         };
         fetchOpenShift();
@@ -221,117 +271,40 @@ const POS = () => {
             try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
             return 1;
         })();
+        
         const resp = await getMyOpenShift(storedStoreId);
+        
         if (resp && resp.err === 0 && resp.data) {
-            console.log('Refresh shift data:', {
-                cash_sales_total: resp.data.cash_sales_total,
-                bank_transfer_total: resp.data.bank_transfer_total,
-                total_sales: resp.data.total_sales
-            });
+            // Có ca đang mở
             setIsShiftActive(true);
             setShiftId(resp.data.shift_id);
             setOpeningCash(String(resp.data.opening_cash || 0));
             setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
             setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
             setTotalSales(Number(resp.data.total_sales || 0));
-            // Lưu attendance_status từ schedule nếu có
+            
+            // Nếu có schedule info từ shift, dùng luôn
             if (resp.data.schedule && resp.data.schedule.attendance_status) {
                 setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
                 setHasTodaySchedule(true);
+                setHasUncheckedSchedule(false); // Đang trong ca, không có ca chưa check-in
             } else {
-                // Có shift nhưng không có schedule info, vẫn cần check schedule
-                const today = new Date().toISOString().split('T')[0];
-                try {
-                    const scheduleResp = await getMySchedules(today, today);
-                    if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
-                        const todaySchedule = scheduleResp.data.find(s => s.work_date === today);
-                        if (todaySchedule) {
-                            setHasTodaySchedule(true);
-                            setScheduleAttendanceStatus(todaySchedule.attendance_status || null);
-                        } else {
-                            setHasTodaySchedule(false);
-                            setScheduleAttendanceStatus(null);
-                        }
-                    } else {
-                        setHasTodaySchedule(false);
-                        setScheduleAttendanceStatus(null);
-                    }
-                } catch (e) {
-                    setHasTodaySchedule(false);
-                    setScheduleAttendanceStatus(null);
-                }
+                // Không có schedule info, load lại từ API
+                const todaySchedules = await loadTodaySchedules();
+                processSchedules(todaySchedules);
             }
         } else {
+            // Không có ca đang mở
             setIsShiftActive(false);
             setShiftId(null);
             setCashSalesTotal(0);
             setBankTransferTotal(0);
             setTotalSales(0);
             setOpeningCash('');
-            // Check schedule của ngày hôm nay để xem đã checkout chưa
-            const today = new Date().toISOString().split('T')[0];
-            try {
-                const scheduleResp = await getMySchedules(today, today);
-                if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
-                    // Lấy tất cả các ca của ngày hôm nay
-                    const todaySchedules = scheduleResp.data.filter(s => s.work_date === today);
-                    
-                    if (todaySchedules.length > 0) {
-                        // Ưu tiên: checked_in > null/chưa check-in > checked_out > absent
-                        let selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
-                        
-                        // Nếu không có ca đang active, tìm ca chưa check-in (null hoặc không có status) - ưu tiên cao hơn checked_out
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => 
-                                !s.attendance_status || 
-                                s.attendance_status === null || 
-                                s.attendance_status === ''
-                            );
-                        }
-                        
-                        // Nếu không có ca chưa check-in, tìm ca đã checkout
-                        if (!selectedSchedule) {
-                            selectedSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
-                        }
-                        
-                        if (!selectedSchedule) {
-                            const allAbsent = todaySchedules.every(s => s.attendance_status === 'absent');
-                            if (allAbsent) {
-                                setHasTodaySchedule(false);
-                                setScheduleAttendanceStatus('absent');
-                            } else {
-                                // Có ít nhất 1 ca không phải absent, tìm ca không phải absent đầu tiên
-                                selectedSchedule = todaySchedules.find(s => s.attendance_status !== 'absent');
-                                if (selectedSchedule) {
-                                    setHasTodaySchedule(true);
-                                    setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                                } else {
-                                    // Fallback: lấy ca đầu tiên
-                                    selectedSchedule = todaySchedules[0];
-                                    setHasTodaySchedule(true);
-                                    setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                                }
-                            }
-                        } else {
-                            setHasTodaySchedule(true);
-                            if (selectedSchedule.attendance_status === 'checked_out') {
-                                setScheduleAttendanceStatus('checked_out');
-                            } else {
-                                setScheduleAttendanceStatus(selectedSchedule.attendance_status || null);
-                            }
-                        }
-                    } else {
-                        setHasTodaySchedule(false);
-                        setScheduleAttendanceStatus(null);
-                    }
-                } else {
-                    setHasTodaySchedule(false);
-                    setScheduleAttendanceStatus(null);
-                }
-            } catch (e) {
-                setHasTodaySchedule(false);
-                setScheduleAttendanceStatus(null);
-            }
+            
+            // Load schedules để kiểm tra có ca nào chưa check-in không
+            const todaySchedules = await loadTodaySchedules();
+            processSchedules(todaySchedules);
         }
     }, [user]);
 
@@ -889,6 +862,14 @@ const POS = () => {
                                     <FaSignOutAlt className="me-1" /> Kết ca
                                 </Button>
                             </>
+                        ) : hasUncheckedSchedule ? (
+                            // Nếu có ca chưa check-in, luôn hiển thị nút check-in
+                            <Button variant="success" size="sm" onClick={() => {
+                                setOpeningCashInput('');
+                                setShowCheckinModal(true);
+                            }}>
+                                <FaSignInAlt className="me-1" /> Bắt đầu ca (Check-in)
+                            </Button>
                         ) : scheduleAttendanceStatus === 'checked_out' ? (
                             <div className="text-muted small">
                                 Đã kết ca hôm nay
@@ -896,7 +877,6 @@ const POS = () => {
                         ) : scheduleAttendanceStatus === 'absent' || !hasTodaySchedule ? (
                             <div className="text-muted small">
                                 Không có lịch làm việc
-                                {/* Debug: hasTodaySchedule={String(hasTodaySchedule)}, status={String(scheduleAttendanceStatus)} */}
                             </div>
                         ) : (
                             <Button variant="success" size="sm" onClick={() => {
@@ -1461,7 +1441,21 @@ const POS = () => {
                                 try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
                                 return 1;
                             })();
-                            const resp = await checkinShift({ store_id: storedStoreId, opening_cash: open });
+                            
+                            // Gửi schedule_id nếu đã chọn (ưu tiên ca chưa check-in)
+                            const checkinData = { 
+                                store_id: storedStoreId, 
+                                opening_cash: open 
+                            };
+                            if (selectedScheduleId) {
+                                checkinData.schedule_id = selectedScheduleId;
+                                console.log('Check-in với schedule_id:', selectedScheduleId);
+                            } else {
+                                console.warn('Không có selectedScheduleId, backend sẽ tự động chọn schedule');
+                            }
+                            
+                            console.log('Check-in data:', checkinData);
+                            const resp = await checkinShift(checkinData);
                             if (resp && resp.err === 0 && resp.data) {
                                 // Cập nhật ngay lập tức từ response để hiển thị trên header
                                 setIsShiftActive(true);
@@ -1564,10 +1558,13 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
-                                setPaymentGiven(''  );
+                                setPaymentGiven('');
                                 setPaymentReference('');
-                                // Đánh dấu đã checkout để không hiển thị nút check-in nữa
-                                setScheduleAttendanceStatus('checked_out');
+                                
+                                // Refresh schedules để kiểm tra có ca tiếp theo không
+                                const todaySchedules = await loadTodaySchedules();
+                                processSchedules(todaySchedules);
+                                
                                 setShowCheckoutModal(false);
                                 toast.success('Kết ca thành công!');
                             } else {
