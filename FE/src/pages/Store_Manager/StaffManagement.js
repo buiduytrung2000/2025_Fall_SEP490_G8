@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Spinner, Modal, Form } from 'react-bootstrap';
+import { Spinner, Modal, Form, Button } from 'react-bootstrap';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { toast } from 'react-toastify';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { MaterialReactTable } from 'material-react-table';
-import { Box, IconButton, Button } from '@mui/material'; 
-import { Edit, Delete, PersonAdd } from '@mui/icons-material'; 
+import { Box } from '@mui/material';
+import { PrimaryButton, ActionButton, ToastNotification, Icon } from '../../components/common'; 
 
 const StaffManagement = () => {
     const { user } = useAuth();
@@ -35,7 +34,7 @@ const StaffManagement = () => {
             }));
             setStaffList(mapped);
         } else {
-            toast.error(res?.msg || 'Tải danh sách nhân viên thất bại');
+            ToastNotification.error(res?.msg || 'Tải danh sách nhân viên thất bại');
         }
         setLoading(false);
     };
@@ -117,7 +116,7 @@ const StaffManagement = () => {
 
         const isValid = validateAll();
         if (!isValid) {
-            toast.error('Vui lòng kiểm tra lại thông tin nhân viên.');
+            ToastNotification.error('Vui lòng kiểm tra lại thông tin nhân viên.');
             return;
         }
 
@@ -131,8 +130,8 @@ const StaffManagement = () => {
                     address: currentStaff.address,
                     role: currentStaff.role
                 });
-                if (res.err === 0) toast.success('Cập nhật nhân viên thành công');
-                else toast.error(res.msg || 'Cập nhật thất bại');
+                if (res.err === 0) ToastNotification.success('Cập nhật nhân viên thành công');
+                else ToastNotification.error(res.msg || 'Cập nhật thất bại');
             } else {
                 const generatedUsername = () => {
                     const base = (currentStaff.email || '')
@@ -151,8 +150,8 @@ const StaffManagement = () => {
                     role: currentStaff.role,
                     store_id: user.store_id // Lấy từ context
                 });
-                if (res.err === 0) toast.success('Thêm nhân viên thành công (mật khẩu mặc định: 123)');
-                else toast.error(res.msg || 'Thêm thất bại');
+                if (res.err === 0) ToastNotification.success('Thêm nhân viên thành công (mật khẩu mặc định: 123)');
+                else ToastNotification.error(res.msg || 'Thêm thất bại');
             }
         } finally {
             handleCloseFormModal();
@@ -162,8 +161,8 @@ const StaffManagement = () => {
     const confirmDelete = async () => {
         if (!staffToDelete) return;
         const res = await deleteEmployee(staffToDelete.id, false);
-        if (res.err === 0) toast.success('Đã vô hiệu hóa nhân viên');
-        else toast.error(res.msg || 'Xóa thất bại');
+        if (res.err === 0) ToastNotification.success('Đã vô hiệu hóa nhân viên');
+        else ToastNotification.error(res.msg || 'Xóa thất bại');
         setShowDeleteModal(false);
         setStaffToDelete(null);
         loadEmployees();
@@ -208,31 +207,26 @@ const StaffManagement = () => {
                 }}
 
                 renderTopToolbarCustomActions={() => (
-                    <Button
-                        variant="contained"
-                        startIcon={<PersonAdd />}
+                    <PrimaryButton
+                        startIcon={<Icon name="Add" />}
                         onClick={handleShowAddModal}
                     >
                         Thêm nhân viên
-                    </Button>
+                    </PrimaryButton>
                 )}
                 
                 renderRowActions={({ row }) => (
                     <Box sx={{ display: 'flex', gap: '0.5rem' }}>
-                        <IconButton
-                            color="warning"
-                            size="small"
+                        <ActionButton
+                            icon={<Icon name="Edit" />}
+                            action="edit"
                             onClick={() => handleShowEditModal(row.original)}
-                        >
-                            <Edit />
-                        </IconButton>
-                        <IconButton
-                            color="error"
-                            size="small"
+                        />
+                        <ActionButton
+                            icon={<Icon name="Delete" />}
+                            action="delete"
                             onClick={() => handleShowDeleteModal(row.original)}
-                        >
-                            <Delete />
-                        </IconButton>
+                        />
                     </Box>
                 )}
             />

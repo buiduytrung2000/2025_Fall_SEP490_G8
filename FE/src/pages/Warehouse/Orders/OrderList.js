@@ -14,15 +14,13 @@ import {
   TablePagination,
   TextField,
   MenuItem,
-  IconButton,
-  Button,
   Chip,
   CircularProgress,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import { 
   Search as SearchIcon, 
@@ -31,7 +29,7 @@ import {
   Replay as RetryIcon,
   Lock as LockIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, ActionButton, Alert, Icon } from '../../../components/common';
 import {
   getWarehouseSupplierOrders,
   updateWarehouseSupplierOrderStatus
@@ -116,7 +114,7 @@ export default function OrderList() {
       setNewStatus(allowedTransitions[0]);
       setUpdateDialog(true);
     } else {
-      toast.info('Không thể thay đổi trạng thái của đơn hàng này');
+      ToastNotification.info('Không thể thay đổi trạng thái của đơn hàng này');
     }
   };
 
@@ -126,14 +124,14 @@ export default function OrderList() {
     try {
       const res = await updateWarehouseSupplierOrderStatus(selectedOrder.order_id, newStatus);
       if (res.err === 0) {
-        toast.success('Cập nhật trạng thái thành công');
+        ToastNotification.success('Cập nhật trạng thái thành công');
         setUpdateDialog(false);
         loadOrders();
       } else {
-        toast.error(res.msg || 'Không thể cập nhật trạng thái');
+        ToastNotification.error(res.msg || 'Không thể cập nhật trạng thái');
       }
     } catch (e) {
-      toast.error('Lỗi kết nối: ' + e.message);
+      ToastNotification.error('Lỗi kết nối: ' + e.message);
     } finally {
       setUpdating(false);
     }
@@ -191,7 +189,7 @@ export default function OrderList() {
               {loading ? (
                 <TableRow><TableCell colSpan={8} align="center"><CircularProgress /></TableCell></TableRow>
               ) : error ? (
-                <TableRow><TableCell colSpan={8} align="center"><Alert severity="error" action={<Button size="small" startIcon={<RetryIcon />} onClick={loadOrders}>Thử lại</Button>}>{error}</Alert></TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} align="center"><Alert severity="error" message={error} action={<PrimaryButton size="small" startIcon={<Icon name="Replay" />} onClick={loadOrders}>Thử lại</PrimaryButton>} /></TableCell></TableRow>
               ) : orders.length === 0 ? (
                 <TableRow><TableCell colSpan={8} align="center"><Alert severity="info">Không có dữ liệu</Alert></TableCell></TableRow>
               ) : orders.map(order => {
@@ -217,11 +215,9 @@ export default function OrderList() {
                     <TableCell>{order.expected_delivery ? new Date(order.expected_delivery).toLocaleDateString() : '—'}</TableCell>
                     <TableCell align="right">{Number(order.totalAmount || 0).toLocaleString('vi-VN')} đ</TableCell>
                     <TableCell align="center">
-                      <IconButton onClick={() => navigate(`/warehouse/orders/${order.order_id}`)} title="Xem chi tiết">
-                        <ViewIcon />
-                      </IconButton>
+                      <ActionButton icon={<Icon name="Visibility" />} onClick={() => navigate(`/warehouse/orders/${order.order_id}`)} tooltip="Xem chi tiết" />
                       {canTransition && (
-                        <Button size="small" onClick={() => handleUpdateStatus(order)}>Cập nhật</Button>
+                        <PrimaryButton size="small" onClick={() => handleUpdateStatus(order)}>Cập nhật</PrimaryButton>
                       )}
                     </TableCell>
                   </TableRow>
@@ -260,21 +256,17 @@ export default function OrderList() {
             ))}
           </TextField>
           {newStatus === 'confirmed' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!
-            </Alert>
+            <Alert severity="info" message="Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
           {newStatus === 'cancelled' && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!
-            </Alert>
+            <Alert severity="warning" message="Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</Button>
-          <Button onClick={confirmUpdateStatus} variant="contained" disabled={updating || !newStatus}>
-            {updating ? 'Đang cập nhật...' : 'Xác nhận'}
-          </Button>
+          <SecondaryButton onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</SecondaryButton>
+          <PrimaryButton onClick={confirmUpdateStatus} disabled={updating || !newStatus} loading={updating}>
+            Xác nhận
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
     </Box>

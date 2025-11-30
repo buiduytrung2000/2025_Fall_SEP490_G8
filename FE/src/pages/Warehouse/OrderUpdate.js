@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Stack,
   Divider,
   Grid,
@@ -29,7 +28,7 @@ import {
   Cancel as CancelIcon,
   LocalShipping as ShippingIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, Icon } from '../../components/common';
 import {
   getWarehouseOrderDetail,
   updateWarehouseOrderStatus,
@@ -99,11 +98,11 @@ const OrderUpdate = () => {
           setNewDeliveryDate(formatted);
         }
       } else {
-        toast.error(response.msg || 'Không thể tải thông tin đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể tải thông tin đơn hàng');
         navigate('/warehouse/branch-orders');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
       navigate('/warehouse/branch-orders');
     } finally {
       setLoading(false);
@@ -116,7 +115,7 @@ const OrderUpdate = () => {
 
   const handleConfirmOrder = async () => {
     if (!newDeliveryDate) {
-      toast.error('Vui lòng chọn ngày giao dự kiến trước khi xác nhận');
+      ToastNotification.error('Vui lòng chọn ngày giao dự kiến trước khi xác nhận');
       return;
     }
 
@@ -129,7 +128,7 @@ const OrderUpdate = () => {
 
       const deliveryRes = await updateExpectedDelivery(id, formattedDate);
       if (deliveryRes.err !== 0) {
-        toast.error('Không thể lưu ngày giao dự kiến: ' + (deliveryRes.msg || ''));
+        ToastNotification.error('Không thể lưu ngày giao dự kiến: ' + (deliveryRes.msg || ''));
         setUpdating(false);
         return;
       }
@@ -137,14 +136,14 @@ const OrderUpdate = () => {
       // Sau đó xác nhận đơn hàng
       const response = await updateWarehouseOrderStatus(id, 'confirmed');
       if (response.err === 0) {
-        toast.success('Xác nhận đơn hàng thành công!');
+        ToastNotification.success('Xác nhận đơn hàng thành công!');
         setConfirmDialog(false);
         loadOrderDetail();
       } else {
-        toast.error(response.msg || 'Không thể xác nhận đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể xác nhận đơn hàng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -152,7 +151,7 @@ const OrderUpdate = () => {
 
   const handleRejectOrder = async () => {
     if (!rejectReason.trim()) {
-      toast.error('Vui lòng nhập lý do từ chối');
+      ToastNotification.error('Vui lòng nhập lý do từ chối');
       return;
     }
 
@@ -160,14 +159,14 @@ const OrderUpdate = () => {
     try {
       const response = await updateWarehouseOrderStatus(id, 'cancelled', rejectReason);
       if (response.err === 0) {
-        toast.success('Đã từ chối đơn hàng');
+        ToastNotification.success('Đã từ chối đơn hàng');
         setRejectDialog(false);
         navigate('/warehouse/branch-orders');
       } else {
-        toast.error(response.msg || 'Không thể từ chối đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể từ chối đơn hàng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -175,7 +174,7 @@ const OrderUpdate = () => {
 
   const handleUpdateDelivery = async () => {
     if (!newDeliveryDate) {
-      toast.error('Vui lòng chọn ngày giao hàng');
+      ToastNotification.error('Vui lòng chọn ngày giao hàng');
       return;
     }
 
@@ -188,14 +187,14 @@ const OrderUpdate = () => {
       
       const response = await updateExpectedDelivery(id, formattedDate);
       if (response.err === 0) {
-        toast.success('Cập nhật ngày giao hàng thành công!');
+        ToastNotification.success('Cập nhật ngày giao hàng thành công!');
         setDeliveryDialog(false);
         loadOrderDetail();
       } else {
-        toast.error(response.msg || 'Không thể cập nhật ngày giao hàng');
+        ToastNotification.error(response.msg || 'Không thể cập nhật ngày giao hàng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -213,14 +212,14 @@ const OrderUpdate = () => {
         
         const response = await updateExpectedDelivery(id, formattedDate);
         if (response.err === 0) {
-          toast.success('Đã lưu ngày giao dự kiến');
+          ToastNotification.success('Đã lưu ngày giao dự kiến');
           // Reload order để có dữ liệu mới nhất
           await loadOrderDetail();
         } else {
-          toast.warning('Không thể lưu ngày giao dự kiến: ' + (response.msg || ''));
+          ToastNotification.warning('Không thể lưu ngày giao dự kiến: ' + (response.msg || ''));
         }
       } catch (error) {
-        toast.warning('Lỗi khi lưu ngày giao dự kiến: ' + error.message);
+        ToastNotification.warning('Lỗi khi lưu ngày giao dự kiến: ' + error.message);
       } finally {
         setUpdating(false);
       }
@@ -565,58 +564,59 @@ const OrderUpdate = () => {
                   {/* Single Update Button */}
                   {isPending && (
                     <>
-                      <Button
+                      <PrimaryButton
                         fullWidth
-                        variant="contained"
-                        color="success"
                         size="large"
-                        startIcon={<CheckIcon />}
+                        startIcon={<Icon name="CheckCircle" />}
                         onClick={() => setConfirmDialog(true)}
-                        sx={{ py: 1.5, fontWeight: 600 }}
-                    disabled={!newDeliveryDate}
+                        disabled={!newDeliveryDate}
+                        sx={{ 
+                          py: 1.5, 
+                          fontWeight: 600,
+                          bgcolor: 'success.main',
+                          '&:hover': { bgcolor: 'success.dark' }
+                        }}
                       >
                         Xác nhận đơn hàng
-                      </Button>
-                      <Button
+                      </PrimaryButton>
+                      <DangerButton
                         fullWidth
                         variant="outlined"
-                        color="error"
                         size="large"
-                        startIcon={<CancelIcon />}
+                        startIcon={<Icon name="Cancel" />}
                         onClick={() => setRejectDialog(true)}
                         sx={{ py: 1.5, fontWeight: 600 }}
                       >
                         Từ chối đơn hàng
-                      </Button>
+                      </DangerButton>
                     </>
                   )}
 
                   {canShip && (
-                    <Button
+                    <PrimaryButton
                       fullWidth
-                      variant="contained"
-                      color="primary"
                       size="large"
-                      startIcon={<ShippingIcon />}
+                      startIcon={<Icon name="LocalShipping" />}
                       onClick={handleGoToShipment}
                       disabled={updating}
+                      loading={updating}
                       sx={{ py: 1.5, fontWeight: 600 }}
                     >
-                      {updating ? 'Đang lưu...' : 'Chuyển sang xuất hàng'}
-                    </Button>
+                      Chuyển sang xuất hàng
+                    </PrimaryButton>
                   )}
 
                   {!isPending && !canShip && (
-                    <Button
+                    <PrimaryButton
                       fullWidth
-                      variant="contained"
                       size="large"
                       onClick={handleUpdateDelivery}
                       disabled={updating}
+                      loading={updating}
                       sx={{ py: 1.5, fontWeight: 600 }}
                     >
                       Cập nhật ngày giao
-                    </Button>
+                    </PrimaryButton>
                   )}
                 </Stack>
               </Paper>
@@ -642,18 +642,18 @@ const OrderUpdate = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setConfirmDialog(false)} disabled={updating}>
+          <SecondaryButton onClick={() => setConfirmDialog(false)} disabled={updating}>
             Hủy
-          </Button>
-          <Button
+          </SecondaryButton>
+          <PrimaryButton
             onClick={handleConfirmOrder}
-            variant="contained"
-            color="success"
             disabled={updating}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <CheckIcon />}
+            loading={updating}
+            startIcon={<Icon name="CheckCircle" />}
+            sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
           >
-            {updating ? 'Đang xử lý...' : 'Xác nhận'}
-          </Button>
+            Xác nhận
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
 
@@ -679,18 +679,17 @@ const OrderUpdate = () => {
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setRejectDialog(false)} disabled={updating}>
+          <SecondaryButton onClick={() => setRejectDialog(false)} disabled={updating}>
             Hủy
-          </Button>
-          <Button
+          </SecondaryButton>
+          <DangerButton
             onClick={handleRejectOrder}
-            variant="contained"
-            color="error"
             disabled={updating}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <CancelIcon />}
+            loading={updating}
+            startIcon={<Icon name="Cancel" />}
           >
-            {updating ? 'Đang xử lý...' : 'Từ chối'}
-          </Button>
+            Từ chối
+          </DangerButton>
         </DialogActions>
       </Dialog>
     </Box>

@@ -7,6 +7,7 @@ import { getEmployees } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateAndPrintInvoice } from '../../utils/invoicePDF';
 import { exportPaymentHistoryToExcel } from '../../utils/exportExcel';
+import { ToastNotification } from '../../components/common';
 import '../../assets/PaymentHistory.css';
 
 const PaymentHistory = () => {
@@ -66,12 +67,12 @@ const PaymentHistory = () => {
             if (response.err === 0) {
                 setTransactions(response.data || []);
             } else {
-                toast.error(response.msg || 'Không thể tải lịch sử thanh toán');
+                ToastNotification.error(response.msg || 'Không thể tải lịch sử thanh toán');
                 setTransactions([]);
             }
         } catch (error) {
             console.error('Error fetching transactions:', error);
-            toast.error('Lỗi khi tải dữ liệu');
+            ToastNotification.error('Lỗi khi tải dữ liệu');
             setTransactions([]);
         } finally {
             setLoading(false);
@@ -140,17 +141,17 @@ const PaymentHistory = () => {
             await generateAndPrintInvoice(transactionId);
         } catch (error) {
             console.error('Error printing invoice:', error);
-            toast.error('Lỗi khi in hóa đơn');
+            ToastNotification.error('Lỗi khi in hóa đơn');
         }
     };
 
     const handleExportExcel = () => {
         try {
             exportPaymentHistoryToExcel(transactions, { date: selectedDate, paymentMethod, cashier: selectedCashier });
-            toast.success('Xuất file Excel thành công');
+            ToastNotification.success('Xuất file Excel thành công');
         } catch (error) {
             console.error('Error exporting to Excel:', error);
-            toast.error('Lỗi khi xuất file Excel');
+            ToastNotification.error('Lỗi khi xuất file Excel');
         }
     };
 

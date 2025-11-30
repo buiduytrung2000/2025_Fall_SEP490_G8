@@ -16,7 +16,7 @@ import {
   getWarehouseOrdersSummary,
   getInventoryOverview,
 } from "../../api/dashboardApi";
-import { toast } from "react-toastify";
+import { ToastNotification } from "../../components/common";
 
 const summaryBoxSx = {
   borderRadius: 2,
@@ -76,7 +76,7 @@ export default function CEOOrdersBoard() {
         if (warehouseRes.err === 0) setWarehouseOrders(warehouseRes.data);
         if (inventoryRes.err === 0) setInventoryOverview(inventoryRes.data);
       } catch (error) {
-        toast.error("Không tải được dữ liệu nhập/xuất: " + error.message);
+        ToastNotification.error("Không tải được dữ liệu nhập/xuất: " + error.message);
       } finally {
         setLoading(false);
       }

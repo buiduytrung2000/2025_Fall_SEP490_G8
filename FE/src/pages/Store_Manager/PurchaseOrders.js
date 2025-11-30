@@ -5,8 +5,6 @@ import {
   Paper,
   Typography,
   TextField,
-  Button,
-  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -26,9 +24,8 @@ import {
   useTheme
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
-import { Add, Delete } from '@mui/icons-material';
 import { createStoreOrder, getStoreOrders, updateStoreOrderStatus } from '../../api/storeOrderApi';
-import { toast } from 'react-toastify';
+import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
 
@@ -115,13 +112,13 @@ const PurchaseOrders = () => {
   const handleSubmit = async () => {
     // Validation: Check if there are any items
     if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
-      toast.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
       return;
     }
 
     // Validation: Check target_warehouse
     if (!target || target.trim() === '') {
-      toast.error('Vui lòng nhập tên kho nhận hàng');
+      ToastNotification.error('Vui lòng nhập tên kho nhận hàng');
       return;
     }
 
@@ -137,27 +134,27 @@ const PurchaseOrders = () => {
       
       // Validate SKU - required
       if (!l.sku || l.sku.trim() === '') {
-        toast.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
         return;
       }
       
       // Validate name - required
       if (!l.name || l.name.trim() === '') {
-        toast.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
         return;
       }
       
       // Validate quantity
       const qty = parseInt(l.qty);
       if (isNaN(qty) || qty <= 0) {
-        toast.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
+        ToastNotification.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
         return;
       }
       
       // Validate unit price - required and must be > 0
       const price = parseFloat(l.price);
       if (isNaN(price) || price <= 0) {
-        toast.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
+        ToastNotification.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
         return;
       }
       
@@ -171,7 +168,7 @@ const PurchaseOrders = () => {
 
     // Validation: Check if there are valid items
     if (validItems.length === 0) {
-      toast.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
       return;
     }
 
@@ -189,7 +186,7 @@ const PurchaseOrders = () => {
       const result = await createStoreOrder(payload);
       
       if (result.err === 0) {
-        toast.success('Tạo đơn hàng thành công!');
+        ToastNotification.success('Tạo đơn hàng thành công!');
         // Reset đơn
         setLines([emptyLine()]);
         setPerishable(false);
@@ -199,11 +196,11 @@ const PurchaseOrders = () => {
         setOpenCreateOrderModal(false);
         await fetchOrders();
       } else {
-        toast.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
+        ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
       }
     } catch (error) {
       console.error('Error creating order:', error);
-      toast.error('Lỗi khi tạo đơn hàng: ' + error.message);
+      ToastNotification.error('Lỗi khi tạo đơn hàng: ' + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -304,16 +301,16 @@ const PurchaseOrders = () => {
     try {
       const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered', receiveNote);
       if (response.err === 0) {
-        toast.success('Xác nhận đã nhận hàng thành công!');
+        ToastNotification.success('Xác nhận đã nhận hàng thành công!');
         setConfirmReceivedDialog(false);
         await fetchOrders();
         // Update selected order
         setSelectedOrder({ ...selectedOrder, status: 'delivered' });
       } else {
-        toast.error(response.msg || 'Không thể cập nhật trạng thái đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể cập nhật trạng thái đơn hàng');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdatingStatus(false);
     }
@@ -332,9 +329,9 @@ const PurchaseOrders = () => {
           <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
           <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
         </Box>
-        <Button variant="contained" onClick={() => setOpenCreateOrderModal(true)}>
+        <PrimaryButton onClick={() => setOpenCreateOrderModal(true)}>
           Tạo đơn nhập
-        </Button>
+        </PrimaryButton>
       </Stack>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
@@ -507,13 +504,18 @@ const PurchaseOrders = () => {
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={() => removeLine(idx)}><Delete /></IconButton>
+                      <ActionButton
+                        icon={<Icon name="Delete" />}
+                        action="delete"
+                        size="small"
+                        onClick={() => removeLine(idx)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell colSpan={5}>
-                    <Button startIcon={<Add />} onClick={addLine} size="small">Thêm dòng</Button>
+                    <PrimaryButton startIcon={<Icon name="Add" />} onClick={addLine} size="small">Thêm dòng</PrimaryButton>
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -529,12 +531,12 @@ const PurchaseOrders = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenCreateOrderModal(false)} variant="outlined" disabled={submitting}>
+          <SecondaryButton onClick={() => setOpenCreateOrderModal(false)} disabled={submitting}>
             Hủy
-          </Button>
-          <Button onClick={handleSubmit} variant="contained" disabled={submitting || !lines.length}>
-            {submitting ? 'Đang tạo...' : 'Tạo đơn hàng'}
-          </Button>
+          </SecondaryButton>
+          <PrimaryButton onClick={handleSubmit} disabled={submitting || !lines.length} loading={submitting}>
+            Tạo đơn hàng
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
 
@@ -677,19 +679,22 @@ const PurchaseOrders = () => {
         </DialogContent>
         <DialogActions>
           {selectedOrder?.status?.toLowerCase() === 'shipped' && (
-            <Button 
+            <PrimaryButton 
               onClick={handleOpenConfirmReceived} 
-              variant="contained" 
-              color="success"
               disabled={updatingStatus}
-              sx={{ mr: 'auto' }}
+              loading={updatingStatus}
+              sx={{ 
+                mr: 'auto',
+                bgcolor: 'success.main',
+                '&:hover': { bgcolor: 'success.dark' }
+              }}
             >
-              {updatingStatus ? 'Đang xử lý...' : 'Đã nhận hàng'}
-            </Button>
+              Đã nhận hàng
+            </PrimaryButton>
           )}
-          <Button onClick={() => setOpenModal(false)} variant="outlined" disabled={updatingStatus}>
+          <SecondaryButton onClick={() => setOpenModal(false)} disabled={updatingStatus}>
             Đóng
-          </Button>
+          </SecondaryButton>
         </DialogActions>
       </Dialog>
 
@@ -720,17 +725,20 @@ const PurchaseOrders = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmReceivedDialog(false)} disabled={updatingStatus}>
+          <SecondaryButton onClick={() => setConfirmReceivedDialog(false)} disabled={updatingStatus}>
             Hủy
-          </Button>
-          <Button
+          </SecondaryButton>
+          <PrimaryButton
             onClick={handleConfirmReceived}
-            variant="contained"
-            color="success"
             disabled={updatingStatus}
+            loading={updatingStatus}
+            sx={{ 
+              bgcolor: 'success.main',
+              '&:hover': { bgcolor: 'success.dark' }
+            }}
           >
-            {updatingStatus ? 'Đang xử lý...' : 'Xác nhận nhận hàng'}
-          </Button>
+            Xác nhận nhận hàng
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
     </Box>

@@ -15,13 +15,12 @@ import {
   TableBody,
   CircularProgress,
   Alert,
-  Button,
 } from "@mui/material";
 import {
   getWarehouseSupplierOrderDetail,
   updateWarehouseSupplierOrderStatus,
 } from "../../api/warehouseOrderApi";
-import { toast } from "react-toastify";
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, Icon } from "../../components/common";
 
 const statusColors = {
   pending: "warning",
@@ -73,15 +72,15 @@ const SupplierOrderDetail = () => {
     try {
       const res = await updateWarehouseSupplierOrderStatus(order.order_id, next);
       if (res.err === 0) {
-        toast.success(
+        ToastNotification.success(
           next === "confirmed" ? "Đã xác nhận đơn hàng" : "Đã từ chối đơn hàng"
         );
         await loadDetail();
       } else {
-        toast.error(res.msg || "Không thể cập nhật trạng thái");
+        ToastNotification.error(res.msg || "Không thể cập nhật trạng thái");
       }
     } catch (e) {
-      toast.error("Lỗi kết nối: " + e.message);
+      ToastNotification.error("Lỗi kết nối: " + e.message);
     } finally {
       setUpdating(false);
     }
@@ -130,22 +129,22 @@ const SupplierOrderDetail = () => {
       </Stack>
 
       <Stack direction="row" spacing={2} mb={2}>
-        <Button
-          variant="contained"
-          color="success"
+        <PrimaryButton
           disabled={!canConfirm || updating}
           onClick={() => handleUpdateStatus("confirmed")}
+          loading={updating && canConfirm}
+          sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
         >
-          {updating && canConfirm ? "Đang xử lý..." : "Xác nhận đơn hàng"}
-        </Button>
-        <Button
+          Xác nhận đơn hàng
+        </PrimaryButton>
+        <DangerButton
           variant="outlined"
-          color="error"
           disabled={!canReject || updating}
           onClick={() => handleUpdateStatus("cancelled")}
+          loading={updating && !canConfirm}
         >
-          {updating && !canConfirm ? "Đang xử lý..." : "Từ chối đơn hàng"}
-        </Button>
+          Từ chối đơn hàng
+        </DangerButton>
       </Stack>
 
       <Paper sx={{ p: 2, mb: 2 }}>

@@ -15,9 +15,8 @@ import {
     CircularProgress,
     Alert
 } from '@mui/material';
-import { Button } from 'react-bootstrap';
 import { createUser, updateUser } from '../../api/userApi';
-import { toast } from 'react-toastify';
+import { PrimaryButton, SecondaryButton, ToastNotification } from './index';
 
 const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -139,17 +138,17 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
             }
 
             if (response.err === 0) {
-                toast.success(response.msg || (editingUser ? 'Cập nhật người dùng thành công' : 'Tạo người dùng thành công'));
+                ToastNotification.success(response.msg || (editingUser ? 'Cập nhật người dùng thành công' : 'Tạo người dùng thành công'));
                 onSuccess();
                 onClose();
             } else {
                 setError(response.msg || 'Lỗi không xác định');
-                toast.error(response.msg || 'Lỗi không xác định');
+                ToastNotification.error(response.msg || 'Lỗi không xác định');
             }
         } catch (error) {
             const errorMsg = error.response?.data?.msg || error.message || 'Có lỗi xảy ra';
             setError(errorMsg);
-            toast.error(errorMsg);
+            ToastNotification.error(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -317,23 +316,19 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 </Box>
             </DialogContent>
             <DialogActions sx={{ p: 2, gap: 1 }}>
-                <Button
-                    variant="secondary"
+                <SecondaryButton
                     onClick={onClose}
                     disabled={loading}
                 >
                     Hủy
-                </Button>
-                <Button
-                    variant="primary"
+                </SecondaryButton>
+                <PrimaryButton
                     onClick={handleSubmit}
                     disabled={loading}
+                    loading={loading}
                 >
-                    {loading ? (
-                        <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
-                    ) : null}
                     {editingUser ? 'Cập nhật' : 'Tạo'}
-                </Button>
+                </PrimaryButton>
             </DialogActions>
         </Dialog>
     );

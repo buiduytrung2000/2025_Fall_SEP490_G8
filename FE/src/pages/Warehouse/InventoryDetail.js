@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Stack,
   Grid,
   Card,
@@ -15,7 +14,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
   CircularProgress,
   Alert,
   Chip
@@ -27,7 +25,7 @@ import {
   Remove as RemoveIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
-import { toast } from 'react-toastify';
+import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from '../../components/common';
 import {
   getInventoryDetail,
   updateInventorySettings,
@@ -90,11 +88,11 @@ const InventoryDetail = () => {
         setMinStockLevel(response.data.min_stock_level);
         setReorderPoint(response.data.reorder_point);
       } else {
-        toast.error(response.msg || 'Không thể tải dữ liệu');
+        ToastNotification.error(response.msg || 'Không thể tải dữ liệu');
         navigate('/warehouse/inventory');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
       navigate('/warehouse/inventory');
     } finally {
       setLoading(false);
@@ -111,12 +109,12 @@ const InventoryDetail = () => {
 
   const handleUpdateSettings = async () => {
     if (!minStockLevel || !reorderPoint) {
-      toast.warning('Vui lòng nhập đầy đủ thông tin');
+      ToastNotification.warning('Vui lòng nhập đầy đủ thông tin');
       return;
     }
 
     if (parseInt(minStockLevel) > parseInt(reorderPoint)) {
-      toast.error('Min stock level không thể lớn hơn reorder point');
+      ToastNotification.error('Min stock level không thể lớn hơn reorder point');
       return;
     }
 
@@ -128,14 +126,14 @@ const InventoryDetail = () => {
       });
 
       if (response.err === 0) {
-        toast.success('Cập nhật thành công!');
+        ToastNotification.success('Cập nhật thành công!');
         setEditDialog(false);
         loadInventoryDetail();
       } else {
-        toast.error(response.msg || 'Không thể cập nhật');
+        ToastNotification.error(response.msg || 'Không thể cập nhật');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -143,13 +141,13 @@ const InventoryDetail = () => {
 
   const handleAdjustStock = async () => {
     if (!adjustment || !reason) {
-      toast.warning('Vui lòng nhập số lượng và lý do');
+      ToastNotification.warning('Vui lòng nhập số lượng và lý do');
       return;
     }
 
     const adj = parseInt(adjustment);
     if (adj === 0) {
-      toast.warning('Số lượng điều chỉnh phải khác 0');
+      ToastNotification.warning('Số lượng điều chỉnh phải khác 0');
       return;
     }
 
@@ -161,16 +159,16 @@ const InventoryDetail = () => {
       });
 
       if (response.err === 0) {
-        toast.success(response.msg);
+        ToastNotification.success(response.msg);
         setAdjustDialog(false);
         setAdjustment('');
         setReason('');
         loadInventoryDetail();
       } else {
-        toast.error(response.msg || 'Không thể điều chỉnh');
+        ToastNotification.error(response.msg || 'Không thể điều chỉnh');
       }
     } catch (error) {
-      toast.error('Lỗi kết nối: ' + error.message);
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
     }
@@ -200,9 +198,10 @@ const InventoryDetail = () => {
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       {/* Header */}
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
-        <IconButton onClick={() => navigate('/warehouse/inventory')}>
-          <BackIcon />
-        </IconButton>
+        <ActionButton
+          icon={<Icon name="ArrowBack" />}
+          onClick={() => navigate('/warehouse/inventory')}
+        />
         <Box sx={{ flexGrow: 1 }}>
           <Typography variant="h4" fontWeight={700}>
             Chi tiết tồn kho
@@ -220,21 +219,19 @@ const InventoryDetail = () => {
 
       {/* Action Buttons */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
-        <Button
-          variant="outlined"
-          startIcon={<EditIcon />}
+        <SecondaryButton
+          startIcon={<Icon name="Edit" />}
           onClick={() => setEditDialog(true)}
         >
           Chỉnh sửa cài đặt
-        </Button>
-        <Button
-          variant="outlined"
-          color="warning"
-          startIcon={<AddIcon />}
+        </SecondaryButton>
+        <SecondaryButton
+          startIcon={<Icon name="Add" />}
           onClick={() => setAdjustDialog(true)}
+          sx={{ color: 'warning.main', borderColor: 'warning.main' }}
         >
           Điều chỉnh stock
-        </Button>
+        </SecondaryButton>
       </Stack>
 
       <Grid container spacing={3}>
@@ -389,17 +386,17 @@ const InventoryDetail = () => {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialog(false)} disabled={updating}>
+          <SecondaryButton onClick={() => setEditDialog(false)} disabled={updating}>
             Hủy
-          </Button>
-          <Button
+          </SecondaryButton>
+          <PrimaryButton
             onClick={handleUpdateSettings}
-            variant="contained"
             disabled={updating}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
+            loading={updating}
+            startIcon={<Icon name="Save" />}
           >
             Lưu
-          </Button>
+          </PrimaryButton>
         </DialogActions>
       </Dialog>
 
@@ -438,18 +435,29 @@ const InventoryDetail = () => {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAdjustDialog(false)} disabled={updating}>
+          <SecondaryButton onClick={() => setAdjustDialog(false)} disabled={updating}>
             Hủy
-          </Button>
-          <Button
-            onClick={handleAdjustStock}
-            variant="contained"
-            color={parseInt(adjustment || 0) > 0 ? 'success' : 'error'}
-            disabled={updating}
-            startIcon={updating ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-          >
-            Xác nhận điều chỉnh
-          </Button>
+          </SecondaryButton>
+          {parseInt(adjustment || 0) > 0 ? (
+            <PrimaryButton
+              onClick={handleAdjustStock}
+              disabled={updating}
+              loading={updating}
+              startIcon={<Icon name="Save" />}
+              sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
+            >
+              Xác nhận điều chỉnh
+            </PrimaryButton>
+          ) : (
+            <DangerButton
+              onClick={handleAdjustStock}
+              disabled={updating}
+              loading={updating}
+              startIcon={<Icon name="Save" />}
+            >
+              Xác nhận điều chỉnh
+            </DangerButton>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

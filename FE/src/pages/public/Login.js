@@ -7,21 +7,13 @@ import {
   Card,
   CardContent,
   TextField,
-  Button,
   Typography,
   InputAdornment,
-  IconButton,
   FormControlLabel,
   Checkbox,
 } from "@mui/material";
-import {
-  Lock,
-  AccountCircle,
-  Visibility,
-  VisibilityOff,
-  Store,
-} from "@mui/icons-material";
-import { toast } from "react-toastify";
+import { PrimaryButton, ActionButton, Icon } from "../../components/common";
+import { ToastNotification } from "../../components/common";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -44,11 +36,11 @@ const Login = () => {
   const handleSubmit = async (values, { setSubmitting }) => {
     const response = await login(values.email, values.password);
     if (response.success) {
-      toast.success("Đăng nhập thành công");
+      ToastNotification.success("Đăng nhập thành công");
       navigate(roleToPath[response.user.role] || "/");
     } else {
       const msg = response.message || "Đăng nhập thất bại";
-      toast.error(msg);
+      ToastNotification.error(msg);
     }
     setSubmitting(false);
   };
@@ -107,7 +99,7 @@ const Login = () => {
                 justifyContent: "center",
               }}
             >
-              <Store sx={{ fontSize: 36, color: "#3a57e8" }} />
+              <Icon name="Store" sx={{ fontSize: 36, color: "#3a57e8" }} />
             </Box>
           </Box>
 
@@ -140,7 +132,7 @@ const Login = () => {
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <AccountCircle />
+                        <Icon name="AccountCircle" />
                       </InputAdornment>
                     ),
                   }}
@@ -160,19 +152,17 @@ const Login = () => {
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Lock />
+                        <Icon name="Lock" />
                       </InputAdornment>
                     ),
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
+                        <ActionButton
+                          icon={<Icon name={showPass ? "VisibilityOff" : "Visibility"} />}
                           onClick={() => setShowPass((v) => !v)}
-                          edge="end"
                           size="small"
-                        >
-                          {showPass ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
+                          sx={{ mr: 1 }}
+                        />
                       </InputAdornment>
                     ),
                   }}
@@ -194,11 +184,10 @@ const Login = () => {
                   }
                 />
 
-                <Button
+                <PrimaryButton
                   fullWidth
                   type="submit"
                   size="large"
-                  variant="contained"
                   disabled={isSubmitting}
                   sx={{
                     mt: 1.5,
@@ -209,7 +198,7 @@ const Login = () => {
                   }}
                 >
                   {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
-                </Button>
+                </PrimaryButton>
               </Form>
             )}
           </Formik>

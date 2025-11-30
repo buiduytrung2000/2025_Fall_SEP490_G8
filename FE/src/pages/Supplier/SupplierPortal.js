@@ -7,7 +7,6 @@ import {
   Typography,
   TextField,
   MenuItem,
-  Button,
   Table,
   TableBody,
   TableCell,
@@ -16,7 +15,6 @@ import {
   TableRow,
   TablePagination,
   Chip,
-  IconButton,
   CircularProgress,
   Alert,
   InputAdornment,
@@ -27,6 +25,7 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { ActionButton, Icon } from '../../components/common';
 import { getWarehouseSupplierOrders } from '../../api/warehouseOrderApi';
 
 const statusLabels = {
@@ -233,9 +232,11 @@ const SupplierPortal = () => {
                       })()}
                     </TableCell>
                     <TableCell align="center">
-                      <IconButton onClick={() => navigate(`/supplier/orders/${order.order_id}`)}>
-                        <ViewIcon />
-                      </IconButton>
+                      <ActionButton
+                        icon={<Icon name="Visibility" />}
+                        onClick={() => navigate(`/supplier/orders/${order.order_id}`)}
+                        tooltip="Xem chi tiết"
+                      />
                     </TableCell>
                   </TableRow>
                 ))

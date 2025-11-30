@@ -5,7 +5,6 @@ import {
   CardContent,
   Typography,
   TextField,
-  Button,
   Stack,
   Divider,
 } from "@mui/material";
@@ -16,6 +15,7 @@ import {
   changeMyPassword,
 } from "../../api/userApi";
 import { useAuth } from "../../contexts/AuthContext";
+import { ToastNotification, PrimaryButton } from "../../components/common";
 
 const Profile = () => {
   const { user, updateUserInfo } = useAuth();
@@ -49,10 +49,10 @@ const Profile = () => {
           updateUserInfo?.({ name: data.full_name });
         }
       } else {
-        toast.error(res.msg || "Không thể tải thông tin hồ sơ.");
+        ToastNotification.error(res.msg || "Không thể tải thông tin hồ sơ.");
       }
     } catch (error) {
-      toast.error("Không thể tải thông tin hồ sơ.");
+      ToastNotification.error("Không thể tải thông tin hồ sơ.");
     } finally {
       setLoadingProfile(false);
     }
@@ -74,7 +74,7 @@ const Profile = () => {
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
     if (!profileForm.full_name?.trim()) {
-      toast.error("Vui lòng nhập họ và tên.");
+      ToastNotification.error("Vui lòng nhập họ và tên.");
       return;
     }
 
@@ -85,14 +85,14 @@ const Profile = () => {
         phone: profileForm.phone?.trim() || "",
       });
       if (res.err === 0) {
-        toast.success("Đã cập nhật hồ sơ.");
+        ToastNotification.success("Đã cập nhật hồ sơ.");
         updateUserInfo?.({ name: profileForm.full_name.trim() });
         await loadProfile();
       } else {
-        toast.error(res.msg || "Cập nhật hồ sơ thất bại.");
+        ToastNotification.error(res.msg || "Cập nhật hồ sơ thất bại.");
       }
     } catch (error) {
-      toast.error("Cập nhật hồ sơ thất bại.");
+      ToastNotification.error("Cập nhật hồ sơ thất bại.");
     } finally {
       setSavingProfile(false);
     }
@@ -103,22 +103,22 @@ const Profile = () => {
     const { current_password, new_password, confirm_password } = passwordForm;
 
     if (!current_password || !new_password || !confirm_password) {
-      toast.error("Vui lòng điền đầy đủ thông tin mật khẩu.");
+      ToastNotification.error("Vui lòng điền đầy đủ thông tin mật khẩu.");
       return;
     }
 
     if (new_password.length < 6) {
-      toast.error("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      ToastNotification.error("Mật khẩu mới phải có ít nhất 6 ký tự.");
       return;
     }
 
     if (new_password !== confirm_password) {
-      toast.error("Xác nhận mật khẩu không khớp.");
+      ToastNotification.error("Xác nhận mật khẩu không khớp.");
       return;
     }
 
     if (current_password === new_password) {
-      toast.error("Mật khẩu mới phải khác mật khẩu hiện tại.");
+      ToastNotification.error("Mật khẩu mới phải khác mật khẩu hiện tại.");
       return;
     }
 
@@ -130,17 +130,17 @@ const Profile = () => {
       });
 
       if (res.err === 0) {
-        toast.success("Đổi mật khẩu thành công.");
+        ToastNotification.success("Đổi mật khẩu thành công.");
         setPasswordForm({
           current_password: "",
           new_password: "",
           confirm_password: "",
         });
       } else {
-        toast.error(res.msg || "Đổi mật khẩu thất bại.");
+        ToastNotification.error(res.msg || "Đổi mật khẩu thất bại.");
       }
     } catch (error) {
-      toast.error("Đổi mật khẩu thất bại.");
+      ToastNotification.error("Đổi mật khẩu thất bại.");
     } finally {
       setChangingPassword(false);
     }
@@ -184,13 +184,13 @@ const Profile = () => {
             </Stack>
 
             <Box mt={3} display="flex" justifyContent="flex-end">
-              <Button
+              <PrimaryButton
                 type="submit"
-                variant="contained"
                 disabled={savingProfile || loadingProfile}
+                loading={savingProfile}
               >
-                {savingProfile ? "Đang lưu..." : "Lưu thay đổi"}
-              </Button>
+                Lưu thay đổi
+              </PrimaryButton>
             </Box>
           </CardContent>
         </Card>
@@ -231,13 +231,14 @@ const Profile = () => {
             </Stack>
 
             <Box mt={3} display="flex" justifyContent="flex-end">
-              <Button
+              <PrimaryButton
                 type="submit"
                 variant="outlined"
                 disabled={changingPassword}
+                loading={changingPassword}
               >
-                {changingPassword ? "Đang cập nhật..." : "Đổi mật khẩu"}
-              </Button>
+                Đổi mật khẩu
+              </PrimaryButton>
             </Box>
           </CardContent>
         </Card>

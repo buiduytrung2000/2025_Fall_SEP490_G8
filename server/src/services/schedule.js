@@ -81,6 +81,10 @@ export const markAbsentSchedules = () => new Promise(async (resolve, reject) => 
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
         
+        console.log('=== markAbsentSchedules ===');
+        console.log('Giờ hiện tại:', now.toISOString(), '|', now.toLocaleString('vi-VN'));
+        console.log('Ngày hôm nay (00:00:00):', today.toISOString());
+        
         // Lấy tất cả schedules hôm nay và các ngày trước chưa check-in
         const schedules = await db.Schedule.findAll({
             where: {
@@ -118,21 +122,62 @@ export const markAbsentSchedules = () => new Promise(async (resolve, reject) => 
             shiftEndTime.setHours(endHour, endMinute, 0, 0);
             
             // Xử lý ca qua đêm (end_time < start_time)
-            if (shiftEndTime < shiftStartTime) {
+            const isNightShift = shiftEndTime < shiftStartTime;
+            if (isNightShift) {
                 shiftEndTime.setDate(shiftEndTime.getDate() + 1);
             }
             
+            // Kiểm tra xem có đang trong ca không (quan trọng cho ca đêm)
+            const isInShift = now >= shiftStartTime && now <= shiftEndTime;
+            
             // Đánh vắng nếu:
-            // 1. Quá ngày làm việc (work_date < today)
-            // 2. Hoặc trong ngày hôm nay nhưng đã quá thời gian kết thúc ca
-            const isPastWorkDate = workDate < today;
-            const isPastShiftEnd = now > shiftEndTime;
+            // 1. Quá ngày làm việc (work_date < today) - nhưng phải kiểm tra ca đêm
+            // 2. Hoặc đã quá thời gian kết thúc ca VÀ không đang trong ca
+            
+            const workDateOnly = new Date(workDate);
+            workDateOnly.setHours(0, 0, 0, 0);
+            const isPastWorkDate = workDateOnly < today;
+            
+            console.log(`\nSchedule ID: ${schedule.schedule_id}, Work Date: ${schedule.work_date}`);
+            console.log(`  Shift: ${shiftTemplate.start_time} - ${shiftTemplate.end_time} (Night: ${isNightShift})`);
+            console.log(`  Shift Start: ${shiftStartTime.toISOString()} | ${shiftStartTime.toLocaleString('vi-VN')}`);
+            console.log(`  Shift End: ${shiftEndTime.toISOString()} | ${shiftEndTime.toLocaleString('vi-VN')}`);
+            console.log(`  Now: ${now.toISOString()} | ${now.toLocaleString('vi-VN')}`);
+            console.log(`  isInShift: ${isInShift}, isPastWorkDate: ${isPastWorkDate}`);
+            
+            // Với ca đêm: nếu work_date = yesterday và đang trong ca (ví dụ: 03:00 sáng), không đánh vắng
+            if (isPastWorkDate && isNightShift) {
+                // Kiểm tra xem có phải ca đêm hôm qua không
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                yesterday.setHours(0, 0, 0, 0);
+                
+                console.log(`  Yesterday: ${yesterday.toISOString()}, workDateOnly: ${workDateOnly.toISOString()}`);
+                
+                // Nếu work_date = yesterday và đang trong ca đêm, không đánh vắng
+                if (workDateOnly.getTime() === yesterday.getTime() && isInShift) {
+                    // Đang trong ca đêm hôm qua, không đánh vắng
+                    console.log(`  → SKIP: Đang trong ca đêm hôm qua, không đánh vắng`);
+                    continue;
+                }
+            }
+            
+            // Đánh vắng nếu:
+            // - Quá ngày làm việc (và không phải ca đêm đang diễn ra)
+            // - Hoặc đã quá thời gian kết thúc ca và không đang trong ca
+            const isPastShiftEnd = now > shiftEndTime && !isInShift;
+            console.log(`  isPastShiftEnd: ${isPastShiftEnd}`);
             
             if (isPastWorkDate || isPastShiftEnd) {
+                console.log(`  → MARK AS ABSENT`);
                 await schedule.update({ attendance_status: 'absent' });
                 updatedCount++;
+            } else {
+                console.log(`  → KEEP (chưa đến thời gian đánh vắng)`);
             }
         }
+        
+        console.log(`\n=== Tổng kết: Đánh vắng ${updatedCount} schedule(s) ===\n`);
         
         resolve({
             err: 0,

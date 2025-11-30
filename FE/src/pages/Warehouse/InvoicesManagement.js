@@ -11,11 +11,11 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Button,
   MenuItem,
   TextField,
   Stack
 } from '@mui/material';
+import { PrimaryButton, DangerButton } from '../../components/common';
 import {
   getWarehouseInvoices,
   approveWarehouseInvoice,
@@ -121,28 +121,31 @@ const InvoicesManagement = () => {
                   <TableCell><Chip size="small" color={color} label={r.status} /></TableCell>
                   <TableCell>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ minWidth: { xs: 150, sm: 'auto' } }}>
-                      <Button 
+                      <PrimaryButton 
                         disabled={!isPending || loading} 
-                        variant="contained" 
-                        color="success" 
                         onClick={() => handleApprove(r.id)}
                         size="small"
-                        fullWidth={{ xs: true, sm: false }}
-                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                        sx={{ 
+                          fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                          bgcolor: 'success.main',
+                          '&:hover': { bgcolor: 'success.dark' },
+                          width: { xs: '100%', sm: 'auto' }
+                        }}
                       >
                         Approve
-                      </Button>
-                      <Button 
+                      </PrimaryButton>
+                      <DangerButton 
                         disabled={!isPending || loading} 
-                        variant="outlined" 
-                        color="error" 
+                        variant="outlined"
                         onClick={() => handleReject(r.id)}
                         size="small"
-                        fullWidth={{ xs: true, sm: false }}
-                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}
+                        sx={{ 
+                          fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                          width: { xs: '100%', sm: 'auto' }
+                        }}
                       >
                         Reject
-                      </Button>
+                      </DangerButton>
                     </Stack>
                   </TableCell>
                 </TableRow>

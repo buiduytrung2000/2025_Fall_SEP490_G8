@@ -47,7 +47,7 @@ import {
   getStorePerformance,
   getCompanyLowStock,
 } from "../../api/dashboardApi";
-import { toast } from "react-toastify";
+import { ToastNotification } from "../../components/common";
 
 ChartJS.register(
   CategoryScale,
@@ -191,7 +191,7 @@ export default function CEODashboard() {
       if (storesRes.err === 0) setStorePerformance(storesRes.data);
       if (lowStockRes.err === 0) setLowStock(lowStockRes.data);
     } catch (error) {
-      toast.error("Lỗi tải dữ liệu: " + error.message);
+      ToastNotification.error("Lỗi tải dữ liệu: " + error.message);
     } finally {
       setLoading(false);
     }
