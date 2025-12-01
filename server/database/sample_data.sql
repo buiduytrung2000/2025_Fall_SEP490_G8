@@ -1,13 +1,13 @@
 
     USE CCMS_DB;
     -- 1. Insert Stores
-    INSERT INTO Store (name, address, phone, status) VALUES
+    INSERT IGNORE INTO Store (name, address, phone, status) VALUES
     ('Store Central', '123 Main Street, City A', '0123456789', 'active'),
     ('Store North', '456 North Avenue, City B', '0987654321', 'active'),
     ('Store South', '789 South Road, City C', '0123987654', 'active');
 
     -- 2. Insert Categories (with hierarchy) - mô phỏng siêu thị tổng hợp
-    INSERT INTO Category (name, parent_id) VALUES
+    INSERT IGNORE INTO Category (name, parent_id) VALUES
     ('Thực phẩm khô', NULL),          -- 1
     ('Hàng tiêu dùng', NULL),         -- 2
     ('Đồ uống', NULL),                -- 3
@@ -16,15 +16,8 @@
     ('Chăm sóc cá nhân', 2),          -- 6
     ('Rau củ quả', NULL);           -- 7
 
-    -- 3. Insert Suppliers - nhà cung cấp cho siêu thị
-INSERT INTO Supplier (user_id, name, contact, email, address) VALUES
-(7, 'Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
-(8, 'Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
-(9, 'Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát'),
-(10, 'Công Ty Rau Củ Quả D', 'Lê Văn D', 'salesD@beverage.com', '300 KCN Nước Giải Khát');
-
--- 4. Insert Units & Product Units for multi-level conversion
-INSERT INTO Unit (name, symbol, level) VALUES
+-- 3. Insert Units & Product Units for multi-level conversion
+INSERT IGNORE INTO Unit (name, symbol, level) VALUES
 ('Kilogram', 'kg', 3),          -- 1
 ('Liter', 'L', 3),              -- 2
 ('Milliliter', 'ml', 4),        -- 3
@@ -34,9 +27,10 @@ INSERT INTO Unit (name, symbol, level) VALUES
 ('Bịch', 'bich', 1),          -- 7
 ('Bao', 'bao', 2);              -- 8
 
+    -- 4. Insert Users (must come before Suppliers)
     -- Note: includes phone column, full_name, is_active
     -- Passwords are hashed using bcrypt (password: '123')
-    INSERT INTO User (user_id, username, password, role, store_id, email, phone, address, full_name, is_active, status, created_at, updated_at) VALUES
+    INSERT IGNORE INTO User (user_id, username, password, role, store_id, email, phone, address, full_name, is_active, status, created_at, updated_at) VALUES
     (1, 'ceo_admin', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'CEO', NULL, 'ceo@ccms.com', '0900000001', '123 CEO Street, City A', NULL, 1, 'active', '2025-11-20 21:43:33', '2025-11-28 12:54:58'),
     (2, 'manager_store1', '$2a$12$LriR6uSae2RMldNOintk4u3ST7dkGniBMbtvnMTi0qwmtzvovmQgC', 'Store_Manager', 1, 'manager1@ccms.com', '0900000002', '88 Manager Blvd, City A', 'manage', 1, 'active', '2025-11-20 21:43:33', '2025-11-28 19:21:40'),
     (3, 'cashier_store1_1', '$2a$10$hJ3aTfVD1/Is/FdLhmcxKOLAQwL1kcUH3yFt8vn7SRxIqpIC4t4.C', 'Cashier', 1, 'cashier1@ccms.com', '0900000004', '15 Cashier Lane, City A', 'cash 1', 1, 'active', '2025-11-20 21:43:33', '2025-11-28 19:49:23'),
@@ -52,15 +46,36 @@ INSERT INTO Unit (name, symbol, level) VALUES
     -- Reset AUTO_INCREMENT for User table
     ALTER TABLE User AUTO_INCREMENT = 12;
 
--- 5. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
-INSERT INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, import_price, is_perishable, description, is_active) VALUES
-('Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, 1, 7, 120000.00, 1000000.00, 0, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm', 1),
-('Dầu ăn hướng dương 1L', 'DAU1L001', 5, 1, 4, 55000.00, 0.00, 0, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào', 1),
-('Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, 1, 4, 45000.00, 0.00, 0, 'Chai nước mắm cá cơm độ đạm cao, 750ml', 1),
-('Mì gói thùng 30 gói', 'MITHUNG30001', 4, 1, 5, 90000.00, 0.00, 0, 'Thùng mì gói 30 gói, nhiều hương vị', 1),
-('Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, 1, 5, 28000.00, 0.00, 0, 'Túi đường trắng tinh luyện 1kg', 1),
-('Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, 3, 4, 85000.00, 0.00, 0, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ', 1),
-('Rau tươi ', 'RAU600001', 7, 4, 1, 6000.00, 5000.00, 1, 'Rau tươi ', 1);
+    -- 5. Insert Suppliers - nhà cung cấp cho siêu thị (must come after Users)
+    INSERT IGNORE INTO Supplier (user_id, name, contact, email, address) VALUES
+    (7, 'Nhà Phân Phối Thực Phẩm A', 'Nguyễn Văn A', 'salesA@fooddist.com', '100 Đường Kho Thực Phẩm'),
+    (8, 'Công Ty Hàng Tiêu Dùng B', 'Trần Thị B', 'salesB@fmcg.com', '200 Khu Công Nghiệp B'),
+    (9, 'Công Ty Đồ Uống C', 'Lê Văn C', 'salesC@beverage.com', '300 KCN Nước Giải Khát'),
+    (10, 'Công Ty Rau Củ Quả D', 'Lê Văn D', 'salesD@beverage.com', '300 KCN Nước Giải Khát');
+
+-- 6. Insert Products - danh mục sản phẩm siêu thị (không có điện tử)
+-- Using INSERT ... SELECT to resolve supplier_id from user_id to handle INSERT IGNORE cases
+INSERT IGNORE INTO Product (name, sku, category_id, supplier_id, base_unit_id, hq_price, import_price, is_perishable, description, is_active)
+SELECT 'Gạo thơm Jasmine 5kg', 'GAO5KG001', 4, s.supplier_id, 7, 120000.00, 1000000.00, 0, 'Bao gạo thơm Jasmine 5kg, hạt dài, mềm cơm', 1
+FROM Supplier s WHERE s.user_id = 7
+UNION ALL
+SELECT 'Dầu ăn hướng dương 1L', 'DAU1L001', 5, s.supplier_id, 4, 55000.00, 0.00, 0, 'Chai dầu ăn hướng dương 1 lít, dùng chiên xào', 1
+FROM Supplier s WHERE s.user_id = 7
+UNION ALL
+SELECT 'Nước mắm truyền thống 750ml', 'NUOCMAM750001', 5, s.supplier_id, 4, 45000.00, 0.00, 0, 'Chai nước mắm cá cơm độ đạm cao, 750ml', 1
+FROM Supplier s WHERE s.user_id = 7
+UNION ALL
+SELECT 'Mì gói thùng 30 gói', 'MITHUNG30001', 4, s.supplier_id, 5, 90000.00, 0.00, 0, 'Thùng mì gói 30 gói, nhiều hương vị', 1
+FROM Supplier s WHERE s.user_id = 7
+UNION ALL
+SELECT 'Đường trắng tinh luyện 1kg', 'DUONG1KG001', 1, s.supplier_id, 5, 28000.00, 0.00, 0, 'Túi đường trắng tinh luyện 1kg', 1
+FROM Supplier s WHERE s.user_id = 7
+UNION ALL
+SELECT 'Nước khoáng 500ml (thùng 24 chai)', 'NUOCKHOANG500001', 3, s.supplier_id, 4, 85000.00, 0.00, 0, 'Thùng 24 chai nước khoáng 500ml, có gas nhẹ', 1
+FROM Supplier s WHERE s.user_id = 9
+UNION ALL
+SELECT 'Rau tươi ', 'RAU600001', 7, s.supplier_id, 1, 6000.00, 5000.00, 1, 'Rau tươi ', 1
+FROM Supplier s WHERE s.user_id = 10;
 
 -- 5b. Insert Product Units & conversion ratios
 INSERT INTO ProductUnit (product_id, unit_id, conversion_to_base) VALUES
@@ -97,22 +112,37 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
 (6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
     -- 7. Insert Orders
-    INSERT INTO `Order` (order_id, order_code, supplier_id, created_by, created_at, status, expected_delivery, direct_to_store, target_store_id, updated_at) VALUES
-    (46, 'XKJXOZ', 1, 6, '2025-11-29 16:52:41', 'confirmed', NULL, 0, NULL, '2025-11-29 16:59:42'),
-    (47, 'OT3IZW', 1, 6, '2025-11-29 17:07:25', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:25'),
-    (48, '8LSD5Y', 1, 6, '2025-11-29 17:07:54', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:54'),
-    (49, 'GIC73P', 1, 6, '2025-11-29 18:11:01', 'confirmed', NULL, 0, NULL, '2025-11-29 18:11:01'),
-    (50, 'NYCDHK', 3, 6, '2025-11-29 22:24:14', 'confirmed', NULL, 0, NULL, '2025-11-29 22:24:14'),
-    (51, 'NCH1NX', 4, 6, '2025-11-29 22:26:47', 'confirmed', NULL, 0, NULL, '2025-11-29 22:26:47'),
-    (52, 'VBKFB7', 4, 2, '2025-11-29 22:29:26', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:26'),
-    (53, '68O3HE', 4, 2, '2025-11-29 22:29:55', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:55'),
-    (54, 'JGC259', 1, 6, '2025-11-30 00:17:39', 'confirmed', NULL, 0, NULL, '2025-11-30 00:17:39');
-
-    -- Reset AUTO_INCREMENT for Order table
-    ALTER TABLE `Order` AUTO_INCREMENT = 55;
+    -- Use INSERT ... SELECT so supplier_id is resolved from Supplier.user_id
+    INSERT IGNORE INTO `Order` (order_id, order_code, supplier_id, created_by, created_at, status, expected_delivery, direct_to_store, target_store_id, updated_at)
+    SELECT 46, 'XKJXOZ', s.supplier_id, 6, '2025-11-29 16:52:41', 'confirmed', NULL, 0, NULL, '2025-11-29 16:59:42'
+    FROM Supplier s WHERE s.user_id = 7
+    UNION ALL
+    SELECT 47, 'OT3IZW', s.supplier_id, 6, '2025-11-29 17:07:25', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:25'
+    FROM Supplier s WHERE s.user_id = 7
+    UNION ALL
+    SELECT 48, '8LSD5Y', s.supplier_id, 6, '2025-11-29 17:07:54', 'confirmed', NULL, 0, NULL, '2025-11-29 17:07:54'
+    FROM Supplier s WHERE s.user_id = 7
+    UNION ALL
+    SELECT 49, 'GIC73P', s.supplier_id, 6, '2025-11-29 18:11:01', 'confirmed', NULL, 0, NULL, '2025-11-29 18:11:01'
+    FROM Supplier s WHERE s.user_id = 7
+    UNION ALL
+    SELECT 50, 'NYCDHK', s.supplier_id, 6, '2025-11-29 22:24:14', 'confirmed', NULL, 0, NULL, '2025-11-29 22:24:14'
+    FROM Supplier s WHERE s.user_id = 9
+    UNION ALL
+    SELECT 51, 'NCH1NX', s.supplier_id, 6, '2025-11-29 22:26:47', 'confirmed', NULL, 0, NULL, '2025-11-29 22:26:47'
+    FROM Supplier s WHERE s.user_id = 10
+    UNION ALL
+    SELECT 52, 'VBKFB7', s.supplier_id, 2, '2025-11-29 22:29:26', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:26'
+    FROM Supplier s WHERE s.user_id = 10
+    UNION ALL
+    SELECT 53, '68O3HE', s.supplier_id, 2, '2025-11-29 22:29:55', 'pending', '2025-11-30 15:29:00', 1, 1, '2025-11-29 22:29:55'
+    FROM Supplier s WHERE s.user_id = 10
+    UNION ALL
+    SELECT 54, 'JGC259', s.supplier_id, 6, '2025-11-30 00:17:39', 'confirmed', NULL, 0, NULL, '2025-11-30 00:17:39'
+    FROM Supplier s WHERE s.user_id = 7;
 
     -- 8. Insert Order Items
-    INSERT INTO OrderItem (order_item_id, order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base, created_at, updated_at) VALUES
+    INSERT IGNORE INTO OrderItem (order_item_id, order_id, product_id, quantity, unit_price, subtotal, unit_id, quantity_in_base, created_at, updated_at) VALUES
     (34, 46, 2, 8, 82500.00, 660000.00, 4, 8.000000, '2025-11-29 16:52:42', '2025-11-29 16:52:42'),
     (35, 47, 3, 10, 44400.00, 444000.00, 4, 10.000000, '2025-11-29 17:07:25', '2025-11-29 17:07:25'),
     (36, 48, 3, 10, 52000.00, 520000.00, 4, 10.000000, '2025-11-29 17:07:54', '2025-11-29 17:07:54'),

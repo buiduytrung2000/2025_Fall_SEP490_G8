@@ -1,18 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Form, Button, Badge, Spinner } from 'react-bootstrap';
-import { FaCalendarAlt, FaMoneyBillWave, FaQrcode, FaSearch, FaUser, FaPrint, FaFileExcel } from 'react-icons/fa';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    Box,
+    Grid,
+    Card,
+    CardContent,
+    TextField,
+    Button,
+    Chip,
+    Typography,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    InputAdornment
+} from '@mui/material';
+import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
+import {
+    CalendarToday as CalendarTodayIcon,
+    AttachMoney as AttachMoneyIcon,
+    QrCode as QrCodeIcon,
+    Print as PrintIcon,
+    FileDownload as FileDownloadIcon,
+    Search as SearchIcon
+} from '@mui/icons-material';
+import { ToastNotification } from '../../components/common';
 import { getTransactionHistory } from '../../api/paymentApi';
 import { getEmployees } from '../../api/employeeApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateAndPrintInvoice } from '../../utils/invoicePDF';
 import { exportPaymentHistoryToExcel } from '../../utils/exportExcel';
-import { ToastNotification } from '../../components/common';
-import '../../assets/PaymentHistory.css';
 
 const PaymentHistory = () => {
     const { user } = useAuth();
     const [transactions, setTransactions] = useState([]);
+    const [allTransactions, setAllTransactions] = useState([]); // Store all transactions for filtering
     const [cashiers, setCashiers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -21,6 +43,7 @@ const PaymentHistory = () => {
     });
     const [paymentMethod, setPaymentMethod] = useState('all');
     const [selectedCashier, setSelectedCashier] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchCashiers();
@@ -65,19 +88,37 @@ const PaymentHistory = () => {
             const response = await getTransactionHistory(filters);
             
             if (response.err === 0) {
-                setTransactions(response.data || []);
+                const data = response.data || [];
+                setAllTransactions(data);
+                setTransactions(data);
             } else {
                 ToastNotification.error(response.msg || 'Không thể tải lịch sử thanh toán');
+                setAllTransactions([]);
                 setTransactions([]);
             }
         } catch (error) {
             console.error('Error fetching transactions:', error);
             ToastNotification.error('Lỗi khi tải dữ liệu');
+            setAllTransactions([]);
             setTransactions([]);
         } finally {
             setLoading(false);
         }
     };
+
+    // Filter transactions by search term (transaction ID)
+    useEffect(() => {
+        if (!searchTerm.trim()) {
+            setTransactions(allTransactions);
+            return;
+        }
+
+        const filtered = allTransactions.filter(transaction => {
+            const transactionId = String(transaction.transaction_id || '');
+            return transactionId.includes(searchTerm.trim());
+        });
+        setTransactions(filtered);
+    }, [searchTerm, allTransactions]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('vi-VN', {
@@ -87,6 +128,7 @@ const PaymentHistory = () => {
     };
 
     const formatDateTime = (dateString) => {
+        if (!dateString) return '—';
         const date = new Date(dateString);
         return date.toLocaleString('vi-VN', {
             year: 'numeric',
@@ -100,40 +142,11 @@ const PaymentHistory = () => {
 
     const getPaymentMethodBadge = (method) => {
         if (method === 'cash') {
-            return <Badge bg="success"><FaMoneyBillWave /> Tiền mặt</Badge>;
-        } else if (method === 'bank_transfer') {
-            return <Badge bg="info"><FaQrcode /> QR Banking</Badge>;
+            return <Chip icon={<AttachMoneyIcon />} label="Tiền mặt" color="success" size="small" />;
+        } else if (method === 'bank_transfer' || method === 'qr') {
+            return <Chip icon={<QrCodeIcon />} label="QR Banking" color="info" size="small" />;
         }
-        return <Badge bg="secondary">{method}</Badge>;
-    };
-
-    const getTotalAmount = () => {
-        return transactions.reduce((sum, transaction) => sum + parseFloat(transaction.total_amount || 0), 0);
-    };
-
-    const getTotalTransactions = () => {
-        return transactions.length;
-    };
-
-    const getCashierStats = () => {
-        const stats = {};
-        transactions.forEach(transaction => {
-            const cashierId = transaction.cashier_id || 'unknown';
-            const cashierName = transaction.cashier?.name || 'Không xác định';
-
-            if (!stats[cashierId]) {
-                stats[cashierId] = {
-                    name: cashierName,
-                    count: 0,
-                    total: 0
-                };
-            }
-
-            stats[cashierId].count += 1;
-            stats[cashierId].total += parseFloat(transaction.total_amount || 0);
-        });
-
-        return Object.values(stats);
+        return <Chip label={method} color="default" size="small" />;
     };
 
     const handlePrintInvoice = async (transactionId) => {
@@ -155,176 +168,226 @@ const PaymentHistory = () => {
         }
     };
 
+    const columns = useMemo(() => [
+        {
+            accessorKey: 'transaction_id',
+            header: 'Mã GD',
+            size: 100,
+            Cell: ({ cell }) => `#${cell.getValue()}`,
+        },
+        {
+            accessorKey: 'created_at',
+            header: 'Thời gian',
+            size: 180,
+            Cell: ({ cell }) => formatDateTime(cell.getValue()),
+        },
+        {
+            accessorKey: 'cashier.username',
+            header: 'Thu ngân',
+            size: 150,
+            Cell: ({ row }) => row.original.cashier?.username || 'Không xác định',
+        },
+        {
+            accessorKey: 'customer.name',
+            header: 'Khách hàng',
+            size: 200,
+            Cell: ({ row }) => {
+                const customer = row.original.customer;
+                if (customer) {
+                    return (
+                        <Box>
+                            <Typography variant="body2">{customer.name}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {customer.phone}
+                            </Typography>
+                        </Box>
+                    );
+                }
+                return <Typography variant="body2" color="text.secondary">Khách vãng lai</Typography>;
+            },
+        },
+        {
+            accessorKey: 'items',
+            header: 'Số lượng SP',
+            size: 120,
+            Cell: ({ row }) => row.original.items?.length || 0,
+        },
+        {
+            accessorKey: 'total_amount',
+            header: 'Tổng tiền',
+            size: 150,
+            Cell: ({ cell }) => (
+                <Typography variant="body2" fontWeight={600}>
+                    {formatCurrency(cell.getValue() || 0)}
+                </Typography>
+            ),
+        },
+        {
+            accessorKey: 'payment.method',
+            header: 'Phương thức',
+            size: 150,
+            Cell: ({ row }) => getPaymentMethodBadge(row.original.payment?.method),
+        },
+        {
+            accessorKey: 'status',
+            header: 'Trạng thái',
+            size: 120,
+            Cell: () => <Chip label="Hoàn thành" color="success" size="small" />,
+        },
+        {
+            id: 'actions',
+            header: 'Hành động',
+            size: 130,
+            Cell: ({ row }) => (
+                <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<PrintIcon />}
+                    onClick={() => handlePrintInvoice(row.original.transaction_id)}
+                    title="In hóa đơn"
+                >
+                    In
+                </Button>
+            ),
+        },
+    ], []);
+
     return (
-        <Container fluid className="payment-history-container">
-            <Row className="mb-4">
-                <Col>
-                    <h2 className="page-title">
-                        <FaCalendarAlt className="me-2" />
-                        Lịch sử thanh toán
-                    </h2>
-                </Col>
-            </Row>
+        <Box sx={{ py: 3, px: 2 }}>
+            <Box sx={{ mb: 4 }}>
+                <Typography variant="h4" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                    <CalendarTodayIcon /> Lịch sử thanh toán
+                </Typography>
+            </Box>
 
             {/* Filters */}
-            <Row className="mb-4">
-                <Col md={4}>
-                    <Form.Group>
-                        <Form.Label>Chọn ngày</Form.Label>
-                        <Form.Control
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                        />
-                    </Form.Group>
-                </Col>
-                <Col md={4}>
-                    <Form.Group>
-                        <Form.Label>Phương thức thanh toán</Form.Label>
-                        <Form.Select
+            <Grid container spacing={2} sx={{ mb: 4 }} alignItems="center">
+                <Grid item xs={12} md={2}>
+                    <TextField
+                        fullWidth
+                        label="Tìm kiếm mã GD"
+                        placeholder="Nhập mã giao dịch..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        size="small"
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                    <TextField
+                        fullWidth
+                        type="date"
+                        label="Chọn ngày"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        size="small"
+                    />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                    <FormControl fullWidth sx={{ minWidth: '200px' }} size="small">
+                        <InputLabel id="payment-method-label" sx={{ whiteSpace: 'nowrap' }}>
+                            Phương thức thanh toán
+                        </InputLabel>
+                        <Select
+                            labelId="payment-method-label"
                             value={paymentMethod}
                             onChange={(e) => setPaymentMethod(e.target.value)}
+                            label="Phương thức thanh toán"
+                            sx={{ 
+                                minWidth: '200px',
+                                '& .MuiSelect-select': { 
+                                    whiteSpace: 'normal',
+                                    wordBreak: 'break-word'
+                                }
+                            }}
                         >
-                            <option value="all">Tất cả</option>
-                            <option value="cash">Tiền mặt</option>
-                            <option value="qr">QR Banking</option>
-                        </Form.Select>
-                    </Form.Group>
-                </Col>
-                <Col md={4}>
-                    <Form.Group>
-                        <Form.Label>Nhân viên thu ngân</Form.Label>
-                        <Form.Select
+                            <MenuItem value="all">Tất cả</MenuItem>
+                            <MenuItem value="cash">Tiền mặt</MenuItem>
+                            <MenuItem value="qr">QR Banking</MenuItem>
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                    <FormControl fullWidth sx={{ minWidth: '200px' }} size="small">
+                        <InputLabel id="cashier-label">Nhân viên thu ngân</InputLabel>
+                        <Select
+                            labelId="cashier-label"
                             value={selectedCashier}
                             onChange={(e) => setSelectedCashier(e.target.value)}
+                            label="Nhân viên thu ngân"
+                            sx={{ 
+                                minWidth: '200px',
+                                '& .MuiSelect-select': { 
+                                    whiteSpace: 'normal',
+                                    wordBreak: 'break-word'
+                                }
+                            }}
                         >
-                            <option value="all">Tất cả</option>
+                            <MenuItem value="all">Tất cả</MenuItem>
                             {cashiers.map(cashier => (
-                                <option key={cashier.user_id} value={cashier.user_id}>
+                                <MenuItem key={cashier.user_id} value={cashier.user_id}>
                                     {cashier.username || cashier.name}
-                                </option>
+                                </MenuItem>
                             ))}
-                        </Form.Select>
-                    </Form.Group>
-                </Col>
-            </Row>
-
-            {/* Summary Cards */}
-            <Row className="mb-4">
-                <Col md={3}>
-                    <Card className="summary-card">
-                        <Card.Body>
-                            <h5>Tổng số giao dịch</h5>
-                            <h2 className="text-primary">{getTotalTransactions()}</h2>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col md={3}>
-                    <Card className="summary-card">
-                        <Card.Body>
-                            <h5>Tổng doanh thu</h5>
-                            <h2 className="text-success">{formatCurrency(getTotalAmount())}</h2>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col md={3}>
-                    <Card className="summary-card">
-                        <Card.Body>
-                            <h5>Số nhân viên</h5>
-                            <h2 className="text-info">{getCashierStats().length}</h2>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col md={3}>
-                    <Card className="summary-card">
-                        <Card.Body>
-                            <Button
-                                variant="success"
-                                className="w-100 mt-3"
-                                onClick={handleExportExcel}
-                                disabled={transactions.length === 0}
-                            >
-                                <FaFileExcel className="me-2" />
-                                Xuất Excel
-                            </Button>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                    <Button
+                        variant="contained"
+                        color="success"
+                        fullWidth
+                        startIcon={<FileDownloadIcon />}
+                        onClick={handleExportExcel}
+                        disabled={transactions.length === 0}
+                        size="small"
+                    >
+                        Xuất Excel
+                    </Button>
+                </Grid>
+            </Grid>
 
             {/* Transactions Table */}
             <Card>
-                <Card.Body>
-                    {loading ? (
-                        <div className="text-center py-5">
-                            <Spinner animation="border" variant="primary" />
-                            <p className="mt-3">Đang tải dữ liệu...</p>
-                        </div>
-                    ) : transactions.length === 0 ? (
-                        <div className="text-center py-5">
-                            <p className="text-muted">Không có giao dịch nào trong ngày này</p>
-                        </div>
-                    ) : (
-                        <Table responsive hover>
-                            <thead>
-                                <tr>
-                                    <th>Mã GD</th>
-                                    <th>Thời gian</th>
-                                    <th>Thu ngân</th>
-                                    <th>Khách hàng</th>
-                                    <th>Số lượng SP</th>
-                                    <th>Tổng tiền</th>
-                                    <th>Phương thức</th>
-                                    <th>Trạng thái</th>
-                                    <th>Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transactions.map((transaction) => (
-                                    <tr key={transaction.transaction_id}>
-                                        <td>#{transaction.transaction_id}</td>
-                                        <td>{formatDateTime(transaction.created_at)}</td>
-                                        <td>
-                                            <FaUser className="me-1" />
-                                            {transaction.cashier?.username || 'Không xác định'}
-                                        </td>
-                                        <td>
-                                            {transaction.customer ? (
-                                                <>
-                                                    {transaction.customer.name}
-                                                    <br />
-                                                    <small className="text-muted">{transaction.customer.phone}</small>
-                                                </>
-                                            ) : (
-                                                <span className="text-muted">Khách vãng lai</span>
-                                            )}
-                                        </td>
-                                        <td>{transaction.items?.length || 0}</td>
-                                        <td className="fw-bold">{formatCurrency(transaction.total_amount)}</td>
-                                        <td>{getPaymentMethodBadge(transaction.payment?.method)}</td>
-                                        <td>
-                                            <Badge bg="success">Hoàn thành</Badge>
-                                        </td>
-                                        <td>
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                onClick={() => handlePrintInvoice(transaction.transaction_id)}
-                                                title="In hóa đơn"
-                                            >
-                                                <FaPrint /> In
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    )}
-                </Card.Body>
+                <CardContent>
+                    <MaterialReactTable
+                        columns={columns}
+                        data={transactions}
+                        enableStickyHeader
+                        initialState={{ 
+                            density: 'compact',
+                            pagination: { pageSize: 10, pageIndex: 0 }
+                        }}
+                        state={{ isLoading: loading }}
+                        localization={MRT_Localization_VI}
+                        layoutMode="grid"
+                        muiTableContainerProps={{
+                            sx: { maxHeight: '70vh' }
+                        }}
+                        muiTablePaperProps={{
+                            elevation: 0,
+                            sx: { boxShadow: 'none' }
+                        }}
+                        muiTableBodyCellProps={{
+                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
+                        }}
+                        renderEmptyRowsFallback={() => (
+                            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                                Không có giao dịch nào
+                            </Typography>
+                        )}
+                    />
+                </CardContent>
             </Card>
-        </Container>
+        </Box>
     );
 };
 
 export default PaymentHistory;
-

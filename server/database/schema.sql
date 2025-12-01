@@ -33,19 +33,7 @@ CREATE TABLE IF NOT EXISTS Unit (
     UNIQUE KEY uq_unit_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS Supplier (
-    supplier_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NULL,
-    name VARCHAR(255) NOT NULL,
-    contact VARCHAR(255),
-    email VARCHAR(255),
-    address TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE SET NULL ON UPDATE CASCADE,
-    UNIQUE KEY uq_supplier_user (user_id),
-    INDEX idx_supplier_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 CREATE TABLE IF NOT EXISTS User (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -69,6 +57,20 @@ CREATE TABLE IF NOT EXISTS User (
     INDEX idx_user_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS Supplier (
+    supplier_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NULL,
+    name VARCHAR(255) NOT NULL,
+    contact VARCHAR(255),
+    email VARCHAR(255),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    UNIQUE KEY uq_supplier_user (user_id),
+    INDEX idx_supplier_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS Product (
     product_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -78,7 +80,7 @@ CREATE TABLE IF NOT EXISTS Product (
     base_unit_id INT NOT NULL,
     hq_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     import_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT 'Giá nhập/giá vốn của sản phẩm',
-    is_perishable TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = hàng tươi sống',
+    is_perishable TINYINT NOT NULL DEFAULT 0 COMMENT '1 = hàng tươi sống',
     description TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT 'Trạng thái hoạt động của sản phẩm (TRUE = hoạt động, FALSE = đã xóa/vô hiệu hóa)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -160,7 +162,7 @@ CREATE TABLE IF NOT EXISTS StockCountReport (
     FOREIGN KEY (reported_by) REFERENCES User(user_id) ON DELETE CASCADE,
     INDEX idx_stock_count_report_inventory (warehouse_inventory_id),
     INDEX idx_stock_count_report_product (product_id),
-    INDEX idx_stock_count_report_type (report_type),
+    INDEX idx_stock_count_report_type (report_type),    
     INDEX idx_stock_count_report_reported_by (reported_by),
     INDEX idx_stock_count_report_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -194,7 +196,7 @@ CREATE TABLE IF NOT EXISTS `Order` (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('pending', 'confirmed', 'cancelled') DEFAULT 'pending',
     expected_delivery DATETIME NULL,
-    direct_to_store TINYINT(1) NOT NULL DEFAULT 0,
+    direct_to_store TINYINT NOT NULL DEFAULT 0,
     target_store_id INT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (supplier_id) REFERENCES Supplier(supplier_id) ON DELETE CASCADE,

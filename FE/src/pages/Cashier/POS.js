@@ -1,12 +1,41 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Form, Button, InputGroup, Modal, ListGroup, Spinner } from 'react-bootstrap';
 import {
-    FaSearch, FaQrcode,
-    FaShoppingCart, FaUserCircle, FaTimes, FaSignInAlt, FaSignOutAlt,
-    FaMoneyBillWave, FaCreditCard, FaTicketAlt, FaTrash
-} from 'react-icons/fa';
-import '../../assets/POS.css';
+    Box,
+    Button,
+    TextField,
+    InputAdornment,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    List,
+    ListItem,
+    ListItemText,
+    ListItemButton,
+    CircularProgress,
+    Typography,
+    Paper,
+    Grid,
+    Divider,
+    Chip,
+    IconButton,
+    Badge,
+    Stack
+} from '@mui/material';
+import {
+    Search as SearchIcon,
+    QrCode as QrCodeIcon,
+    ShoppingCart as ShoppingCartIcon,
+    Person as PersonIcon,
+    Close as CloseIcon,
+    Login as LoginIcon,
+    Logout as LogoutIcon,
+    AttachMoney as AttachMoneyIcon,
+    CreditCard as CreditCardIcon,
+    LocalOffer as LocalOfferIcon,
+    Delete as DeleteIcon
+} from '@mui/icons-material';
 import { getProductsByStore } from '../../api/productApi';
 import { getMyOpenShift, checkinShift, checkoutShift } from '../../api/shiftApi';
 import { getMySchedules } from '../../api/scheduleApi';
@@ -468,19 +497,22 @@ const POS = () => {
     }, [openingCash, cashSalesTotal]);
     // Tìm kiếm khách hàng khi nhập số điện thoại
     // Xử lý tìm kiếm khách hàng
-    const handleSearchCustomer = useCallback(async () => {
+    const handleSearchCustomer = useCallback(async (phone) => {
         setIsSearching(true);
         try {
-            const res = await searchCustomerByPhone(customerPhone);
+            const res = await searchCustomerByPhone(phone);
             if (res && res.err === 0) {
                 setSearchResults(res.data || []);
                 setShowCreateForm(false);
             } else {
                 setSearchResults([]);
                 // Nếu không tìm thấy và đủ 10 số, hiển thị form tạo mới
-                if (customerPhone.trim().length >= 10) {
+                if (phone.trim().length === 10) {
                     setShowCreateForm(true);
-                    setNewCustomer(prev => ({ ...prev, phone: customerPhone }));
+                    setNewCustomer(prev => ({ ...prev, phone: phone }));
+                } else {
+                    // Nếu không đủ 10 số thì ẩn form
+                    setShowCreateForm(false);
                 }
             }
         } catch (error) {
@@ -489,13 +521,18 @@ const POS = () => {
         } finally {
             setIsSearching(false);
         }
-    }, [customerPhone]);
+    }, []);
 
     // Tìm kiếm khách hàng khi nhập số điện thoại
     useEffect(() => {
+        // Nếu số điện thoại dưới 10 số, ẩn form tạo mới ngay lập tức
+        if (customerPhone.trim().length < 10) {
+            setShowCreateForm(false);
+        }
+
         const delaySearch = setTimeout(() => {
             if (customerPhone.trim().length >= 3) {
-                handleSearchCustomer();
+                handleSearchCustomer(customerPhone);
             } else {
                 setSearchResults([]);
                 setShowCreateForm(false);
@@ -823,142 +860,187 @@ const POS = () => {
         }
     };
 
-    // Helper function để lấy màu badge theo tier
+    // Helper function để lấy màu badge theo tier (MUI colors)
     const getTierBadgeColor = (tier) => {
         switch (tier?.toLowerCase()) {
             case 'gold': return 'warning';
-            case 'silver': return 'secondary';
-            case 'bronze': return 'danger';
+            case 'silver': return 'default';
+            case 'bronze': return 'error';
             default: return 'primary';
         }
     };
 
 
     return (
-        <div className="pos-container">
+        <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
             {/* ------------------- BÊN TRÁI: SẢN PHẨM ------------------- */}
-            <div
-                className="pos-main"
-                style={{
+            <Box
+                sx={{
                     flex: '0 0 40%',
                     maxWidth: '40%',
-                    minWidth: '320px'
+                    minWidth: '320px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRight: '1px solid',
+                    borderColor: 'divider'
                 }}
             >
                 {/* Header */}
-                <header className="pos-header d-flex justify-content-between align-items-center">
-                    
-                    <div className="d-flex align-items-center gap-2">
+                <Box sx={{  borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                         {isShiftActive ? (
                             <>
-                                <div className="me-2 small">
+                                <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                                     Đang trong ca • Tiền đầu ca: <strong>{formatCurrency(Number(openingCash || 0))}</strong> • Số tiền đã bán được: <strong>{formatCurrency(totalSales)}</strong> (Tiền mặt: {formatCurrency(cashSalesTotal)}, Chuyển khoản: {formatCurrency(bankTransferTotal)})
-                                </div>
-                                <Button variant="warning" size="sm" onClick={() => { setClosingCashInput(''); setShowCheckoutModal(true); }}>
-                                    <FaSignOutAlt className="me-1" /> Kết ca
+                                </Typography>
+                                <Button 
+                                    variant="contained" 
+                                    color="warning" 
+                                    size="small" 
+                                    startIcon={<LogoutIcon />}
+                                    onClick={() => { setClosingCashInput(''); setShowCheckoutModal(true); }}
+                                >
+                                    Kết ca
                                 </Button>
                             </>
                         ) : hasUncheckedSchedule ? (
-                            // Nếu có ca chưa check-in, luôn hiển thị nút check-in
-                            <Button variant="success" size="sm" onClick={() => {
-                                setOpeningCashInput('');
-                                setShowCheckinModal(true);
-                            }}>
-                                <FaSignInAlt className="me-1" /> Bắt đầu ca (Check-in)
+                            <Button 
+                                variant="contained" 
+                                color="success" 
+                                size="small" 
+                                startIcon={<LoginIcon />}
+                                onClick={() => {
+                                    setOpeningCashInput('');
+                                    setShowCheckinModal(true);
+                                }}
+                            >
+                                Bắt đầu ca (Check-in)
                             </Button>
                         ) : scheduleAttendanceStatus === 'checked_out' ? (
-                            <div className="text-muted small">
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
                                 Đã kết ca hôm nay
-                            </div>
+                            </Typography>
                         ) : scheduleAttendanceStatus === 'absent' || !hasTodaySchedule ? (
-                            <div className="text-muted small">
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
                                 Không có lịch làm việc
-                            </div>
+                            </Typography>
                         ) : (
-                            <Button variant="success" size="sm" onClick={() => {
-                                setOpeningCashInput('');
-                                setShowCheckinModal(true);
-                            }}>
-                                <FaSignInAlt className="me-1" /> Bắt đầu ca (Check-in)
+                            <Button 
+                                variant="contained" 
+                                color="success" 
+                                size="small" 
+                                startIcon={<LoginIcon />}
+                                onClick={() => {
+                                    setOpeningCashInput('');
+                                    setShowCheckinModal(true);
+                                }}
+                            >
+                                Bắt đầu ca (Check-in)
                             </Button>
                         )}
-                    </div>
-                </header>
+                    </Box>
+                </Box>
 
                 {/* Search */}
-                <div className="pos-search">
-                    <InputGroup>
-                        <InputGroup.Text><FaSearch /></InputGroup.Text>
-                        <Form.Control
-                            type="text"
+                <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Stack direction="row" spacing={1}>
+                        <TextField
+                            fullWidth
                             placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon />
+                                    </InputAdornment>
+                                ),
+                            }}
+                            size="small"
                         />
-                        <Button variant="light" className="btn-scan">
-                            <FaQrcode className="me-2" /> Quét mã
+                        <Button variant="outlined" startIcon={<QrCodeIcon />}>
+                            Quét mã
                         </Button>
-                    </InputGroup>
-                </div>
+                    </Stack>
+                </Box>
 
                 {/* Product List */}
-                <div className="pos-product-list">
+                <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
                     {filteredProducts.length === 0 ? (
-                        <div className="text-center py-4 text-muted">
+                        <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
                             {!searchTerm ? (
                                 <>
-                                    <p>Nhập tên sản phẩm hoặc mã vạch để tìm kiếm</p>
-                                    <small>Danh sách sản phẩm sẽ hiển thị khi bạn tìm kiếm</small>
+                                    <Typography variant="body1" gutterBottom>Nhập tên sản phẩm hoặc mã vạch để tìm kiếm</Typography>
+                                    <Typography variant="body2">Danh sách sản phẩm sẽ hiển thị khi bạn tìm kiếm</Typography>
                                 </>
                             ) : (
                                 <>
-                                    <p>Không tìm thấy sản phẩm</p>
-                                    <small>Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</small>
+                                    <Typography variant="body1" gutterBottom>Không tìm thấy sản phẩm</Typography>
+                                    <Typography variant="body2">Không tìm thấy sản phẩm phù hợp với "{searchTerm}"</Typography>
                                 </>
                             )}
-                        </div>
+                        </Box>
                     ) : (
-                        filteredProducts.map(product => (
-                            <div
-                                className="product-item"
-                                key={product.id}
-                                onClick={() => handleAddToCart(product)}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                <div className="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <span className="product-name d-block">{product.name}</span>
-                                        {product.oldPrice && (
-                                            <span className="product-price-old">{formatCurrency(product.oldPrice)}</span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="d-flex justify-content-between align-items-center mt-2">
-                                    <span className="product-price mb-0">{formatCurrency(product.price)}</span>
-                                    <Button
-                                        variant="outline-primary"
-                                        size="sm"
-                                        className="btn-add-product"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleAddToCart(product);
-                                        }}
-                                    >
-                                        + Thêm
-                                    </Button>
-                                </div>
-                            </div>
-                        ))
+                        <List sx={{ p: 0 }}>
+                            {filteredProducts.map(product => (
+                                <ListItem
+                                    key={product.id}
+                                    sx={{
+                                        borderBottom: '1px solid',
+                                        borderColor: 'divider',
+                                        cursor: 'pointer',
+                                        '&:hover': { bgcolor: 'action.hover' },
+                                        transition: 'background-color 0.2s',
+                                        py: 1.5
+                                    }}
+                                    onClick={() => handleAddToCart(product)}
+                                >
+                                    <ListItemText
+                                        primary={
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Box sx={{ flex: 1 }}>
+                                                    <Typography variant="body1" fontWeight="bold">{product.name}</Typography>
+                                                    {product.oldPrice && (
+                                                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
+                                                            {formatCurrency(product.oldPrice)}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+                                                    <Typography variant="h6" color="primary" fontWeight="bold">
+                                                        {formatCurrency(product.price)}
+                                                    </Typography>
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        color="primary"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleAddToCart(product);
+                                                        }}
+                                                    >
+                                                        + Thêm
+                                                    </Button>
+                                                </Box>
+                                            </Box>
+                                        }
+                                    />
+                                </ListItem>
+                            ))}
+                        </List>
                     )}
-                </div>
-            </div>
+                </Box>
+            </Box>
 
-            <div
-                className="pos-cart"
-                style={{
+            <Box
+                sx={{
                     flex: '0 0 60%',
                     maxWidth: '60%',
-                    minWidth: '360px'
+                    minWidth: '360px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100vh',
+                    overflow: 'hidden'
                 }}
             >
                 {/* Cart Header - Compact */}
@@ -975,28 +1057,26 @@ const POS = () => {
                 </div> */}
 
                 {/* Customer Info - Compact */}
-                <div className="cart-customer px-3 py-2 bg-light border-bottom">
-                    <div className="small fw-semibold text-muted mb-2">
-                        <FaUserCircle className="me-1" /> Thông tin khách hàng
-                    </div>
-
+                <Box sx={{ p: 1.5, bgcolor: 'grey.100', borderBottom: '1px solid', borderColor: 'divider', position: 'relative' }}>
                     {selectedCustomer ? (
-                        <div className="d-flex justify-content-between align-items-center">
-                            <div className="flex-grow-1">
-                                <div className="fw-bold">{selectedCustomer.name}</div>
-                                <div className="small text-muted">{selectedCustomer.phone}</div>
-                                <div className="mt-1">
-                                    <span className="badge bg-primary" style={{ fontSize: '10px' }}>
-                                        {selectedCustomer.tier}
-                                    </span>
-                                    <span className="ms-2 small text-muted">
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                    <PersonIcon fontSize="small" color="action" />
+                                    <Typography variant="body2" fontWeight="bold" noWrap>{selectedCustomer.name}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    <Typography variant="caption" color="text.secondary">{selectedCustomer.phone}</Typography>
+                                    <Chip label={selectedCustomer.tier} size="small" color="primary" sx={{ height: '20px', fontSize: '0.65rem' }} />
+                                    <Typography variant="caption" color="text.secondary">
                                         {selectedCustomer.loyalty_point || 0} điểm
-                                    </span>
-                                </div>
-                            </div>
-                            <Button
-                                variant="outline-danger"
-                                size="sm"
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <IconButton
+                                color="error"
+                                size="small"
+                                sx={{ flexShrink: 0 }}
                                 onClick={() => {
                                     setSelectedCustomer(null);
                                     setCustomerPhone('');
@@ -1006,177 +1086,194 @@ const POS = () => {
                                     setSelectedVoucher(null);
                                 }}
                             >
-                                <FaTimes />
-                            </Button>
-                        </div>
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Box>
                     ) : (
                         <>
-                            <InputGroup className="mb-2">
-                                <InputGroup.Text>
-                                    <FaSearch />
-                                </InputGroup.Text>
-                                <Form.Control
-                                    type="tel"
-                                    placeholder="Nhập số điện thoại khách hàng..."
-                                    value={customerPhone}
-                                    onChange={(e) => setCustomerPhone(e.target.value)}
-                                    autoComplete="off"
-                                />
-                                {customerPhone && (
-                                    <Button
-                                        variant="outline-secondary"
-                                        onClick={() => {
-                                            setCustomerPhone('');
-                                            setSearchResults([]);
-                                            setShowCreateForm(false);
-                                        }}
-                                    >
-                                        <FaTimes />
-                                    </Button>
-                                )}
-                            </InputGroup>
-
-                            {/* Loading Spinner */}
-                            {isSearching && (
-                                <div className="text-center py-2">
-                                    <Spinner animation="border" size="sm" />
-                                    <small className="text-muted ms-2">Đang tìm kiếm...</small>
-                                </div>
-                            )}
-
-                            {/* Customer Search Results */}
-                            {!isSearching && searchResults.length > 0 && (
-                                <div className="mb-2">
-                                    <small className="text-muted">Kết quả tìm kiếm:</small>
-                                    <ListGroup style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                        {searchResults.map((customer) => (
-                                            <ListGroup.Item
-                                                key={customer.customer_id}
-                                                action
-                                                onClick={() => handleSelectCustomer(customer)}
-                                                style={{ cursor: 'pointer', padding: '8px 12px' }}
+                            <TextField
+                                fullWidth
+                                type="tel"
+                                placeholder="Nhập số điện thoại..."
+                                value={customerPhone}
+                                onChange={(e) => {
+                                    // Chỉ cho phép nhập số và tối đa 10 ký tự
+                                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                    setCustomerPhone(value);
+                                }}
+                                autoComplete="off"
+                                size="small"
+                                inputProps={{
+                                    maxLength: 10,
+                                    pattern: '[0-9]*',
+                                    inputMode: 'numeric'
+                                }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon fontSize="small" />
+                                        </InputAdornment>
+                                    ),
+                                    endAdornment: customerPhone && (
+                                        <InputAdornment position="end">
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => {
+                                                    setCustomerPhone('');
+                                                    setSearchResults([]);
+                                                    setShowCreateForm(false);
+                                                }}
                                             >
-                                                <div className="d-flex justify-content-between align-items-center">
-                                                    <div>
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <FaUserCircle size={20} className="text-secondary" />
-                                                            <div>
-                                                                <strong style={{ fontSize: '14px' }}>{customer.name}</strong>
-                                                                <br />
-                                                                <small className="text-muted">{customer.phone}</small>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-end">
-                                                        <span className={`badge bg-${getTierBadgeColor(customer.tier)}`}>
-                                                            {customer.tier}
-                                                        </span>
-                                                        <br />
-                                                        <small className="text-muted">
-                                                            {customer.loyalty_point || 0} điểm
-                                                        </small>
-                                                    </div>
-                                                </div>
-                                            </ListGroup.Item>
-                                        ))}
-                                    </ListGroup>
-                                </div>
-                            )}
+                                                <CloseIcon fontSize="small" />
+                                            </IconButton>
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
 
-                            {/* Create New Customer Form */}
-                            {showCreateForm && (
-                                <div className="p-2 border rounded bg-light mb-2">
-                                    <small className="fw-bold mb-2 d-block">Tạo khách hàng mới</small>
-                                    <Form>
-                                        <Form.Group className="mb-2">
-                                            <Form.Control
-                                                size="sm"
-                                                type="text"
-                                                placeholder="Tên khách hàng *"
-                                                value={newCustomer.name}
-                                                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                                            />
-                                        </Form.Group>
-                                        <Form.Group className="mb-2">
-                                            <Form.Control
-                                                size="sm"
-                                                type="tel"
-                                                placeholder="Số điện thoại *"
-                                                value={newCustomer.phone}
-                                                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                                            />
-                                        </Form.Group>
-                                        <Form.Group className="mb-2">
-                                            <Form.Control
-                                                size="sm"
-                                                type="email"
-                                                placeholder="Email (tùy chọn)"
-                                                value={newCustomer.email}
-                                                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                                            />
-                                        </Form.Group>
-                                        <div className="d-flex gap-2">
-                                            <Button
-                                                size="sm"
-                                                variant="primary"
-                                                onClick={handleCreateCustomer}
-                                                className="flex-grow-1"
-                                            >
-                                                Tạo
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline-secondary"
-                                                onClick={() => setShowCreateForm(false)}
-                                            >
-                                                Hủy
-                                            </Button>
-                                        </div>
-                                    </Form>
-                                </div>
+                            {/* Customer Search Results & Create Form - Floating Overlay */}
+                            {(searchResults.length > 0 || showCreateForm) && (
+                                <Paper 
+                                    sx={{ 
+                                        position: 'absolute',
+                                        top: '100%',
+                                        left: 0,
+                                        right: 0,
+                                        mt: 1,
+                                        zIndex: 1000,
+                                        maxHeight: '400px',
+                                        overflowY: 'auto',
+                                        boxShadow: 3,
+                                        border: '1px solid',
+                                        borderColor: 'divider'
+                                    }}
+                                >
+                                    {/* Customer Search Results */}
+                                    {searchResults.length > 0 && (
+                                        <Box sx={{ p: 2, borderBottom: showCreateForm ? '1px solid' : 'none', borderColor: 'divider' }}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>Kết quả tìm kiếm:</Typography>
+                                            <List>
+                                                {searchResults.map((customer) => (
+                                                    <ListItem
+                                                        key={customer.customer_id}
+                                                        component={ListItemButton}
+                                                        onClick={() => handleSelectCustomer(customer)}
+                                                        sx={{ cursor: 'pointer', py: 1 }}
+                                                    >
+                                                        <ListItemText
+                                                            primary={
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                    <PersonIcon fontSize="small" color="action" />
+                                                                    <Typography variant="body2" fontWeight="bold">{customer.name}</Typography>
+                                                                </Box>
+                                                            }
+                                                            secondary={customer.phone}
+                                                        />
+                                                        <Box sx={{ textAlign: 'right' }}>
+                                                            <Chip label={customer.tier} size="small" color={getTierBadgeColor(customer.tier)} />
+                                                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                                                {customer.loyalty_point || 0} điểm
+                                                            </Typography>
+                                                        </Box>
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Box>
+                                    )}
+
+                                    {/* Create New Customer Form */}
+                                    {showCreateForm && (
+                                        <Box sx={{ p: 2, bgcolor: 'grey.50' }}>
+                                            <Typography variant="body2" fontWeight="bold" sx={{ mb: 2, display: 'block' }}>Tạo khách hàng mới</Typography>
+                                            <Stack spacing={2}>
+                                                <TextField
+                                                    size="small"
+                                                    type="text"
+                                                    placeholder="Tên khách hàng *"
+                                                    value={newCustomer.name}
+                                                    onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                                                    fullWidth
+                                                />
+                                                <TextField
+                                                    size="small"
+                                                    type="tel"
+                                                    placeholder="Số điện thoại *"
+                                                    value={newCustomer.phone}
+                                                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                                                    fullWidth
+                                                />
+                                                <TextField
+                                                    size="small"
+                                                    type="email"
+                                                    placeholder="Email (tùy chọn)"
+                                                    value={newCustomer.email}
+                                                    onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                                    fullWidth
+                                                />
+                                                <Stack direction="row" spacing={1}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        onClick={handleCreateCustomer}
+                                                        sx={{ flexGrow: 1 }}
+                                                    >
+                                                        Tạo
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        onClick={() => setShowCreateForm(false)}
+                                                    >
+                                                        Hủy
+                                                    </Button>
+                                                </Stack>
+                                            </Stack>
+                                        </Box>
+                                    )}
+                                </Paper>
                             )}
                         </>
                     )}
-                </div>
+                </Box>
 
                 {/* Voucher Section - Only show when customer is selected */}
                 {selectedCustomer && (
-                    <div className="cart-voucher px-3 py-2 border-bottom">
-                        <div className="small fw-semibold text-muted mb-2">
-                            <FaTicketAlt className="me-1" /> Áp mã giảm giá
-                        </div>
+                    <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="caption" fontWeight="semibold" color="text.secondary" sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <LocalOfferIcon fontSize="small" /> Áp mã giảm giá
+                        </Typography>
 
                         {loadingVouchers ? (
-                            <div className="text-center py-2">
-                                <Spinner animation="border" size="sm" />
-                                <small className="text-muted ms-2">Đang tải voucher...</small>
-                            </div>
+                            <Box sx={{ textAlign: 'center', py: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                                <CircularProgress size={20} />
+                                <Typography variant="caption" color="text.secondary">Đang tải voucher...</Typography>
+                            </Box>
                         ) : vouchers.length > 0 ? (
                             <>
                                 {selectedVoucher ? (
-                                    <div className="selected-voucher p-2 border rounded bg-success bg-opacity-10">
-                                        <div className="d-flex justify-content-between align-items-center small">
-                                            <span className="text-truncate">
-                                                <FaTicketAlt className="text-success me-1" size={12} />
+                                    <Paper sx={{ p: 1, bgcolor: 'rgba(76, 175, 80, 0.1)' }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <LocalOfferIcon fontSize="small" color="success" />
                                                 <strong>{selectedVoucher.voucher_name}</strong>
                                                 {' • '}
                                                 {selectedVoucher.discount_type === 'percentage'
                                                     ? `${selectedVoucher.discount_value}%`
                                                     : formatCurrency(selectedVoucher.discount_value)}
-                                            </span>
-                                            <Button
-                                                variant="outline-danger"
-                                                size="sm"
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                color="error"
                                                 onClick={handleRemoveVoucher}
-                                                style={{ padding: '1px 6px' }}
+                                                sx={{ p: 0.5 }}
                                             >
-                                                <FaTimes size={12} />
-                                            </Button>
-                                        </div>
-                                    </div>
+                                                <CloseIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    </Paper>
                                 ) : (
-                                    <div style={{ maxHeight: '110px', overflowY: 'auto' }} className="border rounded">
-                                        <ListGroup variant="flush">
+                                    <Paper sx={{ maxHeight: '90px', overflowY: 'auto' }}>
+                                        <List dense>
                                             {vouchers.map((voucher) => {
                                                 const isDisabled = cart.length === 0 || subtotal < voucher.min_purchase_amount;
                                                 const label = `${voucher.voucher_name} • ${
@@ -1185,180 +1282,215 @@ const POS = () => {
                                                         : formatCurrency(voucher.discount_value)
                                                 }`;
                                                 return (
-                                                    <ListGroup.Item
+                                                    <ListItem
                                                         key={voucher.customer_voucher_id}
-                                                        action
+                                                        component={ListItemButton}
                                                         onClick={() => !isDisabled && handleSelectVoucher(voucher)}
                                                         disabled={isDisabled}
-                                                        className={`small ${isDisabled ? 'opacity-50' : ''}`}
-                                                        style={{
+                                                        sx={{
                                                             cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                            padding: '6px 10px',
+                                                            py: 0.5,
+                                                            px: 1,
+                                                            opacity: isDisabled ? 0.5 : 1,
                                                             whiteSpace: 'nowrap',
                                                             overflow: 'hidden',
                                                             textOverflow: 'ellipsis'
                                                         }}
                                                     >
-                                                        {label}
-                                                    </ListGroup.Item>
+                                                        <ListItemText primary={label} primaryTypographyProps={{ variant: 'caption' }} />
+                                                    </ListItem>
                                                 );
                                             })}
-                                        </ListGroup>
-                                    </div>
+                                        </List>
+                                    </Paper>
                                 )}
                             </>
                         ) : (
-                            <div className="text-center py-2 text-muted">
-                                <small>Khách hàng chưa có voucher nào</small>
-                            </div>
+                            <Box sx={{ textAlign: 'center', py: 2 }}>
+                                <Typography variant="caption" color="text.secondary">Khách hàng chưa có voucher nào</Typography>
+                            </Box>
                         )}
-                    </div>
+                    </Box>
                 )}
 
                 {/* Cart Header with Clear Button */}
                 {cart.length > 0 && (
-                    <div className="cart-header px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
-                        <h6 className="mb-0">
-                            <FaShoppingCart className="me-2" />
-                            Giỏ hàng ({cart.length} sản phẩm)
-                        </h6>
-                        <Button
-                            variant="outline-danger"
-                            size="sm"
+                    <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <ShoppingCartIcon fontSize="small" /> Giỏ hàng ({cart.length})
+                        </Typography>
+                        <IconButton
+                            color="error"
+                            size="small"
                             onClick={() => setShowClearCartModal(true)}
+                            sx={{ p: 0.5 }}
                         >
-                            <FaTrash className="me-1" />
-                            Xóa giỏ hàng
-                        </Button>
-                    </div>
+                            <DeleteIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
                 )}
 
                 {/* Cart Items - Scrollable */}
-                <div className="cart-items-list px-3 py-2" style={{
-                    flex: '1 1 auto',
+                <Box sx={{
+                    flex: 1,
                     overflowY: 'auto',
-                    maxHeight: 'calc(100vh - 550px)',
-                    minHeight: '150px'
+                    overflowX: 'hidden',
+                    p: 1.5,
+                    minHeight: 0,
+                    '&::-webkit-scrollbar': {
+                        display: 'none'
+                    },
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
                 }}>
                     {cart.map(item => (
-                        <div className="cart-item border-bottom pb-2 mb-2" key={item.id}>
-                            <div className="d-flex justify-content-between align-items-start mb-1">
-                                <div className="flex-grow-1">
-                                    <div className="fw-bold small">{item.name}</div>
-                                    <div className="text-muted" style={{ fontSize: '12px' }}>
-                                        {formatCurrency(item.price)} × {item.qty}
-                                        {item.stock !== undefined && (
-                                            <span className="ms-2 text-info">
-                                                (Còn: {item.stock})
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="text-end">
-                                    <div className="fw-bold text-primary small">
-                                        {formatCurrency(item.price * item.qty)}
-                                    </div>
-                                    <FaTimes
-                                        className="btn-remove-item text-danger"
-                                        onClick={() => handleRemoveFromCart(item.id)}
-                                        style={{ cursor: 'pointer', fontSize: '12px' }}
-                                    />
-                                </div>
-                            </div>
-                            <div className="d-flex align-items-center gap-2">
-                                <Button
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={() => handleUpdateQty(item.id, item.qty - 1)}
-                                    disabled={item.qty <= 1}
-                                    style={{ padding: '2px 8px', fontSize: '12px' }}
-                                >-</Button>
-                                <span className="px-2 fw-bold small">{item.qty}</span>
-                                <Button
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={() => handleUpdateQty(item.id, item.qty + 1)}
-                                    disabled={item.stock !== undefined && item.qty >= item.stock}
-                                    style={{ padding: '2px 8px', fontSize: '12px' }}
-                                >+</Button>
-                            </div>
-                        </div>
+                        <Box key={item.id} sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1, mb: 1, position: 'relative', pr: 3 }}>
+                            <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveFromCart(item.id)}
+                                sx={{ 
+                                    position: 'absolute',
+                                    top: 0,
+                                    right: 0,
+                                    p: 0.25
+                                }}
+                            >
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                            <Box>
+                                {/* Tên sản phẩm */}
+                                <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.75 }}>
+                                    {item.name}
+                                </Typography>
+                                
+                                {/* Dòng thứ 2: Quantity controls và giá */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    {/* Quantity controls */}
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            onClick={() => handleUpdateQty(item.id, item.qty - 1)}
+                                            disabled={item.qty <= 1}
+                                            sx={{ minWidth: '28px', height: '28px', p: 0 }}
+                                        >
+                                            -
+                                        </Button>
+                                        <Typography variant="body2" fontWeight="bold" sx={{ minWidth: '20px', textAlign: 'center' }}>
+                                            {item.qty}
+                                        </Typography>
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            onClick={() => handleUpdateQty(item.id, item.qty + 1)}
+                                            disabled={item.stock !== undefined && item.qty >= item.stock}
+                                            sx={{ minWidth: '28px', height: '28px', p: 0 }}
+                                        >
+                                            +
+                                        </Button>
+                                    </Stack>
+                                    
+                                    {/* Giá */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                                        {/* <Typography variant="caption" color="text.secondary">
+                                            {formatCurrency(item.price)}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            × {item.qty}
+                                        </Typography> */}
+                                        <Typography variant="body1" fontWeight="bold" color="primary" sx={{ fontSize: '1rem' }}>
+                                            {formatCurrency(item.price * item.qty)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Box>
+                        </Box>
                     ))}
                     {cart.length === 0 && (
-                        <div className="text-center py-4 text-muted">
-                            <FaShoppingCart size={36} className="mb-2 opacity-25" />
-                            <p className="small mb-0">Giỏ hàng trống</p>
-                        </div>
+                        <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                            <ShoppingCartIcon sx={{ fontSize: 36, mb: 2, opacity: 0.25 }} />
+                            <Typography variant="body2">Giỏ hàng trống</Typography>
+                        </Box>
                     )}
-                </div>
+                </Box>
 
                 {/* Cart Summary - Fixed at bottom */}
-                <div className="cart-summary-wrapper border-top px-3 py-2 bg-white" style={{
+                <Box sx={{
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    p: 1.5,
+                    bgcolor: 'background.paper',
                     flex: '0 0 auto'
                 }}>
-                    <div className="cart-summary">
-                        <div className="d-flex justify-content-between mb-1 small">
-                            <span className="text-muted">Tạm tính</span>
-                            <span className="fw-semibold">{formatCurrency(subtotal)}</span>
-                        </div>
-                        <div className="d-flex justify-content-between mb-1 small">
-                            <span className="text-muted">VAT (10%)</span>
-                            <span className="fw-semibold">{formatCurrency(vat)}</span>
-                        </div>
+                    <Box sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">Tạm tính</Typography>
+                            <Typography variant="caption" fontWeight="semibold">{formatCurrency(subtotal)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">VAT (10%)</Typography>
+                            <Typography variant="caption" fontWeight="semibold">{formatCurrency(vat)}</Typography>
+                        </Box>
                         {voucherDiscount > 0 && (
-                            <div className="d-flex justify-content-between mb-1 text-success small">
-                                <span>
-                                    <FaTicketAlt className="me-1" size={12} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                <Typography variant="caption" color="success.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <LocalOfferIcon fontSize="small" />
                                     Giảm giá
-                                </span>
-                                <span className="fw-bold">-{formatCurrency(voucherDiscount)}</span>
-                            </div>
+                                </Typography>
+                                <Typography variant="caption" fontWeight="bold" color="success.main">-{formatCurrency(voucherDiscount)}</Typography>
+                            </Box>
                         )}
-                        <div className="d-flex justify-content-between pt-2 border-top">
-                            <strong className="fs-6">Tổng cộng</strong>
-                            <strong className="fs-5 text-primary">{formatCurrency(total)}</strong>
-                        </div>
-                    </div>
+                        <Divider sx={{ my: 0.75 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="body1" fontWeight="bold">Tổng cộng</Typography>
+                            <Typography variant="h6" fontWeight="bold" color="primary">{formatCurrency(total)}</Typography>
+                        </Box>
+                    </Box>
 
                     {/* Payment Method Selection */}
                     {cart.length > 0 && (
-                        <div className="payment-method-section mt-2">
-                            <label className="form-label fw-semibold small mb-2">Phương thức thanh toán</label>
-                            <div className="d-flex gap-2">
+                        <Box sx={{ mb: 1.5 }}>
+                            <Typography variant="caption" fontWeight="semibold" sx={{ mb: 0.75, display: 'block' }}>Phương thức thanh toán</Typography>
+                            <Stack direction="row" spacing={0.75}>
                                 <Button
-                                    variant={selectedPaymentMethod === 'cash' ? 'primary' : 'outline-primary'}
-                                    className="flex-fill"
-                                    size="sm"
+                                    variant={selectedPaymentMethod === 'cash' ? 'contained' : 'outlined'}
+                                    fullWidth
+                                    size="small"
                                     disabled={!isShiftActive}
+                                    startIcon={<AttachMoneyIcon fontSize="small" />}
                                     onClick={() => handleSelectPaymentMethod('cash')}
+                                    sx={{ py: 0.75 }}
                                 >
-                                    <FaMoneyBillWave className="me-1" size={14} />
                                     Tiền mặt
                                 </Button>
                                 <Button
-                                    variant={selectedPaymentMethod === 'qr' ? 'primary' : 'outline-primary'}
-                                    className="flex-fill"
-                                    size="sm"
+                                    variant={selectedPaymentMethod === 'qr' ? 'contained' : 'outlined'}
+                                    fullWidth
+                                    size="small"
                                     disabled={!isShiftActive}
+                                    startIcon={<CreditCardIcon fontSize="small" />}
                                     onClick={() => handleSelectPaymentMethod('qr')}
+                                    sx={{ py: 0.75 }}
                                 >
-                                    <FaCreditCard className="me-1" size={14} />
                                     QR Banking
                                 </Button>
-                            </div>
-                        </div>
+                            </Stack>
+                        </Box>
                     )}
 
                     <Button
-                        variant="success"
-                        size="lg"
-                        className="w-100 mt-2"
+                        variant="contained"
+                        color="success"
+                        size="large"
+                        fullWidth
                         disabled={!isShiftActive || cart.length === 0 || !selectedPaymentMethod || isProcessingPayment}
                         onClick={handleCheckout}
+                        sx={{ mb: 2 }}
                     >
                         {isProcessingPayment ? (
                             <>
-                                <Spinner animation="border" size="sm" className="me-2" />
+                                <CircularProgress size={20} sx={{ mr: 1 }} />
                                 Đang xử lý...
                             </>
                         ) : (
@@ -1366,13 +1498,17 @@ const POS = () => {
                         )}
                     </Button>
                     {!isShiftActive && (
-                        <div className="text-danger small mt-2 text-center">
-                            <strong>⚠️ Chưa bắt đầu ca làm việc.</strong><br />
-                            Vui lòng bắt đầu ca (Check-in) trước khi thanh toán.
-                        </div>
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="caption" color="error" fontWeight="bold" display="block">
+                                ⚠️ Chưa bắt đầu ca làm việc.
+                            </Typography>
+                            <Typography variant="caption" color="error">
+                                Vui lòng bắt đầu ca (Check-in) trước khi thanh toán.
+                            </Typography>
+                        </Box>
                     )}
-                </div>
-            </div>
+                </Box>
+            </Box>
 
             {/* Payment Modal for Cash */}
             <CashPaymentModal
@@ -1388,36 +1524,35 @@ const POS = () => {
             />
 
             {/* Check-in Modal */}
-            <Modal show={showCheckinModal} onHide={() => {
+            <Dialog open={showCheckinModal} onClose={() => {
                 setShowCheckinModal(false);
                 setOpeningCashInput('');
-            }} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Bắt đầu ca làm việc</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form.Group>
-                        <Form.Label>Tiền mặt đầu ca (VND)</Form.Label>
-                        <Form.Control
-                            type="number"
-                            min={0}
-                            placeholder="Nhập số tiền trong két trước ca"
-                            value={openingCashInput}
-                            onChange={(e) => setOpeningCashInput(e.target.value)}
-                            autoFocus
-                        />
-                    </Form.Group>
-                    <div className="mt-3 text-muted small">
+            }}>
+                <DialogTitle>Bắt đầu ca làm việc</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        type="number"
+                        inputProps={{ min: 0 }}
+                        label="Tiền mặt đầu ca (VND)"
+                        placeholder="Nhập số tiền trong két trước ca"
+                        value={openingCashInput}
+                        onChange={(e) => setOpeningCashInput(e.target.value)}
+                        autoFocus
+                        sx={{ mt: 1 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                         Số tiền này sẽ dùng để đối soát khi kết ca.
-                    </div>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => {
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => {
                         setShowCheckinModal(false);
                         setOpeningCashInput('');
                     }}>Hủy</Button>
                     <Button
-                        variant="success"
+                        variant="contained"
+                        color="success"
                         onClick={async () => {
                             // Kiểm tra lại có lịch làm việc hôm nay không
                             if (!hasTodaySchedule) {
@@ -1473,67 +1608,66 @@ const POS = () => {
                     >
                         Xác nhận bắt đầu ca
                     </Button>
-                </Modal.Footer>
-            </Modal>
+                </DialogActions>
+            </Dialog>
 
             {/* Checkout (End shift) Modal */}
-            <Modal show={showCheckoutModal} onHide={() => setShowCheckoutModal(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Kết ca làm việc</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <div className="mb-3">
-                        <div className="d-flex justify-content-between">
-                            <span>Tiền đầu ca:</span>
-                            <strong>{formatCurrency(Number(openingCash || 0))}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between">
-                            <span>Tổng số tiền đã bán trong ca (Tiền mặt + chuyển khoản):</span>
-                            <strong>{formatCurrency(totalSales)}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between text-muted small ms-3">
-                            <span>• Tiền mặt:</span>
-                            <span>{formatCurrency(cashSalesTotal)}</span>
-                        </div>
-                        <div className="d-flex justify-content-between text-muted small ms-3">
-                            <span>• Chuyển khoản:</span>
-                            <span>{formatCurrency(bankTransferTotal)}</span>
-                        </div>
-                        <hr />
-                        <div className="d-flex justify-content-between">
-                            <span>Tiền mặt dự kiến trong két:</span>
-                            <strong>{formatCurrency(expectedCashAtClose)}</strong>
-                        </div>
-                        <div className="text-muted small ms-3">
+            <Dialog open={showCheckoutModal} onClose={() => setShowCheckoutModal(false)}>
+                <DialogTitle>Kết ca làm việc</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mb: 3 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2">Tiền đầu ca:</Typography>
+                            <Typography variant="body2" fontWeight="bold">{formatCurrency(Number(openingCash || 0))}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2">Tổng số tiền đã bán trong ca (Tiền mặt + chuyển khoản):</Typography>
+                            <Typography variant="body2" fontWeight="bold">{formatCurrency(totalSales)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, ml: 3 }}>
+                            <Typography variant="caption" color="text.secondary">• Tiền mặt:</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatCurrency(cashSalesTotal)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, ml: 3 }}>
+                            <Typography variant="caption" color="text.secondary">• Chuyển khoản:</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatCurrency(bankTransferTotal)}</Typography>
+                        </Box>
+                        <Divider sx={{ my: 2 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2">Tiền mặt dự kiến trong két:</Typography>
+                            <Typography variant="body2" fontWeight="bold">{formatCurrency(expectedCashAtClose)}</Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ ml: 3, display: 'block' }}>
                             (Tiền đầu ca + Tổng bán tiền mặt)
-                        </div>
-                    </div>
-                    <Form.Group>
-                        <Form.Label>Kiểm đếm thực tế (VND)</Form.Label>
-                        <Form.Control
-                            type="number"
-                            min={0}
-                            placeholder="Nhập số tiền thực tế trong két"
-                            value={closingCashInput}
-                            onChange={(e) => setClosingCashInput(e.target.value)}
-                            autoFocus
-                        />
-                    </Form.Group>
+                        </Typography>
+                    </Box>
+                    <TextField
+                        fullWidth
+                        type="number"
+                        inputProps={{ min: 0 }}
+                        label="Kiểm đếm thực tế (VND)"
+                        placeholder="Nhập số tiền thực tế trong két"
+                        value={closingCashInput}
+                        onChange={(e) => setClosingCashInput(e.target.value)}
+                        autoFocus
+                        sx={{ mt: 1 }}
+                    />
                     {closingCashInput !== '' && (
-                        <div className="mt-3">
-                            <div className="d-flex justify-content-between">
-                                <span>Chênh lệch:</span>
-                                <strong style={{ color: Number(closingCashInput) === expectedCashAtClose ? '#28a745' : '#dc3545' }}>
+                        <Box sx={{ mt: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="body2">Chênh lệch:</Typography>
+                                <Typography variant="body2" fontWeight="bold" color={Number(closingCashInput) === expectedCashAtClose ? 'success.main' : 'error.main'}>
                                     {formatCurrency(Number(closingCashInput || 0) - expectedCashAtClose)}
-                                </strong>
-                            </div>
-                        </div>
+                                </Typography>
+                            </Box>
+                        </Box>
                     )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowCheckoutModal(false)}>Hủy</Button>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowCheckoutModal(false)}>Hủy</Button>
                     <Button
-                        variant="warning"
+                        variant="contained"
+                        color="warning"
                         onClick={async () => {
                             const actual = Number(closingCashInput);
                             if (isNaN(actual) || actual < 0) {
@@ -1567,8 +1701,8 @@ const POS = () => {
                     >
                         Xác nhận kết ca
                     </Button>
-                </Modal.Footer>
-            </Modal>
+                </DialogActions>
+            </Dialog>
             {/* Payment Modal for QR */}
             <PaymentModal
                 show={showPaymentModal}
@@ -1584,27 +1718,24 @@ const POS = () => {
             />
 
             {/* Clear Cart Confirmation Modal */}
-            <Modal show={showClearCartModal} onHide={() => setShowClearCartModal(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Xác nhận xóa giỏ hàng</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <p>Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng?</p>
-                    <p className="text-muted small mb-0">
+            <Dialog open={showClearCartModal} onClose={() => setShowClearCartModal(false)}>
+                <DialogTitle>Xác nhận xóa giỏ hàng</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body1" gutterBottom>Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng?</Typography>
+                    <Typography variant="body2" color="text.secondary">
                         Tổng cộng: <strong>{cart.length}</strong> sản phẩm - <strong>{formatCurrency(subtotal)}</strong>
-                    </p>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowClearCartModal(false)}>
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setShowClearCartModal(false)}>
                         Hủy
                     </Button>
-                    <Button variant="danger" onClick={handleClearCart}>
-                        <FaTrash className="me-1" />
+                    <Button variant="contained" color="error" startIcon={<DeleteIcon />} onClick={handleClearCart}>
                         Xóa giỏ hàng
                     </Button>
-                </Modal.Footer>
-            </Modal>
-        </div>
+                </DialogActions>
+            </Dialog>
+        </Box>
     );
 };
 

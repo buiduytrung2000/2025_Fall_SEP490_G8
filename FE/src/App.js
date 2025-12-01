@@ -15,7 +15,6 @@ import MainLayout from "./components/layout/MainLayout";
 
 // Pages
 import Login from "./pages/public/Login";
-import Register from "./pages/public/Register";
 import Unauthorized from "./pages/public/Unauthorized";
 import POS from "./pages/Cashier/POS";
 import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
@@ -69,7 +68,6 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Root route - shows login if not authenticated, otherwise shows main layout */}

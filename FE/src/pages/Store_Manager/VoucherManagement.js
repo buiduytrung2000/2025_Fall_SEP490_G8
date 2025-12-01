@@ -20,6 +20,7 @@ import {
   Stack
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import * as voucherTemplateApi from '../../api/voucherTemplateApi';
 import * as customerApi from '../../api/customerApi';
 import {
@@ -65,11 +66,11 @@ function VoucherManagement() {
                 setTemplates(res.data || []);
             } else {
                 console.error('Error loading templates:', res);
-                ToastNotification.error(res?.msg || 'Lỗi khi tải danh sách voucher template');
+                ToastNotification.error(res?.msg || 'Lỗi khi tải danh sách mẫu mã khuyến mãi');
             }
         } catch (error) {
             console.error('Exception loading templates:', error);
-            ToastNotification.error('Lỗi khi tải danh sách voucher template: ' + error.message);
+            ToastNotification.error('Lỗi khi tải danh sách mẫu mã khuyến mãi: ' + error.message);
         }
     };
 
@@ -91,7 +92,7 @@ function VoucherManagement() {
                 setAvailableTemplates(res.data);
             }
         } catch (error) {
-            ToastNotification.error('Lỗi khi tải danh sách voucher khả dụng');
+            ToastNotification.error('Lỗi khi tải danh sách mã khuyến mãi khả dụng');
         }
     };
 
@@ -141,29 +142,29 @@ function VoucherManagement() {
             }
 
             if (res && res.err === 0) {
-                ToastNotification.success(editingTemplate ? 'Cập nhật voucher template thành công' : 'Tạo voucher template thành công');
+                ToastNotification.success(editingTemplate ? 'Cập nhật mẫu mã khuyến mãi thành công' : 'Tạo mẫu mã khuyến mãi thành công');
                 handleCloseTemplateModal();
                 loadTemplates();
             } else {
                 ToastNotification.error(res.msg || 'Có lỗi xảy ra');
             }
         } catch (error) {
-            ToastNotification.error('Lỗi khi lưu voucher template');
+            ToastNotification.error('Lỗi khi lưu mẫu mã khuyến mãi');
         }
     };
 
     const handleDeleteTemplate = async (id) => {
-        if (window.confirm('Bạn có chắc chắn muốn xóa voucher template này?')) {
+        if (window.confirm('Bạn có chắc chắn muốn xóa mẫu mã khuyến mãi này?')) {
             try {
                 const res = await voucherTemplateApi.deleteVoucherTemplate(id);
                 if (res && res.err === 0) {
-                    ToastNotification.success('Xóa voucher template thành công');
+                    ToastNotification.success('Xóa mẫu mã khuyến mãi thành công');
                     loadTemplates();
                 } else {
                     ToastNotification.error(res.msg || 'Có lỗi xảy ra');
                 }
             } catch (error) {
-                ToastNotification.error('Lỗi khi xóa voucher template');
+                ToastNotification.error('Lỗi khi xóa mẫu mã khuyến mãi');
             }
         }
     };
@@ -178,13 +179,13 @@ function VoucherManagement() {
         try {
             const res = await voucherTemplateApi.addVoucherFromTemplate(selectedCustomer.customer_id, templateId);
             if (res && res.err === 0) {
-                ToastNotification.success(res.msg || 'Thêm voucher thành công');
+                ToastNotification.success(res.msg || 'Thêm mã khuyến mãi thành công');
                 await loadAvailableTemplatesForCustomer(selectedCustomer.customer_id);
             } else {
                 ToastNotification.error(res.msg || 'Có lỗi xảy ra');
             }
         } catch (error) {
-            ToastNotification.error('Lỗi khi thêm voucher');
+            ToastNotification.error('Lỗi khi thêm mã khuyến mãi');
         }
     };
 
@@ -197,30 +198,30 @@ function VoucherManagement() {
         {
             accessorKey: 'index',
             header: 'STT',
-            size: 60,
+            size: 50,
             Cell: ({ row }) => row.index + 1,
             enableColumnFilter: false,
         },
         {
             accessorKey: 'voucher_code_prefix',
             header: 'Mã tiền tố',
-            size: 120,
+            size: 100,
         },
         {
             accessorKey: 'voucher_name',
-            header: 'Tên voucher',
-            size: 200,
+            header: 'Tên mã khuyến mãi',
+            size: 150,
         },
         {
             accessorKey: 'discount_type',
             header: 'Loại giảm giá',
-            size: 150,
+            size: 120,
             Cell: ({ cell }) => cell.getValue() === 'percentage' ? 'Phần trăm' : 'Số tiền cố định',
         },
         {
             accessorKey: 'discount_value',
             header: 'Giá trị',
-            size: 120,
+            size: 100,
             Cell: ({ row }) => {
                 const template = row.original;
                 return template.discount_type === 'percentage'
@@ -232,35 +233,35 @@ function VoucherManagement() {
         {
             accessorKey: 'min_purchase_amount',
             header: 'Đơn tối thiểu',
-            size: 130,
+            size: 110,
             Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
             enableColumnFilter: false,
         },
         {
             accessorKey: 'max_discount_amount',
             header: 'Giảm tối đa',
-            size: 130,
+            size: 110,
             Cell: ({ cell }) => cell.getValue() ? formatCurrency(cell.getValue()) : 'Không giới hạn',
             enableColumnFilter: false,
         },
         {
             accessorKey: 'required_loyalty_points',
             header: 'Điểm yêu cầu',
-            size: 120,
+            size: 100,
             Cell: ({ cell }) => cell.getValue() || 0,
             enableColumnFilter: false,
         },
         {
             accessorKey: 'validity_days',
             header: 'Hiệu lực (ngày)',
-            size: 120,
+            size: 100,
             Cell: ({ cell }) => cell.getValue() || 0,
             enableColumnFilter: false,
         },
         {
             accessorKey: 'is_active',
             header: 'Trạng thái',
-            size: 120,
+            size: 100,
             Cell: ({ row }) => (
                 <Chip
                     size="small"
@@ -275,16 +276,16 @@ function VoucherManagement() {
 
     return (
         <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-            <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý Voucher</Typography>
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý Mã Khuyến Mãi</Typography>
 
             <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-                <Tab label="Danh sách Voucher" />
-                <Tab label="Gán Voucher cho Khách hàng" />
+                <Tab label="Danh sách Mã Khuyến Mãi"/>
+                <Tab label="Gán mã khuyến mãi cho Khách hàng" />
             </Tabs>
             {tabValue === 0 && (
                 <Paper sx={{ p: 2 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                        <Typography variant="h6" fontWeight={600}>Danh sách Voucher</Typography>
+                        <Typography variant="h6" fontWeight={600}>Danh sách mã khuyến mãi</Typography>
                         <PrimaryButton
                             startIcon={<Icon name="Add" />}
                             onClick={() => handleShowTemplateModal()}
@@ -295,6 +296,7 @@ function VoucherManagement() {
                     <MaterialReactTable
                         columns={templateColumns}
                         data={templates}
+                        enableStickyHeader
                         enableColumnActions={false}
                         enableColumnFilters={false}
                         enableSorting={true}
@@ -303,6 +305,11 @@ function VoucherManagement() {
                         enablePagination={true}
                         enableRowActions={true}
                         positionActionsColumn="last"
+                        layoutMode="grid"
+                        initialState={{ 
+                            density: 'compact',
+                            pagination: { pageSize: 10, pageIndex: 0 }
+                        }}
                         renderRowActions={({ row }) => (
                             <Box sx={{ display: 'flex', gap: 1 }}>
                                 <ActionButton
@@ -318,7 +325,7 @@ function VoucherManagement() {
                             </Box>
                         )}
                         muiTableContainerProps={{
-                            sx: { maxHeight: { xs: '70vh', md: 'none' } }
+                            sx: { maxHeight: { xs: '70vh', md: '600px' } }
                         }}
                         muiTablePaperProps={{
                             elevation: 0,
@@ -330,12 +337,10 @@ function VoucherManagement() {
                                 fontSize: { xs: '0.75rem', sm: '0.875rem' }
                             }
                         }}
-                        localization={{
-                            noRecordsToDisplay: 'Không có dữ liệu'
+                        muiTableBodyCellProps={{
+                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
                         }}
-                        initialState={{
-                            pagination: { pageSize: 10, pageIndex: 0 },
-                        }}
+                        localization={MRT_Localization_VI}
                     />
                 </Paper>
             )}
@@ -348,7 +353,10 @@ function VoucherManagement() {
                             {
                                 accessorKey: 'index',
                                 header: 'STT',
-                                size: 60,
+                                size: 50,
+                                minSize: 50,
+                                maxSize: 60,
+                                enableResizing: true,
                                 Cell: ({ row }) => row.index + 1,
                                 enableColumnFilter: false,
                             },
@@ -360,7 +368,7 @@ function VoucherManagement() {
                             {
                                 accessorKey: 'phone',
                                 header: 'Số điện thoại',
-                                size: 150,
+                                size: 130,
                             },
                             {
                                 accessorKey: 'loyalty_point',
@@ -371,6 +379,7 @@ function VoucherManagement() {
                             },
                         ]}
                         data={customers}
+                        enableStickyHeader
                         enableColumnActions={false}
                         enableColumnFilters={false}
                         enableSorting={true}
@@ -379,18 +388,23 @@ function VoucherManagement() {
                         enablePagination={true}
                         enableRowActions={true}
                         positionActionsColumn="last"
+                        layoutMode="grid"
+                        initialState={{ 
+                            density: 'compact',
+                            pagination: { pageSize: 10, pageIndex: 0 }
+                        }}
                         renderRowActions={({ row }) => (
                             <PrimaryButton
                                 size="small"
                                 startIcon={<Icon name="Add" />}
                                 onClick={() => handleShowAssignModal(row.original)}
-                                sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
+                                
                             >
-                                Thêm voucher
+                                Thêm
                             </PrimaryButton>
                         )}
                         muiTableContainerProps={{
-                            sx: { maxHeight: { xs: '70vh', md: 'none' } }
+                            sx: { maxHeight: { xs: '70vh', md: '600px' } }
                         }}
                         muiTablePaperProps={{
                             elevation: 0,
@@ -402,19 +416,17 @@ function VoucherManagement() {
                                 fontSize: { xs: '0.75rem', sm: '0.875rem' }
                             }
                         }}
-                        localization={{
-                            noRecordsToDisplay: 'Không có dữ liệu'
+                        muiTableBodyCellProps={{
+                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
                         }}
-                        initialState={{
-                            pagination: { pageSize: 10, pageIndex: 0 },
-                        }}
+                        localization={MRT_Localization_VI}
                     />
                 </Paper>
             )}
 
             {/* Template Modal */}
             <Dialog open={showTemplateModal} onClose={handleCloseTemplateModal} maxWidth="md" fullWidth>
-                <DialogTitle>{editingTemplate ? 'Chỉnh sửa' : 'Tạo mới'} Voucher Template</DialogTitle>
+                <DialogTitle>{editingTemplate ? 'Chỉnh sửa' : 'Tạo mới'} Mẫu mã khuyến mãi</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -426,7 +438,7 @@ function VoucherManagement() {
                                 placeholder="VD: WELCOME, LOYAL100"
                             />
                             <TextField
-                                label="Tên voucher *"
+                                label="Tên mã khuyến mãi *"
                                 fullWidth
                                 value={formData.voucher_name}
                                 onChange={(e) => setFormData({...formData, voucher_name: e.target.value})}
@@ -509,14 +521,14 @@ function VoucherManagement() {
             <Dialog open={showAssignModal} onClose={() => setShowAssignModal(false)} maxWidth="md" fullWidth>
                 <DialogTitle>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6">Thêm voucher cho {selectedCustomer?.name}</Typography>
+                        <Typography variant="h6">Thêm mã khuyến mãi cho {selectedCustomer?.name}</Typography>
                         <Chip label={`${selectedCustomer?.loyalty_point || 0} điểm`} color="info" size="small" />
                     </Stack>
                 </DialogTitle>
                 <DialogContent>
                     {availableTemplates.length === 0 ? (
                         <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
-                            Không có voucher khả dụng cho khách hàng này
+                            Không có mã khuyến mãi khả dụng cho khách hàng này
                         </Typography>
                     ) : (
                         <MaterialReactTable
@@ -530,7 +542,7 @@ function VoucherManagement() {
                                 },
                                 {
                                     accessorKey: 'voucher_name',
-                                    header: 'Tên voucher',
+                                    header: 'Tên mã khuyến mãi',
                                     size: 200,
                                 },
                                 {

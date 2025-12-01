@@ -1,5 +1,5 @@
 // src/pages/Cashier/MyShiftReports.js
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Box, Paper, Typography, Grid, Card, CardContent, TextField,
   Chip, Stack, CircularProgress, Alert, Tabs, Tab
@@ -56,19 +56,22 @@ const MyShiftReports = () => {
   const initialRange = getRangeForPeriod('week');
   const [from, setFrom] = useState(initialRange.start);
   const [to, setTo] = useState(initialRange.end);
+  const isChangingPeriodRef = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (dateFrom, dateTo, showLoading = false) => {
     if (!user?.user_id) return;
     
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const storeId = user?.store_id || null;
       const resp = await getShiftReport({ 
         store_id: storeId,
         cashier_id: user.user_id, // Chỉ lấy ca của chính nhân viên này
-        date_from: from,
-        date_to: to
+        date_from: dateFrom || from,
+        date_to: dateTo || to
       });
       
       if (resp && resp.err === 0 && resp.data) {
@@ -76,27 +79,61 @@ const MyShiftReports = () => {
         setSummary(resp.data.summary || null);
       } else {
         setError(resp?.msg || 'Không thể tải dữ liệu');
-        setShifts([]);
-        setSummary(null);
+        // Không clear dữ liệu để tránh nháy
       }
     } catch (e) {
       setError('Lỗi khi tải dữ liệu: ' + e.message);
-      setShifts([]);
-      setSummary(null);
+      // Không clear dữ liệu để tránh nháy
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
+      isChangingPeriodRef.current = false;
     }
   }, [from, to, user]);
 
   useEffect(() => { 
-    load(); 
+    // Chỉ load nếu không đang trong quá trình chuyển period
+    // Không hiển thị loading khi thay đổi date filter
+    if (!isChangingPeriodRef.current) {
+      load(undefined, undefined, false); 
+    }
   }, [load]);
 
   useEffect(() => {
+    isChangingPeriodRef.current = true;
     const range = getRangeForPeriod(periodView);
-    setFrom(range.start);
-    setTo(range.end);
-  }, [periodView]);
+    const newFrom = range.start;
+    const newTo = range.end;
+    setFrom(newFrom);
+    setTo(newTo);
+    // Load trực tiếp với dates mới, không hiển thị loading và giữ dữ liệu cũ để tránh nháy
+    if (user?.user_id) {
+      const storeId = user?.store_id || null;
+      // Không set loading = true và không clear dữ liệu cũ để tránh nháy nháy
+      setError(null);
+      getShiftReport({ 
+        store_id: storeId,
+        cashier_id: user.user_id,
+        date_from: newFrom,
+        date_to: newTo
+      }).then(resp => {
+        if (resp && resp.err === 0 && resp.data) {
+          // Chỉ update khi có dữ liệu mới
+          setShifts(resp.data.shifts || []);
+          setSummary(resp.data.summary || null);
+        } else {
+          // Chỉ set error, không clear dữ liệu để tránh nháy
+          setError(resp?.msg || 'Không thể tải dữ liệu');
+        }
+        isChangingPeriodRef.current = false;
+      }).catch(e => {
+        // Chỉ set error, không clear dữ liệu để tránh nháy
+        setError('Lỗi khi tải dữ liệu: ' + e.message);
+        isChangingPeriodRef.current = false;
+      });
+    }
+  }, [periodView, user]);
 
   // Tính toán KPIs từ summary
   const kpis = useMemo(() => {
@@ -230,65 +267,21 @@ const MyShiftReports = () => {
         </Box>
       )}
 
-      {kpis && !loading && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng doanh thu" 
-              value={formatCurrency(kpis.totalSales)} 
-              color="success.main" 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng số giao dịch" 
-              value={kpis.totalTransactions} 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Giá trị đơn TB" 
-              value={formatCurrency(kpis.avgOrderValue)} 
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <KpiCard 
-              title="Tổng số ca" 
-              value={kpis.totalShifts} 
-            />
-          </Grid>
-        </Grid>
-      )}
 
       {summary && !loading && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} md={6}>
-            <Card sx={{ boxShadow: 2 }}>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ boxShadow: 2, minWidth: '500px' }}>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
-                  Tổng tiền mặt
+                  Tổng doanh thu
                 </Typography>
-                <Typography variant="h6" fontWeight={600}>
-                  {formatCurrency(summary.total_cash_sales)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Tiền đầu ca: {formatCurrency(summary.total_opening_cash)} • 
-                  Tiền cuối ca: {formatCurrency(summary.total_closing_cash)}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Card sx={{ boxShadow: 2 }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Tổng chuyển khoản
-                </Typography>
-                <Typography variant="h6" fontWeight={600} color="info.main">
-                  {formatCurrency(summary.total_bank_transfer)}
+                <Typography variant="h6" fontWeight={600} color="success.main">
+                  {formatCurrency(summary.total_sales)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Tổng doanh thu: {formatCurrency(summary.total_sales)}
+                  Tiền mặt: {formatCurrency(summary.total_cash_sales)} • 
+                  Chuyển khoản: {formatCurrency(summary.total_bank_transfer)}
                 </Typography>
               </CardContent>
             </Card>
@@ -326,17 +319,6 @@ const MyShiftReports = () => {
             InputLabelProps={{ shrink: true }}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           />
-          <Box flexGrow={1} sx={{ display: { xs: 'none', md: 'block' } }} />
-          {summary && (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                Tổng doanh thu: {formatCurrency(summary.total_sales)}
-              </Typography>
-              <Typography fontWeight={600} sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                Tổng giao dịch: {summary.total_transactions}
-              </Typography>
-            </Stack>
-          )}
         </Stack>
       </Paper>
 

@@ -21,11 +21,16 @@ import {
   Divider,
   Grid,
   useMediaQuery,
-  useTheme
+  useTheme,
+  InputAdornment
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { createStoreOrder, getStoreOrders, updateStoreOrderStatus } from '../../api/storeOrderApi';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
+import { IconButton, Tooltip } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
 
@@ -57,8 +62,8 @@ const PurchaseOrders = () => {
   const [lines, setLines] = useState([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState([]);
-  const [typeFilter, setTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const [perishable, setPerishable] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [openModal, setOpenModal] = useState(false);
@@ -194,7 +199,7 @@ const PurchaseOrders = () => {
         setSupplier('Coca-Cola');
         // Đóng modal tạo đơn
         setOpenCreateOrderModal(false);
-        await fetchOrders();
+        await fetchOrders(false);
       } else {
         ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể tạo đơn hàng'));
       }
@@ -206,24 +211,28 @@ const PurchaseOrders = () => {
     }
   };
 
-  const fetchOrders = useCallback(async () => {
-    setLoadingOrders(true);
+  const fetchOrders = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setLoadingOrders(true);
+    }
     try {
       const data = await getStoreOrders({
-        status: statusFilter,
-        order_type: typeFilter
+        status: statusFilter
       });
       setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading store orders:', error);
       setOrders([]);
     } finally {
-      setLoadingOrders(false);
+      if (showLoading) {
+        setLoadingOrders(false);
+      }
     }
-  }, [statusFilter, typeFilter]);
+  }, [statusFilter]);
 
   useEffect(() => {
-    fetchOrders();
+    // Không hiển thị loading khi filter thay đổi
+    fetchOrders(false);
   }, [fetchOrders]);
 
   // Định nghĩa cột cho bảng đơn nhập hàng
@@ -287,6 +296,34 @@ const PurchaseOrders = () => {
         );
       },
     },
+    {
+      accessorKey: 'actions',
+      header: 'Thao tác',
+      size: 100,
+      enableColumnFilter: false,
+      enableSorting: false,
+      Cell: ({ row }) => (
+        <Tooltip title="Xem chi tiết">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedOrder(row.original);
+              setOpenModal(true);
+            }}
+            color="primary"
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
+    },
   ], [getStatusMeta]);
 
   const handleOpenConfirmReceived = () => {
@@ -303,7 +340,7 @@ const PurchaseOrders = () => {
       if (response.err === 0) {
         ToastNotification.success('Xác nhận đã nhận hàng thành công!');
         setConfirmReceivedDialog(false);
-        await fetchOrders();
+        await fetchOrders(false);
         // Update selected order
         setSelectedOrder({ ...selectedOrder, status: 'delivered' });
       } else {
@@ -318,34 +355,28 @@ const PurchaseOrders = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        justifyContent="space-between"
-        spacing={2}
-        sx={{ mb: 2 }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
-        </Box>
-        <PrimaryButton onClick={() => setOpenCreateOrderModal(true)}>
-          Tạo đơn nhập
-        </PrimaryButton>
-      </Stack>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+        <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
+      </Box>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField 
-            select 
             size="small" 
-            label="Loại đơn" 
-            value={typeFilter} 
-            onChange={(e) => setTypeFilter(e.target.value)} 
-            sx={{ width: { xs: '100%', sm: 220 } }}
-          >
-            {['All','ToWarehouse','ToSupplier'].map(v => (<MenuItem key={v} value={v}>{v}</MenuItem>))}
-          </TextField>
+            label="Tìm kiếm mã đơn hàng" 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            placeholder="Nhập mã đơn hàng..."
+            sx={{ width: { xs: '100%', sm: 300 } }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
           <TextField 
             select 
             size="small" 
@@ -365,7 +396,11 @@ const PurchaseOrders = () => {
 
       <MaterialReactTable
         columns={columns}
-        data={loadingOrders ? [] : orders}
+        data={loadingOrders ? [] : orders.filter(order => {
+          if (!searchTerm.trim()) return true;
+          const orderId = String(order.store_order_id || '').toLowerCase();
+          return orderId.includes(searchTerm.toLowerCase().trim());
+        })}
         enableColumnActions={false}
         enableColumnFilters={false}
         enableSorting={true}
@@ -385,23 +420,11 @@ const PurchaseOrders = () => {
             fontSize: { xs: '0.75rem', sm: '0.875rem' }
           }
         }}
-        muiTableBodyRowProps={({ row }) => ({
-          onClick: () => {
-            setSelectedOrder(row.original);
-            setOpenModal(true);
-          },
-          sx: {
-            cursor: 'pointer',
-            '&:hover': { backgroundColor: 'action.hover' }
-          }
-        })}
         state={{
           isLoading: loadingOrders,
           showProgressBars: loadingOrders
         }}
-        localization={{
-          noRecordsToDisplay: 'Chưa có đơn nào'
-        }}
+        localization={MRT_Localization_VI}
         initialState={{
           pagination: { pageSize: 10, pageIndex: 0 },
         }}

@@ -87,6 +87,9 @@ export const AuthProvider = ({ children }) => {
         try {
             localStorage.removeItem('user');
             localStorage.removeItem('store_id');
+            // Note: We keep rememberedEmail so user doesn't have to re-enter email
+            // If you want to clear it on logout, uncomment the line below:
+            // localStorage.removeItem('rememberedEmail');
         } catch {}
         setUser(null);
     };
