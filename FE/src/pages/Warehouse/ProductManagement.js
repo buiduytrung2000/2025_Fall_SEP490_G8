@@ -7,6 +7,7 @@ import {
 } from '../../api/productApi';
 import { getInventoryByProduct } from '../../api/inventoryApi';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { Box, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
 import { PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from '../../components/common';
 import Dialog from '@mui/material/Dialog';
@@ -20,9 +21,26 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import { ToastNotification } from '../../components/common';
 
-// Hàm helper format tiền
-const formatCurrency = (number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+// Hàm helper format tiền (luôn bỏ phần thập phân ,00 nếu có)
+const formatCurrency = (number) => {
+    const formatted = new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(number || 0);
+
+    // Phòng trường hợp môi trường vẫn thêm ,00
+    return formatted.replace(/,00(?!\d)/, '');
+};
+
+// Chuẩn hóa giá bán để không hiển thị phần thập phân ",00"
+const normalizePriceValue = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const num = Number(value);
+    if (Number.isNaN(num)) return '';
+    return Math.round(num).toString();
+};
 
 // Ngày bắt đầu mặc định = ngày hiện tại + 1
 const getTomorrowDate = () => {
@@ -413,7 +431,7 @@ const ProductManagement = () => {
         setSelectedProduct(product);
         setEditingRule(null);
         setPriceType('fixed_price');
-        setPriceValue(product.latest_import_price || '0');
+        setPriceValue(normalizePriceValue(product.latest_import_price) || '0');
         
         // Load price history trước để tính ngày bắt đầu mặc định
         await loadPriceHistory(product.product_id);
@@ -444,7 +462,7 @@ const ProductManagement = () => {
     const handleEditRule = (rule) => {
         setEditingRule(rule);
         setPriceType(rule.type);
-        setPriceValue(rule.value.toString());
+        setPriceValue(normalizePriceValue(rule.value));
         const startDateFormatted = rule.start_date
             ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
             : getTomorrowDate();
@@ -458,6 +476,13 @@ const ProductManagement = () => {
     const handleClosePriceModal = () => {
         setShowPriceModal(false);
         setEditingRule(null);
+    };
+
+    const handlePriceValueChange = (e) => {
+        const raw = e.target.value;
+        // Chỉ giữ số, bỏ dấu phẩy/chấm và ký tự khác
+        const digitsOnly = raw.replace(/[^\d]/g, '');
+        setPriceValue(digitsOnly);
     };
 
     const handleSavePrice = async (e) => {
@@ -757,7 +782,7 @@ const ProductManagement = () => {
         setProductPriceHistory([]);
         // Reset price form
         setDetailPriceType('fixed_price');
-        setDetailPriceValue(product.latest_import_price || '0');
+        setDetailPriceValue(normalizePriceValue(product.latest_import_price) || '0');
         setDetailStartDate(getTomorrowDate());
         setDetailEndDate('');
         setDetailEditingRule(null);
@@ -771,7 +796,7 @@ const ProductManagement = () => {
 
             if (productRes.err === 0) {
                 setProductDetail(productRes.data);
-                setDetailPriceValue(productRes.data.latest_import_price || '0');
+                setDetailPriceValue(normalizePriceValue(productRes.data.latest_import_price) || '0');
             } else {
                 ToastNotification.error(productRes.msg || 'Không thể tải thông tin sản phẩm');
             }
@@ -856,7 +881,7 @@ const ProductManagement = () => {
 
         setDetailEditingRule(rule);
         setDetailPriceType(rule.type);
-        setDetailPriceValue(rule.value.toString());
+        setDetailPriceValue(normalizePriceValue(rule.value));
         const startDateFormatted = rule.start_date
             ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
             : getTomorrowDate();
@@ -1231,6 +1256,15 @@ const ProductManagement = () => {
         return new Date(dateString).toLocaleString('vi-VN');
     };
 
+    const cellPaddingSx = useMemo(
+        () => ({
+            px: 1,
+            py: 0.5,
+            fontSize: 13,
+        }),
+        [],
+    );
+
     // Định nghĩa cột cho bảng sản phẩm
     const columns = useMemo(
         () => [
@@ -1279,21 +1313,6 @@ const ProductManagement = () => {
                 header: 'Danh mục',
                 size: 150,
                 Cell: ({ row }) => row.original.category?.name || '-',
-            },
-            {
-                accessorKey: 'supplier.name',
-                header: 'Nhà cung cấp',
-                size: 150,
-                Cell: ({ row }) => row.original.supplier?.name || '-',
-            },
-            {
-                accessorKey: 'description',
-                header: 'Mô tả',
-                size: 200,
-                Cell: ({ cell }) => {
-                    const desc = cell.getValue();
-                    return desc ? (desc.length > 50 ? desc.substring(0, 50) + '...' : desc) : '-';
-                },
             },
             {
                 accessorKey: 'is_active',
@@ -1491,6 +1510,10 @@ const ProductManagement = () => {
                 columns={columns}
                 data={filteredProducts}
                 enableRowActions
+                initialState={{
+                    density: 'compact',
+                    pagination: { pageIndex: 0, pageSize: 10 },
+                }}
                 positionActionsColumn="last"
                 muiTableBodyRowProps={({ row }) => ({
                     onClick: (event) => {
@@ -1541,10 +1564,15 @@ const ProductManagement = () => {
                     sx: {
                         backgroundColor: '#f5f5f5',
                         fontWeight: 'bold',
+                        ...cellPaddingSx,
                     },
                 }}
+                muiTableBodyCellProps={{
+                    sx: cellPaddingSx,
+                }}
                 localization={{
-                    actions: 'Thao tác'
+                    ...MRT_Localization_VI,
+                    actions: 'Thao tác',
                 }}
             />
             {/* Dialog Thêm/Sửa */}
@@ -1696,7 +1724,7 @@ const ProductManagement = () => {
                                 onClick={() => {
                                     setEditingRule(null);
                                     setPriceType('fixed_price');
-                                    setPriceValue(selectedProduct?.latest_import_price || '0');
+                                    setPriceValue(normalizePriceValue(selectedProduct?.latest_import_price) || '0');
                                     
                                     // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                                     let defaultStartDate = getTomorrowDate();
@@ -1723,10 +1751,10 @@ const ProductManagement = () => {
 
                         <TextField
                             label="Giá bán (₫)"
-                            type="number"
-                            inputProps={{ min: 0 }}
+                            type="text"
+                            inputMode="numeric"
                             value={priceValue}
-                            onChange={(e) => setPriceValue(e.target.value)}
+                            onChange={handlePriceValueChange}
                             fullWidth
                             margin="normal"
                             required
@@ -2021,10 +2049,14 @@ const ProductManagement = () => {
                                                     <Grid item xs={12} sm={6} md={4}>
                                                         <TextField
                                                             label="Giá bán (₫)"
-                                                            type="number"
-                                                            inputProps={{ min: 0 }}
+                                                            type="text"
+                                                            inputMode="numeric"
                                                             value={detailPriceValue}
-                                                            onChange={(e) => setDetailPriceValue(e.target.value)}
+                                                            onChange={(e) => {
+                                                                const raw = e.target.value;
+                                                                const digitsOnly = raw.replace(/[^\d]/g, '');
+                                                                setDetailPriceValue(digitsOnly);
+                                                            }}
                                                             fullWidth
                                                             required
                                                             helperText="Giá bán cho sản phẩm"
@@ -2167,8 +2199,9 @@ const ProductManagement = () => {
                                                         );
                                                     }}
                                                     localization={{
+                                                        ...MRT_Localization_VI,
                                                         noRecordsToDisplay: 'Chưa có lịch sử thay đổi giá',
-                                                        actions: 'Thao tác'
+                                                        actions: 'Thao tác',
                                                     }}
                                                 />
                                             </Box>

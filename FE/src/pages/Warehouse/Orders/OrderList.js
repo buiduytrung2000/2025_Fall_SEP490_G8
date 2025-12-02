@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Paper,
@@ -20,19 +19,21 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import { 
   Search as SearchIcon, 
-  Refresh as RefreshIcon, 
   Visibility as ViewIcon, 
-  Replay as RetryIcon,
-  Lock as LockIcon
+  Lock as LockIcon,
+  CheckCircle as ConfirmIcon,
+  Cancel as CancelIcon
 } from '@mui/icons-material';
-import { ToastNotification, PrimaryButton, SecondaryButton, ActionButton, Alert, Icon } from '../../../components/common';
+import { ToastNotification, PrimaryButton, SecondaryButton, Alert, Icon } from '../../../components/common';
 import {
   getWarehouseSupplierOrders,
-  updateWarehouseSupplierOrderStatus
+  updateWarehouseSupplierOrderStatus,
+  getWarehouseSupplierOrderDetail,
 } from '../../../api/warehouseOrderApi';
 
 // Three-stage status system
@@ -56,8 +57,6 @@ const nextTransitions = {
 };
 
 export default function OrderList() {
-  const navigate = useNavigate();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [orders, setOrders] = useState([]);
@@ -74,6 +73,11 @@ export default function OrderList() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [newStatus, setNewStatus] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Detail dialog
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailOrder, setDetailOrder] = useState(null);
 
   // Debounce search
   useEffect(() => {
@@ -107,9 +111,20 @@ export default function OrderList() {
     loadOrders();
   }, [page, rowsPerPage, debouncedSearch, status]);
 
-  const handleUpdateStatus = (order) => {
+  const handleUpdateStatus = (order, desiredStatus) => {
     setSelectedOrder(order);
     const allowedTransitions = nextTransitions[order.status] || [];
+
+    if (desiredStatus) {
+      if (allowedTransitions.includes(desiredStatus)) {
+        setNewStatus(desiredStatus);
+        setUpdateDialog(true);
+      } else {
+        ToastNotification.info('Không thể cập nhật trạng thái cho đơn này');
+      }
+      return;
+    }
+
     if (allowedTransitions.length > 0) {
       setNewStatus(allowedTransitions[0]);
       setUpdateDialog(true);
@@ -141,10 +156,35 @@ export default function OrderList() {
     return orderStatus === 'pending';
   };
 
+  const handleOpenDetail = async (orderId) => {
+    setDetailDialogOpen(true);
+    setDetailLoading(true);
+    setDetailOrder(null);
+    try {
+      const res = await getWarehouseSupplierOrderDetail(orderId);
+      if (res.err === 0) {
+        setDetailOrder(res.data);
+      } else {
+        ToastNotification.error(res.msg || 'Không thể tải chi tiết đơn hàng');
+      }
+    } catch (e) {
+      ToastNotification.error('Lỗi kết nối: ' + e.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <Box p={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" fontWeight={700}>Đơn đặt hàng (Kho → NCC)</Typography>
+        <Box>
+          <Typography variant="h4" fontWeight={700}>
+            Quản lý phiếu nhập hàng
+          </Typography>
+          <Typography color="text.secondary" fontSize="0.95rem">
+            Theo dõi và cập nhật trạng thái các đơn mua hàng từ nhà cung cấp
+          </Typography>
+        </Box>
         <Stack direction="row" spacing={1}>
           <TextField 
             size="small" 
@@ -166,7 +206,6 @@ export default function OrderList() {
               <MenuItem key={s} value={s}>{statusLabels[s]}</MenuItem>
             ))}
           </TextField>
-          <IconButton onClick={loadOrders} title="Làm mới"><RefreshIcon /></IconButton>
         </Stack>
       </Stack>
 
@@ -178,10 +217,10 @@ export default function OrderList() {
                 <TableCell>Mã đơn</TableCell>
                 <TableCell>Nhà cung cấp</TableCell>
                 <TableCell>Người tạo</TableCell>
-                <TableCell>Trạng thái</TableCell>
                 <TableCell>Ngày tạo</TableCell>
                 <TableCell>Ngày giao dự kiến</TableCell>
                 <TableCell align="right">Tổng tiền</TableCell>
+                <TableCell>Trạng thái</TableCell>
                 <TableCell align="center">Hành động</TableCell>
               </TableRow>
             </TableHead>
@@ -194,13 +233,20 @@ export default function OrderList() {
                 <TableRow><TableCell colSpan={8} align="center"><Alert severity="info">Không có dữ liệu</Alert></TableCell></TableRow>
               ) : orders.map(order => {
                 const editable = isOrderEditable(order.status);
-                const canTransition = (nextTransitions[order.status] || []).length > 0;
                 
                 return (
-                  <TableRow key={order.order_id} hover>
+                  <TableRow
+                    key={order.order_id}
+                    hover
+                    onClick={() => handleOpenDetail(order.order_id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell>#{order.order_id}</TableCell>
                     <TableCell>{order.supplier?.name || '—'}</TableCell>
                     <TableCell>{order.creator?.username || order.creator?.email || '—'}</TableCell>
+                    <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
+                    <TableCell>{order.expected_delivery ? new Date(order.expected_delivery).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell align="right">{Number(order.totalAmount || 0).toLocaleString('vi-VN')} đ</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip 
@@ -211,14 +257,51 @@ export default function OrderList() {
                         {!editable && <LockIcon fontSize="small" color="disabled" titleAccess="Đơn hàng đã khóa, không thể chỉnh sửa" />}
                       </Stack>
                     </TableCell>
-                    <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
-                    <TableCell>{order.expected_delivery ? new Date(order.expected_delivery).toLocaleDateString() : '—'}</TableCell>
-                    <TableCell align="right">{Number(order.totalAmount || 0).toLocaleString('vi-VN')} đ</TableCell>
                     <TableCell align="center">
-                      <ActionButton icon={<Icon name="Visibility" />} onClick={() => navigate(`/warehouse/orders/${order.order_id}`)} tooltip="Xem chi tiết" />
-                      {canTransition && (
-                        <PrimaryButton size="small" onClick={() => handleUpdateStatus(order)}>Cập nhật</PrimaryButton>
-                      )}
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title="Xem chi tiết">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetail(order.order_id);
+                            }}
+                          >
+                            <ViewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Xác nhận phiếu nhập">
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="success"
+                              disabled={order.status !== 'pending'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateStatus(order, 'confirmed');
+                              }}
+                            >
+                              <ConfirmIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Từ chối phiếu nhập">
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={order.status !== 'pending'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateStatus(order, 'cancelled');
+                              }}
+                            >
+                              <CancelIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 );
@@ -233,8 +316,117 @@ export default function OrderList() {
           onPageChange={(e, p) => setPage(p)} 
           rowsPerPage={rowsPerPage} 
           onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
+          labelRowsPerPage="Số dòng mỗi trang:"
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} trong ${count !== -1 ? count : `hơn ${to}`}`}
         />
       </Paper>
+
+      {/* Order Detail Modal */}
+      <Dialog
+        open={detailDialogOpen}
+        onClose={() => !detailLoading && setDetailDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {detailOrder ? `Chi tiết phiếu nhập #${detailOrder.order_id}` : 'Chi tiết phiếu nhập hàng'}
+        </DialogTitle>
+        <DialogContent dividers>
+          {detailLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : !detailOrder ? (
+            <Alert severity="info">Không tìm thấy dữ liệu đơn hàng</Alert>
+          ) : (
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                Thông tin chung
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography><b>Nhà cung cấp:</b> {detailOrder.supplier?.name || '—'}</Typography>
+                  <Typography><b>Người tạo:</b> {detailOrder.creator?.username || detailOrder.creator?.email || '—'}</Typography>
+                  <Typography><b>Ngày tạo:</b> {new Date(detailOrder.created_at).toLocaleString('vi-VN')}</Typography>
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography><b>Ngày giao dự kiến:</b>{' '}
+                    {detailOrder.expected_delivery
+                      ? new Date(detailOrder.expected_delivery).toLocaleDateString('vi-VN')
+                      : '—'}
+                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                    <Chip
+                      size="small"
+                      color={statusColors[detailOrder.status] || 'default'}
+                      label={statusLabels[detailOrder.status] || detailOrder.status}
+                    />
+                  </Stack>
+                </Box>
+              </Stack>
+
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                Sản phẩm trong đơn
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>SKU</TableCell>
+                    <TableCell>Tên sản phẩm</TableCell>
+                    <TableCell align="right">Số lượng</TableCell>
+                    <TableCell align="right">Đơn giá</TableCell>
+                    <TableCell align="right">Thành tiền</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(detailOrder.orderItems || []).map((item, idx) => {
+                    const quantityPerCase = Number(
+                      item.display_quantity ?? item.quantity ?? 0,
+                    );
+                    const pricePerCase = Number(
+                      item.display_unit_price ?? item.unit_price ?? 0,
+                    );
+                    const subtotalBase = Number(item.subtotal ?? quantityPerCase * pricePerCase);
+                    const unitLabel =
+                      item.display_unit_label ||
+                      item.unit?.name ||
+                      item.unit?.symbol ||
+                      'đơn vị';
+
+                    return (
+                      <TableRow key={item.order_item_id || idx}>
+                        <TableCell>{item.product?.sku || '—'}</TableCell>
+                        <TableCell>{item.product?.name || '—'}</TableCell>
+                        <TableCell align="right">
+                          {quantityPerCase.toLocaleString('vi-VN')} {unitLabel}
+                        </TableCell>
+                        <TableCell align="right">
+                          {pricePerCase.toLocaleString('vi-VN')} đ/{unitLabel}
+                        </TableCell>
+                        <TableCell align="right">
+                          {subtotalBase.toLocaleString('vi-VN')} đ
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {(!detailOrder.orderItems || detailOrder.orderItems.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        Không có sản phẩm nào trong đơn
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <SecondaryButton onClick={() => setDetailDialogOpen(false)} disabled={detailLoading}>
+            Đóng
+          </SecondaryButton>
+        </DialogActions>
+      </Dialog>
 
       {/* Status Update Dialog */}
       <Dialog open={updateDialog} onClose={() => !updating && setUpdateDialog(false)}>

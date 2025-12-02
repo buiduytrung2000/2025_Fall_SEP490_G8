@@ -32,20 +32,17 @@ import PurchaseOrders from "./pages/Store_Manager/PurchaseOrders";
 import VoucherManagement from "./pages/Store_Manager/VoucherManagement";
 import WarehouseIncomingOrders from "./pages/Warehouse/IncomingOrders";
 import WarehouseBranchOrders from "./pages/Warehouse/BranchOrders";
-import WarehouseOrderUpdate from "./pages/Warehouse/OrderUpdate";
 import WarehouseOrderShipment from "./pages/Warehouse/OrderShipment";
 import ProtectedRoute from "./routes/ProtectedRoutes";
 import MySchedule from "./pages/Cashier/MySchedule";
 import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
 import CashierProfile from "./pages/Cashier/Profile";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
-import InvoicesManagement from "./pages/Warehouse/InvoicesManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
 import CashierPaymentHistory from "./pages/Cashier/PaymentHistory";
 import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
 import ShiftChangeRequestManagement from "./pages/Store_Manager/ShiftChangeRequestManagement";
 import WarehouseInventoryList from "./pages/Warehouse/InventoryList";
-import WarehouseInventoryDetail from "./pages/Warehouse/InventoryDetail";
 import StockCountReports from "./pages/Warehouse/StockCountReports";
 import SupplierManagement from "./pages/Warehouse/SupplierManagement";
 import ProductDetail from "./pages/Warehouse/ProductDetail";
@@ -290,14 +287,6 @@ function App() {
               }
             />
             <Route
-              path="/warehouse/inventory/:id"
-              element={
-                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
-                  <WarehouseInventoryDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/warehouse/stock-count-reports"
               element={
                 <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
@@ -310,14 +299,6 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse"]}>
                   <SupplierManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/warehouse/invoices"
-              element={
-                <ProtectedRoute allowedRoles={["Warehouse"]}>
-                  <InvoicesManagement />
                 </ProtectedRoute>
               }
             />
@@ -337,14 +318,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/warehouse/branch-orders/:id"
-              element={
-                <ProtectedRoute allowedRoles={["Warehouse"]}>
-                  <WarehouseOrderUpdate />
-                </ProtectedRoute>
-              }
-            />
+            {/* Đơn hàng chi nhánh: xem chi tiết & xử lý đều dùng OrderShipment */}
             <Route
               path="/warehouse/order-shipment/:id"
               element={

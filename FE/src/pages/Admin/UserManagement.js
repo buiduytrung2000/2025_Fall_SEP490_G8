@@ -352,13 +352,6 @@ const UserManagement = () => {
                     >
                         Thêm Người dùng
                     </PrimaryButton>
-                    <SecondaryButton
-                        startIcon={<Icon name="Refresh" />}
-                        onClick={fetchUsers}
-                        disabled={loading}
-                    >
-                        Làm mới
-                    </SecondaryButton>
                 </div>
             </div>
 

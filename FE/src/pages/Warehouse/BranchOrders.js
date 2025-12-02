@@ -142,13 +142,6 @@ const BranchOrders = () => {
             Xem và cập nhật trạng thái đơn đặt hàng từ các chi nhánh
           </Typography>
         </Box>
-        <Tooltip title="Làm mới">
-          <ActionButton
-            icon={<Icon name="Refresh" />}
-            onClick={handleRefresh}
-            color="primary"
-          />
-        </Tooltip>
       </Stack>
 
       {/* Filters */}

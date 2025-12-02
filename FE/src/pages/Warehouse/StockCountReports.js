@@ -149,12 +149,6 @@ const StockCountReports = () => {
             Xem các báo cáo kiểm kê thiếu hoặc thừa hàng
           </Typography>
         </Box>
-        <ActionButton
-          icon={<Icon name="Refresh" />}
-          onClick={handleRefresh}
-          color="primary"
-          tooltip="Làm mới"
-        />
       </Stack>
 
       {/* Statistics Cards */}

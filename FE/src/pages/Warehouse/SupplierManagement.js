@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MaterialReactTable } from 'material-react-table';
+import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import {
     Box,
     Dialog,
@@ -8,7 +9,8 @@ import {
     DialogActions,
     TextField,
     CircularProgress,
-    MenuItem
+    MenuItem,
+    Typography,
 } from '@mui/material';
 import {
     PrimaryButton,
@@ -16,7 +18,6 @@ import {
     DangerButton,
     ActionButton,
     ToastNotification,
-    Alert,
     Icon
 } from '../../components/common';
 import {
@@ -31,7 +32,8 @@ const SupplierManagement = () => {
     const [suppliers, setSuppliers] = useState([]);
     const [supplierAccounts, setSupplierAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [supplierToDelete, setSupplierToDelete] = useState(null);
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
@@ -56,17 +58,14 @@ const SupplierManagement = () => {
 
     const loadSuppliers = async () => {
         setLoading(true);
-        setError(null);
         try {
             const response = await getAllSuppliers();
             if (response.err === 0) {
                 setSuppliers(response.data || []);
             } else {
-                setError(response.msg || 'Không thể tải danh sách nhà cung cấp');
                 ToastNotification.error(response.msg || 'Không thể tải danh sách nhà cung cấp');
             }
         } catch (err) {
-            setError('Lỗi kết nối: ' + err.message);
             ToastNotification.error('Lỗi kết nối: ' + err.message);
         } finally {
             setLoading(false);
@@ -195,13 +194,21 @@ const SupplierManagement = () => {
         }
     };
 
-    const handleDelete = async (supplier) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}"?`)) {
-            return;
-        }
+    const handleDelete = (supplier) => {
+        setSupplierToDelete(supplier);
+        setConfirmDeleteOpen(true);
+    };
+
+    const handleCloseConfirmDelete = () => {
+        setConfirmDeleteOpen(false);
+        setSupplierToDelete(null);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!supplierToDelete) return;
 
         try {
-            const response = await deleteSupplier(supplier.supplier_id);
+            const response = await deleteSupplier(supplierToDelete.supplier_id);
             if (response.err === 0) {
                 ToastNotification.success('Xóa nhà cung cấp thành công');
                 await loadSuppliers();
@@ -210,6 +217,8 @@ const SupplierManagement = () => {
             }
         } catch (err) {
             ToastNotification.error('Lỗi kết nối: ' + err.message);
+        } finally {
+            handleCloseConfirmDelete();
         }
     };
 
@@ -262,20 +271,6 @@ const SupplierManagement = () => {
                 size: 250,
                 Cell: ({ cell }) => cell.getValue() || '-',
             },
-            {
-                accessorKey: 'created_at',
-                header: 'Ngày tạo',
-                size: 180,
-                Cell: ({ cell }) => new Date(cell.getValue()).toLocaleString('vi-VN'),
-                filterVariant: 'date-range',
-            },
-            {
-                accessorKey: 'updated_at',
-                header: 'Ngày cập nhật',
-                size: 180,
-                Cell: ({ cell }) => new Date(cell.getValue()).toLocaleString('vi-VN'),
-                filterVariant: 'date-range',
-            },
         ],
         [],
     );
@@ -290,11 +285,9 @@ const SupplierManagement = () => {
 
     return (
         <Box sx={{ padding: 3 }}>
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                    {error}
-                </Alert>
-            )}
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
+                Quản lý nhà cung cấp
+            </Typography>
 
             <MaterialReactTable
                 columns={columns}
@@ -337,12 +330,27 @@ const SupplierManagement = () => {
                     pagination: { pageSize: 10, pageIndex: 0 },
                     sorting: [{ id: 'supplier_id', desc: false }],
                 }}
-                localization={{
-                    filterBy: 'Lọc theo',
-                    filterAll: 'Tất cả',
-                    // Thêm các bản dịch khác nếu cần
-                }}
+                localization={MRT_Localization_VI}
             />
+
+            {/* Delete Confirm Modal */}
+            <Dialog open={confirmDeleteOpen} onClose={handleCloseConfirmDelete} maxWidth="xs" fullWidth>
+                <DialogTitle>Xác nhận xóa</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Bạn có chắc chắn muốn xóa nhà cung cấp{' '}
+                        <strong>{supplierToDelete?.name}</strong>?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <SecondaryButton onClick={handleCloseConfirmDelete}>
+                        Hủy
+                    </SecondaryButton>
+                    <DangerButton onClick={handleConfirmDelete}>
+                        Xóa
+                    </DangerButton>
+                </DialogActions>
+            </Dialog>
 
             {/* Create/Edit Modal */}
             <Dialog open={showModal} onClose={handleCloseModal} maxWidth="sm" fullWidth>

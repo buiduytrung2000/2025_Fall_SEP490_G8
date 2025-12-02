@@ -557,12 +557,7 @@ const InventoryList = () => {
               </PrimaryButton>
             </>
           )}
-          <ActionButton
-            icon={<Icon name="Refresh" />}
-            onClick={handleSearch}
-            color="primary"
-            tooltip="Làm mới"
-          />
+          
         </Stack>
       </Stack>
 

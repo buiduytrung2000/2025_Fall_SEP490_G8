@@ -786,13 +786,6 @@ const InventoryManagement = () => {
               >
                 Lên đơn nhập {orderItemsCount > 0 ? `(${orderItemsCount})` : ''}
               </PrimaryButton>
-              <Tooltip title="Tải lại">
-                <span>
-                  <IconButton onClick={fetchData} disabled={loading} size={isMobile ? 'small' : 'medium'}>
-                    <Refresh />
-                  </IconButton>
-                </span>
-              </Tooltip>
               <Tooltip title="Xuất CSV">
                 <span>
                   <ActionButton

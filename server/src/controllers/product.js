@@ -170,3 +170,34 @@ export const getForPriceManagement = async (req, res) => {
     }
 }
 
+// GET PRODUCT BY BARCODE (for POS scanning)
+export const getByBarcode = async (req, res) => {
+    const { code } = req.params
+    const { store_id } = req.query
+
+    try {
+        if (!code) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing barcode code'
+            })
+        }
+
+        if (!store_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing store_id'
+            })
+        }
+
+        const response = await productService.getByBarcode(code, parseInt(store_id))
+        return res.status(200).json(response)
+    } catch (error) {
+        console.error('Error in getByBarcode:', error)
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at product controller: ' + error
+        })
+    }
+}
+

@@ -46,6 +46,7 @@ import { createCashPayment, createQRPayment } from '../../api/paymentApi';
 import PaymentModal from '../../components/PaymentModal';
 import CashPaymentModal from '../../components/CashPaymentModal';
 import { ToastNotification } from '../../components/common';
+import { findProductByBarcode } from '../../api/barcodeApi';
 
 // Hàm helper để format tiền tệ
 const formatCurrency = (number) => {
@@ -73,6 +74,7 @@ const POS = () => {
     
     const [cart, setCart] = useState(getInitialCart());
     const [searchTerm, setSearchTerm] = useState('');
+    const [isScanning, setIsScanning] = useState(false);
     const [customerPhone, setCustomerPhone] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
@@ -342,6 +344,62 @@ const POS = () => {
 
         return () => clearInterval(interval);
     }, [isShiftActive, refreshOpenShift]);
+
+    // Tự động quét barcode: khi máy quét nhập xong chuỗi số (không cần Enter),
+    // nếu dừng gõ trong 300ms và độ dài >= 6 ký tự số, tự gọi API và thêm vào giỏ
+    useEffect(() => {
+        const code = searchTerm.trim();
+        if (!code) return;
+
+        // Chỉ auto-scan với chuỗi toàn số, dài từ 6 ký tự trở lên (giống barcode)
+        if (!/^[0-9]{6,}$/.test(code)) return;
+
+        const timer = setTimeout(async () => {
+            try {
+                setIsScanning(true);
+
+                const storedStoreId = (() => {
+                    if (user && user.store_id) return user.store_id;
+                    try {
+                        const persisted = localStorage.getItem('store_id');
+                        if (persisted) return Number(persisted);
+                    } catch { }
+                    return 1;
+                })();
+
+                const res = await findProductByBarcode(code, storedStoreId);
+
+                if (!res || res.err !== 0 || !res.data) {
+                    ToastNotification.warning(res?.msg || 'Không tìm thấy sản phẩm với mã vừa quét');
+                    return;
+                }
+
+                const p = res.data;
+                const price = Number(p.current_price || p.hq_price || 0);
+                const hqPrice = Number(p.hq_price || 0);
+
+                const productForCart = {
+                    id: p.product_id,
+                    name: p.name || 'Sản phẩm',
+                    price,
+                    oldPrice: price !== hqPrice ? hqPrice : undefined,
+                    category: p.category?.name || 'Tất cả',
+                    code: p.sku || '',
+                    stock: p.available_quantity
+                };
+
+                handleAddToCart(productForCart);
+                setSearchTerm('');
+            } catch (error) {
+                console.error('Error when scanning barcode:', error);
+                ToastNotification.error('Lỗi khi quét mã vạch');
+            } finally {
+                setIsScanning(false);
+            }
+        }, 300); // debounce 300ms
+
+        return () => clearTimeout(timer);
+    }, [searchTerm, user]);
 
     // Tải sản phẩm theo store_id của cashier
     useEffect(() => {
@@ -943,25 +1001,25 @@ const POS = () => {
 
                 {/* Search */}
                 <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Stack direction="row" spacing={1}>
-                        <TextField
-                            fullWidth
-                            placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon />
-                                    </InputAdornment>
-                                ),
-                            }}
-                            size="small"
-                        />
-                        <Button variant="outlined" startIcon={<QrCodeIcon />}>
-                            Quét mã
-                        </Button>
-                    </Stack>
+                    <TextField
+                        fullWidth
+                        placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                            endAdornment: isScanning ? (
+                                <InputAdornment position="end">
+                                    <CircularProgress size={16} />
+                                </InputAdornment>
+                            ) : null,
+                        }}
+                        size="small"
+                    />
                 </Box>
 
                 {/* Product List */}
