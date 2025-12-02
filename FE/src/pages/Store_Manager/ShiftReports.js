@@ -77,7 +77,7 @@ const ShiftReports = () => {
 
   const load = useCallback(async (showLoading = false) => {
     if (showLoading) {
-      setLoading(true);
+    setLoading(true);
     }
     setError(null);
     try {
@@ -101,7 +101,7 @@ const ShiftReports = () => {
       // Không clear dữ liệu để tránh nháy
     } finally {
       if (showLoading) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }, [from, to, cashierId, user]);

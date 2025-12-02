@@ -72,6 +72,7 @@ const PurchaseOrders = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [confirmReceivedDialog, setConfirmReceivedDialog] = useState(false);
   const [receiveNote, setReceiveNote] = useState('');
+  const [receiveItems, setReceiveItems] = useState([]);
 
   const getStatusMeta = useCallback((status) => {
     if (!status) return STATUS_META.pending;
@@ -213,7 +214,7 @@ const PurchaseOrders = () => {
 
   const fetchOrders = useCallback(async (showLoading = false) => {
     if (showLoading) {
-      setLoadingOrders(true);
+    setLoadingOrders(true);
     }
     try {
       const data = await getStoreOrders({
@@ -225,8 +226,8 @@ const PurchaseOrders = () => {
       setOrders([]);
     } finally {
       if (showLoading) {
-        setLoadingOrders(false);
-      }
+      setLoadingOrders(false);
+    }
     }
   }, [statusFilter]);
 
@@ -327,6 +328,14 @@ const PurchaseOrders = () => {
   ], [getStatusMeta]);
 
   const handleOpenConfirmReceived = () => {
+    if (!selectedOrder) return;
+
+    // Khởi tạo danh sách sản phẩm với số lượng nhận thực tế mặc định = số lượng đặt
+    const initialItems = (selectedOrder.items || []).map((item) => ({
+      ...item,
+      received_quantity: item.received_quantity ?? item.quantity ?? 0
+    }));
+    setReceiveItems(initialItems);
     setReceiveNote('');
     setConfirmReceivedDialog(true);
   };
@@ -334,9 +343,32 @@ const PurchaseOrders = () => {
   const handleConfirmReceived = async () => {
     if (!selectedOrder) return;
 
+    // Validate số lượng nhận thực tế
+    const payloadItems = [];
+    for (let i = 0; i < receiveItems.length; i++) {
+      const item = receiveItems[i];
+      const rq = Number(item.received_quantity ?? 0);
+      if (isNaN(rq) || rq < 0) {
+        ToastNotification.error(`Dòng ${i + 1}: Số lượng nhận thực tế phải >= 0`);
+        return;
+      }
+
+      payloadItems.push({
+        sku: item.sku,
+        product_name: item.product_name || item.name || '',
+        expected_quantity: item.quantity,
+        received_quantity: rq
+      });
+    }
+
     setUpdatingStatus(true);
     try {
-      const response = await updateStoreOrderStatus(selectedOrder.store_order_id, 'delivered', receiveNote);
+      const response = await updateStoreOrderStatus(
+        selectedOrder.store_order_id,
+        'delivered',
+        receiveNote,
+        payloadItems
+      );
       if (response.err === 0) {
         ToastNotification.success('Xác nhận đã nhận hàng thành công!');
         setConfirmReceivedDialog(false);
@@ -356,9 +388,9 @@ const PurchaseOrders = () => {
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-        <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
-      </Box>
+          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
+        </Box>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -414,6 +446,13 @@ const PurchaseOrders = () => {
           elevation: 0,
           sx: { boxShadow: 'none' }
         }}
+        muiTableBodyRowProps={({ row }) => ({
+          onClick: () => {
+            setSelectedOrder(row.original);
+            setOpenModal(true);
+          },
+          sx: { cursor: 'pointer' }
+        })}
         muiTableHeadCellProps={{
           sx: {
             fontWeight: 700,
@@ -737,6 +776,46 @@ const PurchaseOrders = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Bạn có chắc chắn đã nhận hàng cho đơn hàng #{selectedOrder?.store_order_id}?
           </Typography>
+          {receiveItems && receiveItems.length > 0 && (
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Tên hàng</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>SL đặt</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>SL nhận thực tế</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {receiveItems.map((item, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{item.sku || 'N/A'}</TableCell>
+                      <TableCell>{item.product_name || item.name || 'N/A'}</TableCell>
+                      <TableCell align="right">{item.quantity || 0}</TableCell>
+                      <TableCell align="right">
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={item.received_quantity ?? item.quantity ?? 0}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setReceiveItems((prev) =>
+                              prev.map((it, i) =>
+                                i === idx ? { ...it, received_quantity: value } : it
+                              )
+                            );
+                          }}
+                          sx={{ width: 90 }}
+                          inputProps={{ min: 0 }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
           <TextField
             label="Ghi chú khi nhận hàng"
             placeholder="Nhập ghi chú (nếu có vấn đề về hàng hóa, số lượng...)"

@@ -37,7 +37,8 @@ import { ToastNotification, PrimaryButton, SecondaryButton, ActionButton, Icon }
 import {
   getWarehouseOrderDetail,
   updateWarehouseOrderStatus,
-  updateOrderItemQuantity
+  updateOrderItemQuantity,
+  updateExpectedDelivery
 } from '../../api/warehouseOrderApi';
 
 const statusColors = {
@@ -104,6 +105,7 @@ const OrderShipment = () => {
   const [editingQuantity, setEditingQuantity] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [nextStatus, setNextStatus] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState(''); // ngày giao dự kiến do kho chọn
 
   const loadOrderDetail = async () => {
     setLoading(true);
@@ -115,19 +117,28 @@ const OrderShipment = () => {
         const normalizedStatus =
           orderData.status === 'preparing' ? 'confirmed' : orderData.status;
 
-        if (normalizedStatus === 'pending') {
-          ToastNotification.warning('Đơn hàng này chưa được xác nhận');
-          navigate('/warehouse/branch-orders');
-          return;
-        }
-
+        // Nếu đơn đã bị hủy thì không xử lý xuất kho
         if (normalizedStatus === 'cancelled') {
           ToastNotification.error('Đơn hàng này đã bị hủy');
           navigate('/warehouse/branch-orders');
           return;
         }
 
+        // Cho phép xử lý cả đơn đang chờ xác nhận (pending) ngay tại màn hình này
         setOrder({ ...orderData, status: normalizedStatus });
+
+        // Khởi tạo ngày giao dự kiến cho input (nếu đã có trên đơn)
+        if (orderData.expected_delivery) {
+          try {
+            const d = new Date(orderData.expected_delivery);
+            if (!isNaN(d.getTime())) {
+              const iso = d.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+              setDeliveryDate(iso);
+            }
+          } catch (e) {
+            // ignore parse error, keep empty
+          }
+        }
       } else {
         ToastNotification.error(response.msg || 'Không thể tải thông tin đơn hàng');
         navigate('/warehouse/branch-orders');
@@ -155,14 +166,16 @@ const OrderShipment = () => {
 
   const getNextStatus = (currentStatus) => {
     const flow = {
-      confirmed: 'shipped',
-      shipped: 'delivered'
+      pending: 'confirmed',   // Bước 1: xác nhận đơn hàng
+      confirmed: 'shipped',   // Bước 2: xuất kho & giao hàng
+      shipped: 'delivered'    // Bước 3: xác nhận đã giao
     };
     return flow[currentStatus] || null;
   };
 
   const getStatusActionLabel = (status) => {
     const labels = {
+      confirmed: 'Xác nhận đơn hàng',
       shipped: 'Xuất kho và giao hàng',
       delivered: 'Xác nhận đã giao'
     };
@@ -239,6 +252,11 @@ const OrderShipment = () => {
       ToastNotification.warning('Không thể cập nhật trạng thái tiếp theo');
       return;
     }
+    // Khi xác nhận đơn hàng, bắt buộc phải chọn ngày giao dự kiến
+    if (next === 'confirmed' && !deliveryDate) {
+      ToastNotification.error('Vui lòng chọn ngày giao dự kiến trước khi xác nhận đơn hàng');
+      return;
+    }
     setNextStatus(next);
     setConfirmDialog(true);
   };
@@ -248,6 +266,26 @@ const OrderShipment = () => {
 
     setUpdating(true);
     try {
+      // Nếu đang ở bước xác nhận đơn hàng, lưu ngày giao dự kiến trước
+      if (nextStatus === 'confirmed') {
+        if (!deliveryDate) {
+          ToastNotification.error('Vui lòng chọn ngày giao dự kiến');
+          setUpdating(false);
+          return;
+        }
+
+        const formattedDate = deliveryDate.includes('T')
+          ? deliveryDate.replace('T', ' ').substring(0, 16) + ':00'
+          : `${deliveryDate} 00:00:00`;
+
+        const resDelivery = await updateExpectedDelivery(id, formattedDate);
+        if (resDelivery.err !== 0) {
+          ToastNotification.error(resDelivery.msg || 'Không thể lưu ngày giao dự kiến');
+          setUpdating(false);
+          return;
+        }
+      }
+
       const response = await updateWarehouseOrderStatus(id, nextStatus);
       if (response.err === 0) {
         ToastNotification.success(response.msg || 'Cập nhật trạng thái thành công!');
@@ -308,6 +346,14 @@ const OrderShipment = () => {
   const currentStep = getStatusStep(order.status);
   const next = getNextStatus(order.status);
   const canProceed = next && order.status !== 'delivered';
+
+  // Ghi chú xác nhận từ cửa hàng (khi store bấm "Đã nhận hàng")
+  const storeConfirmNote =
+    order.store_receive_note ||
+    order.store_confirmation_note ||
+    order.receive_note ||
+    order.store_note ||
+    null;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
@@ -385,7 +431,7 @@ const OrderShipment = () => {
               </Stepper>
             </Paper>
 
-            {/* Notes from Store (if any) */}
+            {/* Notes from Store (initial note on order) */}
             {order.notes && (
               <Paper sx={{ p: 3, mb: 3, bgcolor: '#fff3e0', border: '1px solid #ffb74d' }}>
                 <Typography variant="h6" fontWeight={600} gutterBottom color="warning.dark">
@@ -393,6 +439,18 @@ const OrderShipment = () => {
                 </Typography>
                 <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
                   {order.notes}
+                </Typography>
+              </Paper>
+            )}
+
+            {/* Store confirmation note after receiving goods */}
+            {storeConfirmNote && (
+              <Paper sx={{ p: 3, mb: 3, bgcolor: '#e8f5e9', border: '1px solid #81c784' }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom color="success.dark">
+                  ✅ Ghi chú khi cửa hàng xác nhận đã nhận hàng
+                </Typography>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+                  {storeConfirmNote}
                 </Typography>
               </Paper>
             )}
@@ -424,7 +482,7 @@ const OrderShipment = () => {
 
             {/* Products Table */}
             <Paper>
-              <Box sx={{ px: 3, py: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
+              <Box sx={{  bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
                 <Typography variant="h6" fontWeight={600}>
                   Chi tiết sản phẩm xuất kho
                 </Typography>
@@ -578,8 +636,7 @@ const OrderShipment = () => {
                             </Typography>
                           </TableCell>
                           <TableCell align="center">
-                            {order.status !== 'delivered' && order.status !== 'shipped' && (
-                              isEditing ? (
+                            {isEditing ? (
                                 <Stack direction="row" spacing={0.5} justifyContent="center">
                                   <ActionButton
                                     icon={<Icon name="Save" />}
@@ -601,7 +658,6 @@ const OrderShipment = () => {
                                   onClick={() => handleEditQuantity(item)}
                                   disabled={stockAvailable === 0 || (stockInPackages !== null && stockInPackages < 1)}
                                 />
-                              )
                             )}
                           </TableCell>
                         </TableRow>
@@ -632,6 +688,26 @@ const OrderShipment = () => {
                   Thao tác xuất kho
                 </Typography>
                 <Divider sx={{ my: 2 }} />
+
+                {/* Ngày giao dự kiến – chọn khi xác nhận đơn */}
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Ngày giao dự kiến
+                  </Typography>
+                  <TextField
+                      fullWidth
+                    type="datetime-local"
+                    size="small"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    helperText={
+                      order.status === 'pending'
+                        ? 'Bắt buộc chọn ngày giao trước khi xác nhận đơn hàng'
+                        : 'Có thể điều chỉnh nếu cần'
+                    }
+                  />
+                </Box>
 
                 {canProceed ? (
                   <>
@@ -672,7 +748,9 @@ const OrderShipment = () => {
       >
         <DialogTitle>
           <Typography variant="h6" fontWeight={600}>
-            Xác nhận cập nhật trạng thái
+            {nextStatus === 'confirmed'
+              ? 'Xác nhận đơn hàng'
+              : 'Xác nhận cập nhật trạng thái'}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -680,8 +758,12 @@ const OrderShipment = () => {
             severity={nextStatus === 'delivered' ? 'success' : 'info'}
             sx={{ mb: 2 }}
           >
-            {nextStatus === 'shipped' && '🚚 Xuất kho và bắt đầu vận chuyển đơn hàng'}
-            {nextStatus === 'delivered' && '✅ Xác nhận đã giao hàng thành công. Tồn kho sẽ được cập nhật tự động.'}
+            {nextStatus === 'confirmed' &&
+              '✅ Bạn đang xác nhận đơn hàng. Sau khi xác nhận có thể tiến hành xuất kho.'}
+            {nextStatus === 'shipped' &&
+              '🚚 Xuất kho và bắt đầu vận chuyển đơn hàng.'}
+            {nextStatus === 'delivered' &&
+              '✅ Xác nhận đã giao hàng thành công. Tồn kho sẽ được cập nhật tự động.'}
           </Alert>
 
           <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>

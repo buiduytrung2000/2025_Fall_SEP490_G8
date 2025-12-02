@@ -273,13 +273,13 @@ const PaymentHistory = () => {
                 <Grid item xs={12} md={2}>
                     <TextField
                         fullWidth
-                        type="date"
+                            type="date"
                         label="Chọn ngày"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
                         InputLabelProps={{ shrink: true }}
                         size="small"
-                    />
+                        />
                 </Grid>
                 <Grid item xs={12} md={5}>
                     <FormControl fullWidth sx={{ minWidth: '200px' }} size="small">
@@ -306,17 +306,17 @@ const PaymentHistory = () => {
                     </FormControl>
                 </Grid>
                 <Grid item xs={12} md={2}>
-                    <Button
+                            <Button
                         variant="contained"
                         color="success"
                         fullWidth
                         startIcon={<FileDownloadIcon />}
-                        onClick={handleExportExcel}
-                        disabled={transactions.length === 0}
+                                onClick={handleExportExcel}
+                                disabled={transactions.length === 0}
                         size="small"
-                    >
-                        Xuất Excel
-                    </Button>
+                            >
+                                Xuất Excel
+                            </Button>
                 </Grid>
             </Grid>
 
@@ -361,4 +361,3 @@ const PaymentHistory = () => {
 
 export default PaymentHistory;
 
-    
