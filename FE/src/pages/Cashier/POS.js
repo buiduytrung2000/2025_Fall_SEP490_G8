@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
     Box,
     Button,
@@ -75,6 +75,9 @@ const POS = () => {
     const [cart, setCart] = useState(getInitialCart());
     const [searchTerm, setSearchTerm] = useState('');
     const [isScanning, setIsScanning] = useState(false);
+    const lastScannedCodeRef = useRef(''); // Track mã đã scan để tránh scan lại
+    const scanCompleteTimeRef = useRef(0); // Track thời điểm scan thành công để block input tiếp theo
+    const completedScanCodeRef = useRef(''); // Lưu mã đã scan thành công để block input tiếp theo từ máy quét
     const [customerPhone, setCustomerPhone] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
@@ -349,14 +352,29 @@ const POS = () => {
     // nếu dừng gõ trong 300ms và độ dài >= 6 ký tự số, tự gọi API và thêm vào giỏ
     useEffect(() => {
         const code = searchTerm.trim();
-        if (!code) return;
+        if (!code) {
+            lastScannedCodeRef.current = ''; // Reset khi xóa hết
+            completedScanCodeRef.current = ''; // Reset mã đã scan khi xóa hết
+            return;
+        }
 
         // Chỉ auto-scan với chuỗi toàn số, dài từ 6 ký tự trở lên (giống barcode)
-        if (!/^[0-9]{6,}$/.test(code)) return;
+        // Nếu không phải mã barcode hợp lệ, reset ref để tránh ghép với giá trị cũ
+        if (!/^[0-9]{6,}$/.test(code)) {
+            lastScannedCodeRef.current = ''; // Reset khi không phải mã barcode hợp lệ
+            return;
+        }
+
+        // Tránh scan lại cùng một mã
+        if (lastScannedCodeRef.current === code) return;
 
         const timer = setTimeout(async () => {
+            // Kiểm tra lại để tránh race condition
+            if (lastScannedCodeRef.current === code) return;
+            
             try {
                 setIsScanning(true);
+                lastScannedCodeRef.current = code; // Đánh dấu đã scan mã này
 
                 const storedStoreId = (() => {
                     if (user && user.store_id) return user.store_id;
@@ -370,6 +388,7 @@ const POS = () => {
                 const res = await findProductByBarcode(code, storedStoreId);
 
                 if (!res || res.err !== 0 || !res.data) {
+                    lastScannedCodeRef.current = ''; // Reset nếu không tìm thấy để có thể thử lại
                     ToastNotification.warning(res?.msg || 'Không tìm thấy sản phẩm với mã vừa quét');
                     return;
                 }
@@ -389,9 +408,15 @@ const POS = () => {
                 };
 
                 handleAddToCart(productForCart);
-                setSearchTerm('');
+                // Lưu mã đã scan thành công để block input tiếp theo từ máy quét
+                completedScanCodeRef.current = code;
+                // Đánh dấu thời điểm scan thành công để block input tiếp theo từ máy quét
+                scanCompleteTimeRef.current = Date.now();
+                // Reset lastScannedCodeRef ngay sau khi thêm thành công để cho phép scan mã mới
+                lastScannedCodeRef.current = '';
             } catch (error) {
                 console.error('Error when scanning barcode:', error);
+                lastScannedCodeRef.current = ''; // Reset nếu có lỗi
                 ToastNotification.error('Lỗi khi quét mã vạch');
             } finally {
                 setIsScanning(false);
@@ -468,6 +493,30 @@ const POS = () => {
         }
     }, [cart]);
 
+    // Xử lý onChange cho search input: block input trong 500ms sau khi scan thành công
+    const handleSearchChange = (e) => {
+        const newValue = e.target.value;
+        const now = Date.now();
+        const timeSinceScan = now - scanCompleteTimeRef.current;
+        const completedCode = completedScanCodeRef.current;
+        
+        // Nếu vừa scan xong trong vòng 500ms và giá trị mới bắt đầu bằng mã đã scan thành công
+        // thì block input này (có thể là ký tự tiếp theo từ máy quét)
+        if (timeSinceScan < 500 && completedCode && newValue.startsWith(completedCode)) {
+            // Nếu giá trị mới chỉ là phần mở rộng của mã đã scan, không cho phép
+            if (newValue.length > completedCode.length) {
+                return; // Block input này
+            }
+        }
+        
+        // Nếu đã qua 500ms, reset completedScanCodeRef
+        if (timeSinceScan >= 500) {
+            completedScanCodeRef.current = '';
+        }
+        
+        setSearchTerm(newValue);
+    };
+
     // Thêm sản phẩm vào giỏ
     const handleAddToCart = (product) => {
         setCart(currentCart => {
@@ -484,6 +533,9 @@ const POS = () => {
                 return [...currentCart, { ...product, qty: 1 }];
             }
         });
+        // Xóa ô tìm kiếm và reset ref sau khi thêm vào giỏ hàng thành công
+        setSearchTerm('');
+        lastScannedCodeRef.current = ''; // Reset để cho phép scan mã mới
     };
 
     // Cập nhật số lượng
@@ -1001,25 +1053,25 @@ const POS = () => {
 
                 {/* Search */}
                 <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <TextField
-                        fullWidth
-                        placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon />
-                                </InputAdornment>
-                            ),
+                        <TextField
+                            fullWidth
+                            placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon />
+                                    </InputAdornment>
+                                ),
                             endAdornment: isScanning ? (
                                 <InputAdornment position="end">
                                     <CircularProgress size={16} />
                                 </InputAdornment>
                             ) : null,
-                        }}
-                        size="small"
-                    />
+                            }}
+                            size="small"
+                        />
                 </Box>
 
                 {/* Product List */}
