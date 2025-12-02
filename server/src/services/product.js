@@ -628,3 +628,152 @@ export const getForPriceManagement = (query) => new Promise(async (resolve, reje
     }
 })
 
+
+// GET PRODUCT BY BARCODE WITH PRICING AND INVENTORY
+// Trả về: product_id, name, sku, is_active, unit_id, unit_name, conversion_to_base,
+// current_price (đã áp dụng pricing rule nếu có), tồn kho theo store
+export const getByBarcode = (barcode, storeId) => new Promise(async (resolve, reject) => {
+    try {
+        if (!barcode || !storeId) {
+            resolve({
+                err: 1,
+                msg: 'Missing barcode or storeId',
+                data: null
+            })
+            return
+        }
+
+        // Normalize barcode: trim, loại bỏ khoảng trắng
+        const normalizedBarcode = barcode.trim()
+
+        // Bước 1: Tìm theo ProductUnit.barcode (ưu tiên)
+        let productUnit = await db.ProductUnit.findOne({
+            where: { barcode: normalizedBarcode },
+            include: [
+                {
+                    model: db.Product,
+                    as: 'product',
+                    attributes: ['product_id', 'name', 'sku', 'is_active', 'hq_price', 'base_unit_id'],
+                    include: [
+                        {
+                            model: db.Unit,
+                            as: 'baseUnit',
+                            attributes: ['unit_id', 'name']
+                        }
+                    ]
+                },
+                {
+                    model: db.Unit,
+                    as: 'unit',
+                    attributes: ['unit_id', 'name']
+                }
+            ]
+        })
+
+        // Bước 2: Nếu không tìm được theo barcode, thử tìm theo SKU
+        if (!productUnit) {
+            const product = await db.Product.findOne({
+                where: { sku: normalizedBarcode, is_active: true },
+                include: [
+                    {
+                        model: db.Unit,
+                        as: 'baseUnit',
+                        attributes: ['unit_id', 'name']
+                    }
+                ]
+            })
+
+            if (!product) {
+                resolve({
+                    err: 1,
+                    msg: 'Không tìm thấy sản phẩm cho mã: ' + normalizedBarcode,
+                    data: null
+                })
+                return
+            }
+
+            // Nếu tìm được theo SKU, dùng base unit làm default unit
+            productUnit = {
+                product_unit_id: null,
+                product_id: product.product_id,
+                unit_id: product.base_unit_id,
+                conversion_to_base: 1,
+                product: product,
+                unit: product.baseUnit
+            }
+        }
+
+        // Kiểm tra sản phẩm có is_active = true không
+        if (!productUnit.product || !productUnit.product.is_active) {
+            resolve({
+                err: 1,
+                msg: 'Sản phẩm đã bị vô hiệu hóa',
+                data: null
+            })
+            return
+        }
+
+        // Bước 3: Tính giá bán hiện tại (áp dụng pricing rule nếu có)
+        const product = productUnit.product
+        let currentPrice = product.hq_price || 0
+
+        // Kiểm tra có pricing rule đang hiệu lực cho store này không
+        const activeRule = await db.PricingRule.findOne({
+            where: {
+                product_id: product.product_id,
+                store_id: storeId,
+                start_date: { [Op.lte]: new Date() },
+                end_date: { [Op.gte]: new Date() }
+            }
+        })
+
+        if (activeRule) {
+            const basePrice = product.hq_price || 0
+            if (activeRule.type === 'fixed_price') {
+                currentPrice = activeRule.value
+            } else if (activeRule.type === 'markup') {
+                currentPrice = basePrice + basePrice * (activeRule.value / 100)
+            } else if (activeRule.type === 'markdown') {
+                currentPrice = basePrice - basePrice * (activeRule.value / 100)
+            }
+        }
+
+        // Bước 4: Lấy tồn kho theo store (tính theo đơn vị cơ sở)
+        const inventory = await db.Inventory.findOne({
+            where: {
+                product_id: product.product_id,
+                store_id: storeId
+            }
+        })
+
+        const baseQuantity = inventory ? inventory.stock : 0
+        // Chuyển đổi tồn kho sang đơn vị được quét (chia cho conversion_to_base)
+        const availableQuantity = productUnit.conversion_to_base > 0
+            ? Math.floor(baseQuantity / productUnit.conversion_to_base)
+            : 0
+
+        // Chuẩn bị response
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: {
+                product_id: product.product_id,
+                name: product.name,
+                sku: product.sku,
+                is_active: product.is_active,
+                product_unit_id: productUnit.product_unit_id,
+                unit_id: productUnit.unit_id,
+                unit_name: productUnit.unit?.name || 'Đơn vị',
+                conversion_to_base: parseFloat(productUnit.conversion_to_base),
+                current_price: parseFloat(currentPrice),
+                hq_price: parseFloat(product.hq_price || 0),
+                base_quantity: baseQuantity, // Tồn kho theo đơn vị cơ sở
+                available_quantity: availableQuantity, // Tồn kho theo đơn vị được quét
+                barcode: normalizedBarcode,
+                matched_by: productUnit.product_unit_id ? 'barcode' : 'sku'
+            }
+        })
+    } catch (error) {
+        reject(error)
+    }
+})
