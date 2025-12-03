@@ -11,8 +11,19 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    Chip,
+    Typography,
+    TextField,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    Paper,
+    Stack,
+    InputAdornment,
+    Switch,
+    Tooltip,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { getAllUsers, deleteUser, reactivateUser } from '../../api/userApi';
 import UserDialog from '../../components/common/UserDialog';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,7 +36,6 @@ import {
     Alert,
     Icon
 } from '../../components/common';
-import './UserManagement.css';
 
 const UserManagement = () => {
     const { user: currentUser } = useAuth();
@@ -34,7 +44,7 @@ const UserManagement = () => {
     const [error, setError] = useState(null);
     const [editingUser, setEditingUser] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [toggleConfirm, setToggleConfirm] = useState(null);
     const [globalFilter, setGlobalFilter] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
 
@@ -77,45 +87,55 @@ const UserManagement = () => {
         fetchUsers();
     };
 
-    const handleDeleteClick = (userToDelete) => {
-        // Prevent self-deletion
-        if (userToDelete.user_id === currentUser.user_id) {
+    const handleToggleClick = (user, newStatus) => {
+        // Prevent self-deactivation
+        if (user.user_id === currentUser.user_id && !newStatus) {
             ToastNotification.warning('Bạn không thể vô hiệu hóa tài khoản của chính mình');
             return;
         }
-        setDeleteConfirm(userToDelete);
+        setToggleConfirm({ user, newStatus });
     };
 
-    const confirmDelete = async () => {
-        if (!deleteConfirm) return;
+    const confirmToggle = async () => {
+        if (!toggleConfirm) return;
+
+        const { user, newStatus } = toggleConfirm;
 
         try {
-            const response = await deleteUser(deleteConfirm.user_id);
+            let response;
+            if (newStatus) {
+                // Reactivate user
+                response = await reactivateUser(user.user_id);
+            } else {
+                // Deactivate user
+                response = await deleteUser(user.user_id);
+            }
+
             if (response.err === 0) {
-                ToastNotification.success('Người dùng đã được vô hiệu hóa thành công');
+                ToastNotification.success(
+                    newStatus 
+                        ? 'Người dùng đã được kích hoạt lại thành công'
+                        : 'Người dùng đã được vô hiệu hóa thành công'
+                );
                 fetchUsers();
             } else {
-                ToastNotification.error(response.msg || 'Lỗi khi vô hiệu hóa người dùng');
+                ToastNotification.error(response.msg || 'Lỗi khi thay đổi trạng thái người dùng');
+                // Refresh to revert Switch state if error
+                fetchUsers();
             }
         } catch (error) {
-            ToastNotification.error('Lỗi khi vô hiệu hóa người dùng');
+            ToastNotification.error('Lỗi khi thay đổi trạng thái người dùng');
+            // Refresh to revert Switch state if error
+            fetchUsers();
         } finally {
-            setDeleteConfirm(null);
+            setToggleConfirm(null);
         }
     };
 
-    const handleReactivate = async (userToReactivate) => {
-        try {
-            const response = await reactivateUser(userToReactivate.user_id);
-            if (response.err === 0) {
-                ToastNotification.success('Người dùng đã được kích hoạt lại thành công');
-                fetchUsers();
-            } else {
-                ToastNotification.error(response.msg || 'Lỗi khi kích hoạt lại người dùng');
-            }
-        } catch (error) {
-            ToastNotification.error('Lỗi khi kích hoạt lại người dùng');
-        }
+    const handleCancelToggle = () => {
+        // Refresh to revert Switch state when cancelled
+        fetchUsers();
+        setToggleConfirm(null);
     };
 
     // Filter users based on search and role filter
@@ -138,35 +158,14 @@ const UserManagement = () => {
         return filtered;
     }, [users, globalFilter, roleFilter]);
 
-    // Calculate role statistics
-    const roleStats = useMemo(() => {
-        const stats = {
-            'Admin': 0,
-            'CEO': 0,
-            'Store_Manager': 0,
-            'Cashier': 0,
-            'Warehouse': 0,
-            'Supplier': 0,
-            'Total': users.length
-        };
-
-        users.forEach(user => {
-            if (stats.hasOwnProperty(user.role)) {
-                stats[user.role]++;
-            }
-        });
-
-        return stats;
-    }, [users]);
-
-    // Role display names and colors
+    // Role display names
     const roleConfig = {
-        'Admin': { label: 'Admin', color: '#dc3545', icon: '👤' },
-        'CEO': { label: 'CEO', color: '#007bff', icon: '👨‍💼' },
-        'Store_Manager': { label: 'Manager', color: '#28a745', icon: '🏪' },
-        'Cashier': { label: 'Cashier', color: '#ffc107', icon: '💳' },
-        'Warehouse': { label: 'Kho', color: '#17a2b8', icon: '📦' },
-        'Supplier': { label: 'NCC', color: '#6f42c1', icon: '🚚' }
+        'Admin': { label: 'Admin' },
+        'CEO': { label: 'CEO' },
+        'Store_Manager': { label: 'Manager' },
+        'Cashier': { label: 'Cashier' },
+        'Warehouse': { label: 'Kho' },
+        'Supplier': { label: 'NCC' }
     };
 
     const columns = useMemo(
@@ -201,25 +200,8 @@ const UserManagement = () => {
                 size: 120,
                 Cell: ({ cell }) => {
                     const role = cell.getValue();
-                    const roleColors = {
-                        'Admin': '#dc3545',
-                        'CEO': '#007bff',
-                        'Store_Manager': '#28a745',
-                        'Cashier': '#ffc107',
-                        'Warehouse': '#17a2b8',
-                        'Supplier': '#6f42c1'
-                    };
-                    return (
-                        <Chip
-                            label={role}
-                            size="small"
-                            sx={{
-                                backgroundColor: roleColors[role] || '#6c757d',
-                                color: 'white',
-                                fontWeight: 'bold'
-                            }}
-                        />
-                    );
+                    const config = roleConfig[role] || { label: role };
+                    return <Typography variant="body2">{config.label}</Typography>;
                 },
             },
             {
@@ -228,26 +210,12 @@ const UserManagement = () => {
                 size: 100,
                 Cell: ({ cell }) => {
                     const status = cell.getValue();
-                    const statusColors = {
-                        'active': '#28a745',
-                        'inactive': '#6c757d',
-                        'suspended': '#dc3545'
-                    };
                     const statusLabels = {
                         'active': 'Hoạt động',
                         'inactive': 'Không hoạt động',
                         'suspended': 'Bị tạm dừng'
                     };
-                    return (
-                        <Chip
-                            label={statusLabels[status] || status}
-                            size="small"
-                            sx={{
-                                backgroundColor: statusColors[status] || '#6c757d',
-                                color: 'white'
-                            }}
-                        />
-                    );
+                    return <Typography variant="body2">{statusLabels[status] || status}</Typography>;
                 },
             },
             {
@@ -255,12 +223,7 @@ const UserManagement = () => {
                 header: 'Hoạt động',
                 size: 80,
                 Cell: ({ cell }) => (
-                    <Chip
-                        label={cell.getValue() ? 'Có' : 'Không'}
-                        size="small"
-                        color={cell.getValue() ? 'success' : 'error'}
-                        variant="outlined"
-                    />
+                    <Typography variant="body2">{cell.getValue() ? 'Có' : 'Không'}</Typography>
                 ),
             },
             {
@@ -283,34 +246,24 @@ const UserManagement = () => {
         positionActionsColumn: 'last',
         renderRowActions: ({ row }) => {
             const userData = row.original;
+            const isCurrentUser = userData.user_id === currentUser.user_id;
+            
             return (
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                    <SecondaryButton
-                        size="small"
-                        startIcon={<Icon name="Edit" />}
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <ActionButton
+                        icon={<Icon name="Edit" />}
+                        action="edit"
                         onClick={() => handleOpenDialog(userData)}
-                    >
-                        Sửa
-                    </SecondaryButton>
-                    {userData.is_active ? (
-                        <DangerButton
-                            variant="outlined"
+                    />
+                    <Tooltip title={userData.is_active ? 'Vô hiệu hóa' : 'Kích hoạt'}>
+                        <Switch
+                            checked={userData.is_active}
+                            onChange={(e) => handleToggleClick(userData, e.target.checked)}
+                            disabled={isCurrentUser && !userData.is_active}
                             size="small"
-                            startIcon={<Icon name="Delete" />}
-                            onClick={() => handleDeleteClick(userData)}
-                            disabled={userData.user_id === currentUser.user_id}
-                        >
-                            Vô hiệu hóa
-                        </DangerButton>
-                    ) : (
-                        <SecondaryButton
-                            size="small"
-                            onClick={() => handleReactivate(userData)}
-                            sx={{ color: 'success.main', borderColor: 'success.main' }}
-                        >
-                            Kích hoạt
-                        </SecondaryButton>
-                    )}
+                            color="primary"
+                        />
+                    </Tooltip>
                 </Box>
             );
         },
@@ -339,21 +292,23 @@ const UserManagement = () => {
     });
 
     return (
-        <div className="user-management-container">
-            <div className="user-management-header">
-                <div>
-                    <h2>Quản lý Người dùng</h2>
-                    <p>Quản lý danh sách tất cả người dùng trong hệ thống</p>
-                </div>
-                <div className="header-actions">
-                    <PrimaryButton
-                        startIcon={<Icon name="Add" />}
-                        onClick={() => handleOpenDialog()}
-                    >
-                        Thêm Người dùng
-                    </PrimaryButton>
-                </div>
-            </div>
+        <Box sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+                <Box>
+                    <Typography variant="h4" fontWeight={700} mb={1}>
+                        Quản lý Người dùng
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Quản lý danh sách tất cả người dùng trong hệ thống
+                    </Typography>
+                </Box>
+                <PrimaryButton
+                    startIcon={<Icon name="Add" />}
+                    onClick={() => handleOpenDialog()}
+                >
+                    Thêm Người dùng
+                </PrimaryButton>
+            </Box>
 
             {error && (
                 <Alert severity="error" dismissible onClose={() => setError(null)}>
@@ -361,51 +316,40 @@ const UserManagement = () => {
                 </Alert>
             )}
 
-            {/* Role Statistics Section */}
-            <div className="stats-section">
-                <div className="stats-title">Thống kê tài khoản</div>
-                <div className="stats-grid">
-                    {Object.keys(roleConfig).map(role => (
-                        <div key={role} className="stat-card" style={{ borderLeftColor: roleConfig[role].color }}>
-                            <div className="stat-icon">{roleConfig[role].icon}</div>
-                            <div className="stat-info">
-                                <div className="stat-label">{roleConfig[role].label}</div>
-                                <div className="stat-value">{roleStats[role]}</div>
-                            </div>
-                        </div>
-                    ))}
-                    <div key="total" className="stat-card stat-card-total">
-                        <div className="stat-icon">📊</div>
-                        <div className="stat-info">
-                            <div className="stat-label">Tổng cộng</div>
-                            <div className="stat-value">{roleStats['Total']}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="filters-section">
-                <input
-                    type="text"
-                    placeholder="Tìm kiếm theo username, email, hoặc tên..."
-                    value={globalFilter}
-                    onChange={(e) => setGlobalFilter(e.target.value)}
-                    className="filter-input"
-                />
-                <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="filter-select"
-                >
-                    <option value="">Tất cả vai trò</option>
-                    <option value="Admin">Admin</option>
-                    <option value="CEO">CEO</option>
-                    <option value="Store_Manager">Store Manager</option>
-                    <option value="Cashier">Cashier</option>
-                    <option value="Warehouse">Warehouse</option>
-                    <option value="Supplier">Supplier</option>
-                </select>
-            </div>
+            <Paper sx={{ p: 2, mb: 2 }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Tìm kiếm theo username, email, hoặc tên..."
+                        value={globalFilter}
+                        onChange={(e) => setGlobalFilter(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon fontSize="small" />
+                                </InputAdornment>
+                            ),
+                        }}
+                        sx={{ flex: 1 }}
+                    />
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel>Vai trò</InputLabel>
+                        <Select
+                            value={roleFilter}
+                            onChange={(e) => setRoleFilter(e.target.value)}
+                            label="Vai trò"
+                        >
+                            <MenuItem value="">Tất cả vai trò</MenuItem>
+                            {Object.keys(roleConfig).map(role => (
+                                <MenuItem key={role} value={role}>
+                                    {roleConfig[role].label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Stack>
+            </Paper>
 
             {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -423,29 +367,50 @@ const UserManagement = () => {
                 onSuccess={handleSuccess}
             />
 
-            {/* Delete Confirmation Dialog */}
+            {/* Toggle Confirmation Dialog */}
             <Dialog
-                open={!!deleteConfirm}
-                onClose={() => setDeleteConfirm(null)}
+                open={!!toggleConfirm}
+                onClose={handleCancelToggle}
             >
-                <DialogTitle>Xác nhận vô hiệu hóa người dùng</DialogTitle>
+                <DialogTitle>
+                    {toggleConfirm?.newStatus ? 'Xác nhận kích hoạt người dùng' : 'Xác nhận vô hiệu hóa người dùng'}
+                </DialogTitle>
                 <DialogContent>
-                    Bạn có chắc chắn muốn vô hiệu hóa người dùng <strong>{deleteConfirm?.username}</strong> không?
+                    <Typography>
+                        {toggleConfirm?.newStatus ? (
+                            <>
+                                Bạn có chắc chắn muốn kích hoạt lại người dùng <strong>{toggleConfirm?.user?.username}</strong> không?
+                            </>
+                        ) : (
+                            <>
+                                Bạn có chắc chắn muốn vô hiệu hóa người dùng <strong>{toggleConfirm?.user?.username}</strong> không?
+                            </>
+                        )}
+                    </Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2, gap: 1 }}>
                     <SecondaryButton
-                        onClick={() => setDeleteConfirm(null)}
+                        onClick={handleCancelToggle}
                     >
                         Hủy
                     </SecondaryButton>
-                    <DangerButton
-                        onClick={confirmDelete}
-                    >
-                        Vô hiệu hóa
-                    </DangerButton>
+                    {toggleConfirm?.newStatus ? (
+                        <PrimaryButton
+                            onClick={confirmToggle}
+                        >
+                            Kích hoạt
+                        </PrimaryButton>
+                    ) : (
+                        <DangerButton
+                            onClick={confirmToggle}
+                        >
+                            Vô hiệu hóa
+                        </DangerButton>
+                    )}
                 </DialogActions>
             </Dialog>
-        </div>
+
+        </Box>
     );
 };
 

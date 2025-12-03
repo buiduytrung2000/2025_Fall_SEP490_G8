@@ -38,6 +38,9 @@ router.get('/employees/store/:store_id', employeeController.getEmployeesByStore)
 // Get employees by role
 router.get('/employees/role/:role', employeeController.getEmployeesByRole);
 
+// Get all stores
+router.get('/stores', employeeController.getAllStores);
+
 export default router;
 
 

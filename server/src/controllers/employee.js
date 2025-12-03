@@ -292,3 +292,16 @@ export const getEmployeesByRole = async (req, res) => {
     }
 };
 
+// Get all stores
+export const getAllStores = async (req, res) => {
+    try {
+        const response = await employeeService.getAllStores();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at employee controller: ' + error.message
+        });
+    }
+};
+
