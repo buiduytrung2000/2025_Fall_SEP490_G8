@@ -1,7 +1,7 @@
 import db from '../models'
 
 // GET ALL CATEGORIES
-export const getAll = () => new Promise(async (resolve, reject) => {
+export const getAllCategories = () => new Promise(async (resolve, reject) => {
     try {
         const response = await db.Category.findAll({
             raw: true,
@@ -18,7 +18,7 @@ export const getAll = () => new Promise(async (resolve, reject) => {
 })
 
 // GET ONE CATEGORY
-export const getOne = (category_id) => new Promise(async (resolve, reject) => {
+export const getCategoryById = (category_id) => new Promise(async (resolve, reject) => {
     try {
         const response = await db.Category.findOne({
             where: { category_id },
@@ -35,7 +35,7 @@ export const getOne = (category_id) => new Promise(async (resolve, reject) => {
 })
 
 // CREATE CATEGORY
-export const create = (body) => new Promise(async (resolve, reject) => {
+export const createCategory = (body) => new Promise(async (resolve, reject) => {
     try {
         const response = await db.Category.create({
             name: body.name || body.category_name,
@@ -52,7 +52,7 @@ export const create = (body) => new Promise(async (resolve, reject) => {
 })
 
 // UPDATE CATEGORY
-export const update = (category_id, body) => new Promise(async (resolve, reject) => {
+export const updateCategory = (category_id, body) => new Promise(async (resolve, reject) => {
     try {
         const updateData = {}
         if (body.name !== undefined) updateData.name = body.name
@@ -76,7 +76,7 @@ export const update = (category_id, body) => new Promise(async (resolve, reject)
 })
 
 // DELETE CATEGORY
-export const remove = (category_id) => new Promise(async (resolve, reject) => {
+export const deleteCategory = (category_id) => new Promise(async (resolve, reject) => {
     try {
         const affectedRows = await db.Category.destroy({
             where: { category_id }

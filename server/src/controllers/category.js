@@ -3,7 +3,7 @@ import * as categoryService from '../services/category'
 // GET ALL CATEGORIES
 export const getAll = async (req, res) => {
     try {
-        const response = await categoryService.getAll()
+        const response = await categoryService.getAllCategories()
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
@@ -21,7 +21,7 @@ export const getOne = async (req, res) => {
             err: 1,
             msg: 'Missing category_id'
         })
-        const response = await categoryService.getOne(category_id)
+        const response = await categoryService.getCategoryById(category_id)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
@@ -39,7 +39,7 @@ export const create = async (req, res) => {
             err: 1,
             msg: 'Missing required fields: name'
         })
-        const response = await categoryService.create(req.body)
+        const response = await categoryService.createCategory(req.body)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
@@ -57,7 +57,7 @@ export const update = async (req, res) => {
             err: 1,
             msg: 'Missing category_id'
         })
-        const response = await categoryService.update(category_id, req.body)
+        const response = await categoryService.updateCategory(category_id, req.body)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
@@ -75,7 +75,7 @@ export const remove = async (req, res) => {
             err: 1,
             msg: 'Missing category_id'
         })
-        const response = await categoryService.remove(category_id)
+        const response = await categoryService.deleteCategory(category_id)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({

@@ -240,7 +240,8 @@ export const getAllOrdersService = async ({ page, limit, status, storeId, suppli
                 item.order_item_id = item.store_order_item_id; // Map for frontend compatibility
             }
 
-            const totalItems = orderData.storeOrderItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+            // Tính số loại sản phẩm (số items), không phải tổng quantity
+            const totalItems = orderData.storeOrderItems?.length || 0;
             const totalAmount = orderData.storeOrderItems?.reduce((sum, item) => sum + parseFloat(item.subtotal), 0) || 0;
             const normalizedStatus = normalizeOrderStatus(orderData.status);
 
@@ -1007,6 +1008,7 @@ export const updateExpectedDeliveryService = async ({ orderId, expected_delivery
  * Update order item actual quantity
  */
 export const updateOrderItemQuantityService = async ({ orderItemId, actual_quantity }) => {
+    const transaction = await db.sequelize.transaction();
     try {
         // orderItemId is actually store_order_item_id from frontend mapping
         const orderItem = await db.StoreOrderItem.findByPk(orderItemId, {
@@ -1014,31 +1016,163 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
                 {
                     model: db.StoreOrder,
                     as: 'storeOrder',
-                    attributes: ['status']
+                    attributes: ['status', 'store_id']
+                },
+                {
+                    model: db.Product,
+                    as: 'product',
+                    attributes: ['product_id', 'name']
                 }
-            ]
+            ],
+            transaction,
+            lock: transaction?.LOCK?.UPDATE
         });
 
         if (!orderItem) {
+            await transaction.rollback();
             return { err: 1, msg: 'Order item not found' };
         }
 
-        if (orderItem.storeOrder.status === 'delivered') {
-            return {
-                err: 1,
-                msg: 'Không thể thay đổi số lượng của đơn hàng đã giao'
-            };
-        }
-
-        if (actual_quantity < 0) {
+        // Frontend gửi số lượng thực tế theo thùng (package unit), cần quy đổi sang base unit (chai)
+        const newActualPackage = Number(actual_quantity);
+        if (isNaN(newActualPackage) || newActualPackage < 0) {
+            await transaction.rollback();
             return { err: 1, msg: 'Số lượng không hợp lệ' };
         }
 
-        await orderItem.update({
-            actual_quantity,
-            subtotal: actual_quantity * parseFloat(orderItem.unit_price),
-            updated_at: new Date()
-        });
+        const normalizedStatus = normalizeOrderStatus(orderItem.storeOrder?.status);
+        const productId = orderItem.product_id || orderItem.product?.product_id;
+
+        // Lấy package conversion để quy đổi từ thùng sang chai
+        let packageConversion = 1;
+        if (productId) {
+            const productUnit = await db.ProductUnit.findOne({
+                where: { product_id: productId },
+                order: [['conversion_to_base', 'DESC']],
+                transaction
+            });
+            if (productUnit && productUnit.conversion_to_base > 1) {
+                packageConversion = Number(productUnit.conversion_to_base);
+            }
+        }
+
+        // Quy đổi số lượng thực tế từ thùng sang chai (base unit)
+        const newActualBase = newActualPackage * packageConversion;
+        const oldActualBase = Number(orderItem.actual_quantity || 0);
+        const deltaBase = newActualBase - oldActualBase;
+
+        /**
+         * LOGIC CẬP NHẬT TỒN KHO KHI THAY ĐỔI SỐ LƯỢNG THỰC TẾ:
+         * 
+         * Frontend gửi số lượng theo thùng → quy đổi sang chai (base unit) để cập nhật tồn kho
+         * deltaBase = newActualBase - oldActualBase (theo chai)
+         * - Nếu số lượng thực tế GIẢM (deltaBase < 0): hàng xuất ít hơn → tồn kho TĂNG
+         * - Nếu số lượng thực tế TĂNG (deltaBase > 0): hàng xuất nhiều hơn → tồn kho GIẢM
+         * 
+         * Kho tổng: stock = stock - deltaBase
+         *   - deltaBase < 0 (giảm): stock = stock - (-2) = stock + 2 → TĂNG ✓
+         *   - deltaBase > 0 (tăng): stock = stock - (+2) = stock - 2 → GIẢM ✓
+         * 
+         * Kho chi nhánh: stock = stock + deltaBase
+         *   - deltaBase < 0 (giảm): stock = stock + (-2) = stock - 2 → GIẢM ✓
+         *   - deltaBase > 0 (tăng): stock = stock + (+2) = stock + 2 → TĂNG ✓
+         */
+
+        // Khi đơn đã xuất kho/đã giao, cần điều chỉnh tồn kho kho tổng theo delta thực tế (theo base unit)
+        if (deltaBase !== 0 && (normalizedStatus === 'shipped' || normalizedStatus === 'delivered')) {
+            if (!productId) {
+                await transaction.rollback();
+                return { err: 1, msg: 'Thiếu product_id để cập nhật tồn kho' };
+            }
+
+            const warehouseInventory = await db.WarehouseInventory.findOne({
+                where: { product_id: productId },
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
+            });
+
+            if (!warehouseInventory) {
+                await transaction.rollback();
+                return {
+                    err: 1,
+                    msg: `Không tìm thấy tồn kho kho tổng cho sản phẩm "${orderItem.product?.name || orderItem.product_name || ''}"`
+                };
+            }
+
+            // Kiểm tra nếu số lượng thực tế tăng (deltaBase > 0) thì kho phải đủ hàng để trừ
+            if (deltaBase > 0 && warehouseInventory.stock < deltaBase) {
+                await transaction.rollback();
+                return { err: 1, msg: 'Kho không đủ hàng để điều chỉnh theo số lượng thực tế' };
+            }
+
+            // Cập nhật tồn kho kho tổng: số lượng thực tế giảm → tồn kho tăng, và ngược lại
+            await warehouseInventory.update(
+                {
+                    stock: warehouseInventory.stock - deltaBase, // deltaBase < 0 → tăng, deltaBase > 0 → giảm
+                    updated_at: new Date()
+                },
+                { transaction }
+            );
+        }
+
+        // Nếu đơn đã giao, cần cập nhật tồn kho chi nhánh theo deltaBase
+        if (deltaBase !== 0 && normalizedStatus === 'delivered') {
+            const storeId = orderItem.storeOrder?.store_id;
+            if (!storeId) {
+                await transaction.rollback();
+                return { err: 1, msg: 'Không xác định được chi nhánh để cập nhật tồn kho' };
+            }
+
+            const storeInventory = await db.Inventory.findOne({
+                where: { store_id: storeId, product_id: productId },
+                transaction,
+                lock: transaction?.LOCK?.UPDATE
+            });
+
+            if (storeInventory) {
+                // Cập nhật tồn kho chi nhánh: số lượng thực tế tăng → tồn kho tăng, và ngược lại
+                const newStock = storeInventory.stock + deltaBase; // deltaBase < 0 → giảm, deltaBase > 0 → tăng
+                if (newStock < 0) {
+                    await transaction.rollback();
+                    return { err: 1, msg: 'Tồn kho chi nhánh không đủ để giảm theo số lượng thực tế' };
+                }
+                await storeInventory.update(
+                    {
+                        stock: newStock,
+                        updated_at: new Date()
+                    },
+                    { transaction }
+                );
+            } else {
+                // Tạo mới bản ghi tồn kho chi nhánh nếu chưa có
+                if (deltaBase < 0) {
+                    await transaction.rollback();
+                    return { err: 1, msg: 'Không thể giảm tồn kho chi nhánh vì chưa có bản ghi tồn' };
+                }
+                await db.Inventory.create(
+                    {
+                        store_id: storeId,
+                        product_id: productId,
+                        stock: deltaBase, // deltaBase > 0 khi tạo mới
+                        min_stock_level: 0,
+                        reorder_point: 0
+                    },
+                    { transaction }
+                );
+            }
+        }
+
+        // Lưu actual_quantity theo base unit (chai) vào DB
+        await orderItem.update(
+            {
+                actual_quantity: newActualBase, // Lưu theo base unit (chai)
+                subtotal: newActualPackage * parseFloat(orderItem.unit_price), // Tính tiền theo package unit (thùng)
+                updated_at: new Date()
+            },
+            { transaction }
+        );
+
+        await transaction.commit();
 
         return {
             err: 0,
@@ -1046,6 +1180,7 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
             data: orderItem
         };
     } catch (error) {
+        await transaction.rollback();
         throw error;
     }
 };

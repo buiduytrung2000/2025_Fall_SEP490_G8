@@ -644,7 +644,7 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Min/Reorder</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Tồn tối thiểu / Điểm đặt hàng</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
               </TableRow>
             </TableHead>

@@ -256,14 +256,67 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
 });
 
 // Update store order status (for store to mark as delivered)
-export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes }) => new Promise(async (resolve, reject) => {
+export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes, receivedItems }) => new Promise(async (resolve, reject) => {
     try {
+        // First update order status using warehouse service
         const response = await updateWarehouseOrderStatus({
             orderId,
             status,
             updatedBy,
-            notes
+            notes: null // Don't pass notes here, we'll handle it separately
         });
+
+        if (response.err !== 0) {
+            return resolve(response);
+        }
+
+        // If status is 'delivered' and we have receivedItems or notes, update them
+        if (status === 'delivered') {
+            const transaction = await db.sequelize.transaction();
+            try {
+                const order = await db.StoreOrder.findByPk(orderId, { transaction });
+                
+                if (!order) {
+                    await transaction.rollback();
+                    return resolve({ err: 1, msg: 'Order not found' });
+                }
+
+                // Update store_receive_note if notes provided
+                if (notes) {
+                    await order.update({
+                        store_receive_note: notes,
+                        updated_at: new Date()
+                    }, { transaction });
+                }
+
+                // Update received_quantity for each item if receivedItems provided
+                if (receivedItems && Array.isArray(receivedItems) && receivedItems.length > 0) {
+                    for (const receivedItem of receivedItems) {
+                        const item = await db.StoreOrderItem.findOne({
+                            where: {
+                                store_order_id: orderId,
+                                sku: receivedItem.sku
+                            },
+                            transaction
+                        });
+
+                        if (item) {
+                            await item.update({
+                                received_quantity: receivedItem.received_quantity || null,
+                                updated_at: new Date()
+                            }, { transaction });
+                        }
+                    }
+                }
+
+                await transaction.commit();
+            } catch (error) {
+                await transaction.rollback();
+                console.error('Error updating store receive info:', error);
+                // Don't fail the whole request if updating receive info fails
+            }
+        }
+
         resolve(response);
     } catch (error) {
         console.error('Error updating store order status:', error);
