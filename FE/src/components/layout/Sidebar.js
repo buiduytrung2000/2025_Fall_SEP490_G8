@@ -43,7 +43,8 @@ const navLinks = {
     CEO: [
         { to: "/ceo/dashboard", icon: <FaChartLine />, text: "Bảng điều khiển" },
         { to: "/ceo/revenue", icon: <FaChartPie />, text: "Bảng doanh thu" },
-        { to: "/ceo/orders", icon: <FaClipboardList />, text: "Bảng nhập/xuất" }
+        { to: "/ceo/orders", icon: <FaClipboardList />, text: "Bảng nhập/xuất" },
+        { to: "/ceo/stores", icon: <FaStore />, text: "Quản lý Cửa hàng" }
     ],
     Warehouse: [
         // - Quản lý tồn kho tổng

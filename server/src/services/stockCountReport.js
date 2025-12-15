@@ -162,11 +162,71 @@ export const getAllStockCountReportsService = async ({
             distinct: true
         });
 
+        // Bổ sung thông tin quy đổi ra đơn vị lớn (thùng) cho từng sản phẩm
+        const plainRows = rows.map(r => (r.get ? r.get({ plain: true }) : r));
+        const productIds = plainRows.map(r => r.product_id).filter(Boolean);
+
+        let packageMetaMap = {};
+        if (productIds.length) {
+            const productUnits = await db.ProductUnit.findAll({
+                where: { product_id: productIds },
+                include: [
+                    {
+                        model: db.Unit,
+                        as: 'unit',
+                        attributes: ['unit_id', 'name', 'symbol']
+                    }
+                ],
+                order: [['conversion_to_base', 'DESC']]
+            });
+
+            productUnits.forEach(pu => {
+                const plain = pu.get ? pu.get({ plain: true }) : pu;
+                const conv = Number(plain.conversion_to_base || 0);
+                if (!plain.product_id || conv <= 1) return; // chỉ lấy đơn vị lớn hơn đơn vị cơ sở
+                const existing = packageMetaMap[plain.product_id];
+                if (!existing || conv > existing.conversion_to_base) {
+                    packageMetaMap[plain.product_id] = {
+                        conversion_to_base: conv,
+                        unit_label: plain.unit
+                            ? (plain.unit.symbol || plain.unit.name)
+                            : null
+                    };
+                }
+            });
+        }
+
+        const enhancedRows = plainRows.map(row => {
+            const meta = packageMetaMap[row.product_id];
+            if (!meta || !meta.conversion_to_base) {
+                return {
+                    ...row,
+                    package_conversion: null,
+                    package_unit_label: null,
+                    system_stock_packages: null,
+                    actual_stock_packages: null,
+                    difference_packages: null
+                };
+            }
+
+            const conv = meta.conversion_to_base;
+            const safeDiv = (value) => Number((Number(value || 0) / conv).toFixed(2));
+
+            return {
+                ...row,
+                package_conversion: conv,
+                package_unit_label: meta.unit_label,
+                system_stock_packages: safeDiv(row.system_stock),
+                actual_stock_packages: safeDiv(row.actual_stock),
+                difference_packages: safeDiv(row.difference)
+            };
+        });
+
         return {
             err: 0,
             msg: 'Get stock count reports successfully',
             data: {
-                reports: rows,
+                reports: enhancedRows,
                 pagination: {
                     page,
                     limit,

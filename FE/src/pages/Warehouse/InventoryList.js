@@ -163,9 +163,14 @@ const InventoryList = () => {
       sku: item.product?.sku || '',
       system_stock: Number(item.stock) || 0,
       actual_stock: Number(item.stock) || 0,
+      // base unit (chai)
       base_unit_label: item.product?.base_unit_label || '',
+      // package unit (thùng) nếu có
       package_unit_label: item.package_unit_label || null,
-      stock_in_packages: item.stock_in_packages || null
+      package_conversion: item.package_conversion || null,
+      stock_in_packages: item.stock_in_packages || null,
+      // Giá trị gốc nhập trong modal (theo đơn vị lớn nếu có)
+      actual_input: item.stock_in_packages || null,
     }));
 
     setStockCountItems(items);
@@ -190,21 +195,30 @@ const InventoryList = () => {
     }
     next[index][field] = numValue;
 
-    // Recalculate difference
-    const actualStock = numValue === '' ? next[index].system_stock : numValue;
-    next[index].difference = actualStock - next[index].system_stock;
+    // Recalculate difference (always theo đơn vị cơ sở)
+    const item = next[index];
+    let actualStockBase;
+    if (item.package_conversion && item.package_conversion > 0) {
+      // numValue là theo đơn vị lớn (thùng) → quy về chai
+      actualStockBase = numValue === '' ? item.system_stock : Math.round(numValue * item.package_conversion);
+    } else {
+      // không có đơn vị lớn → numValue đã là đơn vị cơ sở
+      actualStockBase = numValue === '' ? item.system_stock : numValue;
+    }
+    item.actual_stock = actualStockBase;
+    item.difference = actualStockBase - item.system_stock;
 
     setStockCountItems(next);
   };
 
   const handleSubmitStockCount = async () => {
-    // Validate all items have actual stock entered
+    // Validate all items have actual stock entered (theo input)
     for (const item of stockCountItems) {
-      const actualStock = item.actual_stock === '' || item.actual_stock === null || item.actual_stock === undefined
+      const actualInput = item.actual_input === '' || item.actual_input === null || item.actual_input === undefined
         ? null
-        : Number(item.actual_stock);
+        : Number(item.actual_input);
 
-      if (actualStock === null || isNaN(actualStock)) {
+      if (actualInput === null || isNaN(actualInput)) {
         ToastNotification.error(`Vui lòng nhập số lượng thực tế cho: ${item.product_name}`);
         return;
       }
@@ -220,7 +234,7 @@ const InventoryList = () => {
       const shortageReports = [];
 
       for (const item of stockCountItems) {
-        const actualStock = Number(item.actual_stock);
+        const actualStock = Number(item.actual_stock); // đã quy về đơn vị cơ sở ở handleStockCountChange
         const adjustment = actualStock - item.system_stock;
 
         // Skip if no adjustment needed
@@ -702,19 +716,11 @@ const InventoryList = () => {
                       <TableCell>
                         <Chip size="small" label={item.product?.category?.name || 'N/A'} variant="outlined" />
                       </TableCell>
-                      {/* <TableCell align="right">
-                        <Typography variant="body2">
-                          {formatQty(item.stock)} {item.product?.base_unit_label || ''}
-                        </Typography>
-                      </TableCell> */}
                       <TableCell align="right">
-                        {item.stock_in_packages ? (
-                          <Typography variant="body2">
-                            {formatQty(item.stock_in_packages)} {item.package_unit_label || ''}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">—</Typography>
-                        )}
+                        <Typography variant="body2">
+                          {formatQty(item.stock_in_packages ?? 0)}{' '}
+                          {item.package_unit_label || 'Thùng'}
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" color="text.secondary">
@@ -1024,15 +1030,19 @@ const InventoryList = () => {
                         <TextField
                           type="number"
                           size="small"
-                          value={item.actual_stock}
-                          onChange={(e) => handleStockCountChange(index, 'actual_stock', e.target.value)}
-                          sx={{ width: 150 }}
+                          value={item.package_conversion ? (item.actual_input ?? item.stock_in_packages ?? '') : item.actual_stock}
+                          onChange={(e) => handleStockCountChange(index, 'actual_input', e.target.value)}
+                          sx={{ width: 180 }}
                           slotProps={{
                             input: {
                               inputProps: { min: 0, step: 1 },
-                              endAdornment: item.base_unit_label
-                                ? <InputAdornment position="end">{item.base_unit_label}</InputAdornment>
-                                : null
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  {item.package_conversion && item.package_unit_label
+                                    ? item.package_unit_label
+                                    : item.base_unit_label}
+                                </InputAdornment>
+                              )
                             }
                           }}
                         />

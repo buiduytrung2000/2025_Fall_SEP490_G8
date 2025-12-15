@@ -305,3 +305,79 @@ export const getAllStores = async (req, res) => {
     }
 };
 
+// CEO: Create new store
+export const createStore = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({
+                err: 1,
+                msg: 'Only CEO can create stores'
+            });
+        }
+
+        const payload = {
+            name: req.body.name,
+            address: req.body.address,
+            phone: req.body.phone,
+            status: req.body.status || 'active',
+        };
+
+        const response = await employeeService.createStore(payload);
+        return res.status(response.err === 0 ? 201 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at employee controller: ' + error.message
+        });
+    }
+};
+
+// CEO: Update store
+export const updateStore = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({
+                err: 1,
+                msg: 'Only CEO can update stores'
+            });
+        }
+
+        const storeId = req.params.id;
+        const payload = {
+            name: req.body.name,
+            address: req.body.address,
+            phone: req.body.phone,
+            status: req.body.status,
+        };
+
+        const response = await employeeService.updateStore(storeId, payload);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at employee controller: ' + error.message
+        });
+    }
+};
+
+// CEO: Delete store
+export const deleteStore = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({
+                err: 1,
+                msg: 'Only CEO can delete stores'
+            });
+        }
+
+        const storeId = req.params.id;
+        const response = await employeeService.deleteStore(storeId);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at employee controller: ' + error.message
+        });
+    }
+};
+

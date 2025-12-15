@@ -386,3 +386,83 @@ export const getAllStores = () => new Promise(async (resolve, reject) => {
     }
 });
 
+// Create a new store (CEO only, controller is responsible for role check)
+export const createStore = (payload) => new Promise(async (resolve, reject) => {
+    try {
+        const { name, address = null, phone = null, status = 'active' } = payload;
+
+        if (!name || !name.trim()) {
+            return resolve({
+                err: 1,
+                msg: 'Tên cửa hàng là bắt buộc'
+            });
+        }
+
+        const store = await db.Store.create({
+            name: name.trim(),
+            address: address || null,
+            phone: phone || null,
+            status: status || 'active'
+        });
+
+        resolve({
+            err: 0,
+            msg: 'Tạo cửa hàng thành công',
+            data: store
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Update store (CEO only)
+export const updateStore = (storeId, payload) => new Promise(async (resolve, reject) => {
+    try {
+        const store = await db.Store.findByPk(storeId);
+        if (!store) {
+            return resolve({
+                err: 1,
+                msg: 'Cửa hàng không tồn tại'
+            });
+        }
+
+        const dataToUpdate = {};
+        if (payload.name !== undefined) dataToUpdate.name = payload.name.trim();
+        if (payload.address !== undefined) dataToUpdate.address = payload.address || null;
+        if (payload.phone !== undefined) dataToUpdate.phone = payload.phone || null;
+        if (payload.status !== undefined) dataToUpdate.status = payload.status;
+
+        await store.update(dataToUpdate);
+
+        resolve({
+            err: 0,
+            msg: 'Cập nhật cửa hàng thành công',
+            data: store
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Delete store (CEO only)
+export const deleteStore = (storeId) => new Promise(async (resolve, reject) => {
+    try {
+        const store = await db.Store.findByPk(storeId);
+        if (!store) {
+            return resolve({
+                err: 1,
+                msg: 'Cửa hàng không tồn tại'
+            });
+        }
+
+        await store.destroy();
+
+        resolve({
+            err: 0,
+            msg: 'Xóa cửa hàng thành công'
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+

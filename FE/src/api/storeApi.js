@@ -27,3 +27,51 @@ export const getAllStores = async () => {
     }
 };
 
+// Create store (CEO)
+export const createStore = async (payload) => {
+    try {
+        const token = getToken();
+        const response = await axios.post(`${API_URL}/employee/stores`, payload, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error creating store:', error);
+        return error.response?.data || { err: 1, msg: 'Lỗi khi tạo cửa hàng' };
+    }
+};
+
+// Update store (CEO)
+export const updateStore = async (id, payload) => {
+    try {
+        const token = getToken();
+        const response = await axios.put(`${API_URL}/employee/stores/${id}`, payload, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error updating store:', error);
+        return error.response?.data || { err: 1, msg: 'Lỗi khi cập nhật cửa hàng' };
+    }
+};
+
+// Delete store (CEO)
+export const deleteStore = async (id) => {
+    try {
+        const token = getToken();
+        const response = await axios.delete(`${API_URL}/employee/stores/${id}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error deleting store:', error);
+        return error.response?.data || { err: 1, msg: 'Lỗi khi xóa cửa hàng' };
+    }
+};
+

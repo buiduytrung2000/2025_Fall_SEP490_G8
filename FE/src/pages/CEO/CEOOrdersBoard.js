@@ -228,6 +228,9 @@ export default function CEOOrdersBoard() {
                 enableColumnActions={false}
                 enableStickyHeader
                 initialState={{ pagination: { pageSize: 10 }, density: "compact" }}
+                localization={{
+                  rowsPerPage: 'Số dòng mỗi trang',
+                }}
                 renderEmptyRowsFallback={() => (
                   <Alert severity="info" sx={{ m: 2 }}>
                     Chưa có đơn nhập hàng nào.
