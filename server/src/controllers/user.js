@@ -9,7 +9,7 @@ export const getCurrent = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed at user controller: ' + error
+            msg: 'Lỗi tại user controller: ' + error
         })
     }
 }
@@ -22,7 +22,7 @@ export const listUsers = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to fetch users: ' + error
+            msg: 'Lỗi khi tải danh sách người dùng: ' + error
         })
     }
 }
@@ -34,7 +34,7 @@ export const getUser = async (req, res) => {
         if (!id) {
             return res.status(400).json({
                 err: 1,
-                msg: 'User ID is required.'
+                msg: 'ID người dùng là bắt buộc.'
             })
         }
 
@@ -43,7 +43,7 @@ export const getUser = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to get user: ' + error
+            msg: 'Lỗi khi lấy thông tin người dùng: ' + error
         })
     }
 }
@@ -54,26 +54,43 @@ export const createUser = async (req, res) => {
         const { username, password, email, role, full_name, phone, address, store_id, status, is_active } = req.body
 
         // Validation
-        if (!username || !password) {
+        if (!email || !email.trim()) {
             return res.status(400).json({
                 err: 1,
-                msg: 'Username and password are required.'
+                msg: 'Email là bắt buộc.'
+            })
+        }
+
+        if (!full_name || !full_name.trim()) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Họ tên là bắt buộc.'
+            })
+        }
+
+        if (!password) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Mật khẩu là bắt buộc.'
             })
         }
 
         if (!role) {
             return res.status(400).json({
                 err: 1,
-                msg: 'Role is required.'
+                msg: 'Vai trò là bắt buộc.'
             })
         }
 
+        // Auto-generate username from email if not provided
+        const generatedUsername = username || email.split('@')[0];
+
         const userData = {
-            username,
+            username: generatedUsername,
             password,
-            email: email || null,
+            email: email.trim(),
             role,
-            full_name: full_name || null,
+            full_name: full_name.trim(),
             phone: phone || null,
             address: address || null,
             store_id: store_id || null,
@@ -86,7 +103,7 @@ export const createUser = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to create user: ' + error
+            msg: 'Lỗi khi tạo người dùng: ' + error
         })
     }
 }
@@ -98,7 +115,7 @@ export const updateUser = async (req, res) => {
         if (!id) {
             return res.status(400).json({
                 err: 1,
-                msg: 'User ID is required.'
+                msg: 'ID người dùng là bắt buộc.'
             })
         }
 
@@ -113,7 +130,7 @@ export const updateUser = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to update user: ' + error
+            msg: 'Lỗi khi cập nhật người dùng: ' + error
         })
     }
 }
@@ -125,7 +142,7 @@ export const deleteUser = async (req, res) => {
         if (!id) {
             return res.status(400).json({
                 err: 1,
-                msg: 'User ID is required.'
+                msg: 'ID người dùng là bắt buộc.'
             })
         }
 
@@ -133,7 +150,7 @@ export const deleteUser = async (req, res) => {
         if (req.user.user_id == id) {
             return res.status(403).json({
                 err: 1,
-                msg: 'You cannot deactivate your own account.'
+                msg: 'Bạn không thể vô hiệu hóa tài khoản của chính mình.'
             })
         }
 
@@ -142,7 +159,7 @@ export const deleteUser = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to delete user: ' + error
+            msg: 'Lỗi khi xóa người dùng: ' + error
         })
     }
 }
@@ -154,7 +171,7 @@ export const reactivateUser = async (req, res) => {
         if (!id) {
             return res.status(400).json({
                 err: 1,
-                msg: 'User ID is required.'
+                msg: 'ID người dùng là bắt buộc.'
             })
         }
 
@@ -163,7 +180,7 @@ export const reactivateUser = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to reactivate user: ' + error
+            msg: 'Lỗi khi kích hoạt lại người dùng: ' + error
         })
     }
 }
@@ -178,7 +195,7 @@ export const updateProfile = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to update profile: ' + error
+            msg: 'Lỗi khi cập nhật hồ sơ: ' + error
         })
     }
 }
@@ -208,7 +225,7 @@ export const changePassword = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Failed to change password: ' + error
+            msg: 'Lỗi khi đổi mật khẩu: ' + error
         })
     }
 }

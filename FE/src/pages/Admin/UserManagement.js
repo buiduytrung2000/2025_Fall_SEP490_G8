@@ -145,7 +145,6 @@ const UserManagement = () => {
         if (globalFilter) {
             const searchTerm = globalFilter.toLowerCase();
             filtered = filtered.filter(user =>
-                user.username?.toLowerCase().includes(searchTerm) ||
                 user.email?.toLowerCase().includes(searchTerm) ||
                 user.full_name?.toLowerCase().includes(searchTerm)
             );
@@ -178,11 +177,6 @@ const UserManagement = () => {
                     const index = table.getState().pagination.pageIndex * table.getState().pagination.pageSize + row.index + 1;
                     return <span>{index}</span>;
                 },
-            },
-            {
-                accessorKey: 'username',
-                header: 'Username',
-                size: 120,
             },
             {
                 accessorKey: 'email',
@@ -321,7 +315,7 @@ const UserManagement = () => {
                     <TextField
                         fullWidth
                         size="small"
-                        placeholder="Tìm kiếm theo username, email, hoặc tên..."
+                        placeholder="Tìm kiếm theo email hoặc tên..."
                         value={globalFilter}
                         onChange={(e) => setGlobalFilter(e.target.value)}
                         InputProps={{
@@ -379,11 +373,11 @@ const UserManagement = () => {
                     <Typography>
                         {toggleConfirm?.newStatus ? (
                             <>
-                                Bạn có chắc chắn muốn kích hoạt lại người dùng <strong>{toggleConfirm?.user?.username}</strong> không?
+                                Bạn có chắc chắn muốn kích hoạt lại người dùng <strong>{toggleConfirm?.user?.full_name || toggleConfirm?.user?.email}</strong> không?
                             </>
                         ) : (
                             <>
-                                Bạn có chắc chắn muốn vô hiệu hóa người dùng <strong>{toggleConfirm?.user?.username}</strong> không?
+                                Bạn có chắc chắn muốn vô hiệu hóa người dùng <strong>{toggleConfirm?.user?.full_name || toggleConfirm?.user?.email}</strong> không?
                             </>
                         )}
                     </Typography>

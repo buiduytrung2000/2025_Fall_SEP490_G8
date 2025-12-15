@@ -6,7 +6,7 @@ export const register = async (req, res) => {
         if (!username || !password || !role || !email) {
             return res.status(400).json({
                 err: 1,
-                msg: 'Missing required inputs! Username, password, role, and email are required.'
+                msg: 'Thiếu thông tin bắt buộc! Vui lòng nhập đầy đủ tên người dùng, mật khẩu, vai trò và email.'
             })
         }
 
@@ -15,7 +15,7 @@ export const register = async (req, res) => {
         if (!validRoles.includes(role)) {
             return res.status(400).json({
                 err: 1,
-                msg: `Invalid role! Role must be one of: ${validRoles.join(', ')}`
+                msg: `Vai trò không hợp lệ! Vai trò phải là một trong các giá trị: ${validRoles.join(', ')}`
             })
         }
 
@@ -25,7 +25,7 @@ export const register = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Fail at auth controller: ' + error.message
+            msg: 'Lỗi tại auth controller: ' + error.message
         })
     }
 }
@@ -35,7 +35,7 @@ export const login = async (req, res) => {
         if (!email || !password) {
             return res.status(400).json({
                 err: 1,
-                msg: 'Missing inputs! Email and password are required.'
+                msg: 'Thiếu thông tin! Vui lòng nhập email và mật khẩu.'
             })
         }
         const response = await authService.loginService({ email, password })
@@ -44,7 +44,7 @@ export const login = async (req, res) => {
     } catch (error) {
         return res.status(500).json({
             err: -1,
-            msg: 'Fail at auth controller: ' + error.message
+            msg: 'Lỗi tại auth controller: ' + error.message
         })
     }
 }

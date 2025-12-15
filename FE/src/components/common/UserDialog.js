@@ -87,7 +87,7 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 });
             } else {
                 setFormData({
-                    username: '',
+                    username: '', // Will be auto-generated from email
                     email: '',
                     full_name: '',
                     role: 'Cashier',
@@ -113,8 +113,20 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     };
 
     const validateForm = () => {
-        if (!formData.username.trim()) {
-            setError('Username không được để trống');
+        // For new users, email and full_name are required
+        if (!editingUser) {
+            if (!formData.email || !formData.email.trim()) {
+                setError('Email là bắt buộc');
+                return false;
+            }
+            if (!formData.full_name || !formData.full_name.trim()) {
+                setError('Họ tên là bắt buộc');
+                return false;
+            }
+        }
+        // Email validation
+        if (formData.email && !formData.email.includes('@')) {
+            setError('Email không hợp lệ');
             return false;
         }
         // Password validation only for editing (when password is provided)
@@ -127,10 +139,6 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 setError('Password phải có ít nhất 6 ký tự');
                 return false;
             }
-        }
-        if (formData.email && !formData.email.includes('@')) {
-            setError('Email không hợp lệ');
-            return false;
         }
         return true;
     };
@@ -147,7 +155,6 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
 
         try {
             const submitData = {
-                username: formData.username,
                 email: formData.email || null,
                 full_name: formData.full_name || null,
                 role: formData.role,
@@ -159,12 +166,19 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
             };
 
             // For new users, automatically set password to "123" and status to active
+            // Auto-generate username from email
             // For editing users, only add password if provided
             if (editingUser) {
+                // Keep existing username when editing
+                submitData.username = formData.username;
                 if (formData.password) {
                     submitData.password = formData.password;
                 }
             } else {
+                // Auto-generate username from email (before @)
+                if (formData.email) {
+                    submitData.username = formData.email.split('@')[0];
+                }
                 // Auto-generate password for new users
                 submitData.password = '123';
                 // Automatically set status to active for new users
@@ -210,19 +224,7 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 )}
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {/* Username */}
-                    <TextField
-                        label="Username"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleChange}
-                        disabled={editingUser && true} // Prevent changing username
-                        fullWidth
-                        size="small"
-                        required
-                    />
-
-                    {/* Email */}
+                    {/* Email - Required for new users */}
                     <TextField
                         label="Email"
                         name="email"
@@ -231,9 +233,11 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                         onChange={handleChange}
                         fullWidth
                         size="small"
+                        required={!editingUser}
+                        disabled={editingUser && true} // Prevent changing email when editing
                     />
 
-                    {/* Full Name */}
+                    {/* Full Name - Required for new users */}
                     <TextField
                         label="Họ tên"
                         name="full_name"
@@ -241,6 +245,7 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                         onChange={handleChange}
                         fullWidth
                         size="small"
+                        required={!editingUser}
                     />
 
                     {/* Role */}

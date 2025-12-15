@@ -114,11 +114,11 @@ export const loginService = async ({ email, password }) => {
                 user_id: user.user_id,
                 username: user.username,
                 email: user.email,
-                role: user.role, // Include role in token
+                role: user.role,
                 store_id: user.store_id
             },
             process.env.SECRET_KEY,
-            { expiresIn: '30d' } // Tăng lên 30 ngày
+            { expiresIn: '30d' } 
         )
 
         return {

@@ -2,12 +2,7 @@ import db from '../models';
 import { Op } from 'sequelize';
 import { generateOrderCode } from './order';
 
-/**
- * Tạo các đơn NCC giao thẳng cho cửa hàng dựa trên StoreOrder đồ tươi sống.
- * - Nhóm sản phẩm theo supplier của Product.
- * - Mỗi supplier tạo 1 bản ghi trong bảng Order + các OrderItem tương ứng.
- * - Đánh dấu Order.direct_to_store = true và lưu target_store_id = store_id của đơn.
- */
+
 const createDirectSupplierOrdersForPerishable = async (storeOrder, transaction) => {
     // Load toàn bộ item kèm thông tin Product
     const items = await db.StoreOrderItem.findAll({

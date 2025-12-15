@@ -84,7 +84,7 @@ export const createStoreOrder = (orderData) => new Promise(async (resolve, rejec
             return resolve({ err: 1, msg: 'supplier_id is required for ToSupplier orders' });
         }
 
-        for (let i = 0; i < items.length; i++) {
+        for (let i =  0; i < items.length; i++) {
             const item = items[i];
             if (!item.sku || item.sku.trim() === '') {
                 await transaction.rollback();

@@ -118,7 +118,7 @@ const POS = () => {
     const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
 
     // Helper function: Kiểm tra schedule có phải chưa check-in không
-    const isUncheckedSchedule = useCallback((schedule) => {
+    const isUncheckedSchedule = useCallback((schedule) => {        
         const status = schedule?.attendance_status;
         return status === null || 
                status === undefined || 
