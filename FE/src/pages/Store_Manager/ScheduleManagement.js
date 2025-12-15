@@ -109,6 +109,26 @@ const weekDayNames = [
 ];
 const defaultShiftNames = ["Ca Sáng (06:00 - 14:00)", "Ca Tối (14:00 - 22:00)"];
 
+// Helper lưu/đọc mẫu lịch tháng trong localStorage
+const MONTH_TEMPLATE_KEY = 'schedule_month_templates';
+
+const loadMonthTemplates = () => {
+  try {
+    const raw = localStorage.getItem(MONTH_TEMPLATE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveMonthTemplates = (data) => {
+  try {
+    localStorage.setItem(MONTH_TEMPLATE_KEY, JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+};
+
 const ScheduleManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -129,6 +149,8 @@ const ScheduleManagement = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [activeTab, setActiveTab] = useState("schedule");
   const [shiftRequestCount, setShiftRequestCount] = useState(0);
+  const [savingMonthTemplate, setSavingMonthTemplate] = useState(false);
+  const [applyingMonthTemplate, setApplyingMonthTemplate] = useState(false);
   const { user } = useAuth();
 
   const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
@@ -234,7 +256,9 @@ const ScheduleManagement = () => {
   };
 
   const renderAssignees = (shiftList, dayKey, templateId, isMobile = false) => {
-    if (!shiftList || shiftList.length === 0) {
+    const effectiveList = (shiftList || []).filter((item) => item.user_id); // Bỏ các ca chưa phân công nhân viên
+
+    if (!effectiveList || effectiveList.length === 0) {
       return (
         <Typography
           variant="body2"
@@ -255,7 +279,7 @@ const ScheduleManagement = () => {
 
     return (
       <Stack spacing={0.5} sx={{ width: "100%" }}>
-        {shiftList.map((item, idx) => {
+        {effectiveList.map((item, idx) => {
           const employeeName =
             staffMap[String(item.user_id)] || `#${item.user_id}`;
           const attendance = getAttendanceStatus(dayKey, tpl, item);
@@ -506,6 +530,144 @@ const ScheduleManagement = () => {
 
     return () => clearInterval(interval);
   }, [startOfWeek, endOfWeek, storeId]);
+
+  // Lưu mẫu lịch làm việc cả tháng hiện tại (theo store)
+  const handleSaveMonthTemplate = useCallback(async () => {
+    if (!storeId) {
+      ToastNotification.error("Không xác định được cửa hàng để lưu mẫu lịch");
+      return;
+    }
+    try {
+      setSavingMonthTemplate(true);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth(); // 0-based
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const start = toLocalDateKey(firstDay);
+      const end = toLocalDateKey(lastDay);
+
+      const schRes = await apiGetSchedules(storeId, start, end);
+      const rows = schRes?.data || [];
+
+      if (!rows.length) {
+        ToastNotification.warning("Tháng này chưa có lịch để lưu mẫu");
+        return;
+      }
+
+      // Chuẩn hóa theo ngày trong tháng để có thể áp dụng cho các tháng khác
+      const template = rows.map((r) => {
+        const d = new Date(r.work_date);
+        return {
+          day: d.getDate(), // 1..31
+          shift_template_id: r.shift_template_id,
+          user_id: r.user_id,
+        };
+      });
+
+      const allTemplates = loadMonthTemplates();
+      if (!allTemplates[storeId]) allTemplates[storeId] = {};
+      const key = "default"; // 1 mẫu mặc định/ cửa hàng
+      allTemplates[storeId][key] = {
+        created_at: new Date().toISOString(),
+        template,
+      };
+      saveMonthTemplates(allTemplates);
+      ToastNotification.success("Đã lưu mẫu lịch làm việc cho tháng hiện tại");
+    } catch (error) {
+      ToastNotification.error("Không thể lưu mẫu lịch tháng");
+    } finally {
+      setSavingMonthTemplate(false);
+    }
+  }, [storeId, currentDate]);
+
+  // Áp dụng mẫu lịch tháng đã lưu cho tháng hiện tại
+  const handleApplyMonthTemplate = useCallback(async () => {
+    if (!storeId) {
+      ToastNotification.error("Không xác định được cửa hàng");
+      return;
+    }
+    const allTemplates = loadMonthTemplates();
+    const storeTemplates = allTemplates[storeId];
+    if (!storeTemplates || !storeTemplates.default || !storeTemplates.default.template?.length) {
+      ToastNotification.warning("Chưa có mẫu lịch tháng nào được lưu. Hãy tạo lịch cho 1 tháng rồi bấm 'Lưu mẫu tháng'.");
+      return;
+    }
+
+    if (!window.confirm("Áp dụng mẫu lịch tháng cho tháng hiện tại? Các ca đã có sẽ được giữ nguyên, chỉ thêm ca còn thiếu.")) {
+      return;
+    }
+
+    try {
+      setApplyingMonthTemplate(true);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const start = toLocalDateKey(firstDay);
+      const end = toLocalDateKey(lastDay);
+
+      // Lấy lịch hiện tại của tháng để tránh tạo trùng
+      const schRes = await apiGetSchedules(storeId, start, end);
+      const existingRows = schRes?.data || [];
+      const existingSet = new Set(
+        existingRows.map(
+          (r) => `${r.work_date}|${r.shift_template_id}|${r.user_id}`
+        )
+      );
+
+      const { template } = storeTemplates.default;
+      let createdCount = 0;
+
+      for (const item of template) {
+        const workDate = new Date(year, month, item.day);
+        if (workDate.getMonth() !== month) continue; // ngày không tồn tại trong tháng
+        const workDateKey = toLocalDateKey(workDate);
+        const key = `${workDateKey}|${item.shift_template_id}|${item.user_id}`;
+        if (existingSet.has(key)) continue;
+
+        const res = await createSchedule({
+          store_id: storeId,
+          user_id: item.user_id,
+          shift_template_id: item.shift_template_id,
+          work_date: workDateKey,
+          status: "confirmed",
+        });
+        if (res.err === 0) {
+          existingSet.add(key);
+          createdCount += 1;
+        }
+      }
+
+      if (createdCount === 0) {
+        ToastNotification.info("Không có ca mới nào được tạo từ mẫu (có thể tháng này đã có đầy đủ lịch).");
+      } else {
+        ToastNotification.success(`Đã áp dụng mẫu lịch: tạo thêm ${createdCount} ca làm việc.`);
+      }
+
+      // Reload tuần hiện tại để thấy dữ liệu mới
+      const startReload = toLocalDateKey(startOfWeek);
+      const endReload = toLocalDateKey(endOfWeek);
+      const reloadRes = await apiGetSchedules(storeId, startReload, endReload);
+      const rowsReload = reloadRes?.data || [];
+      const grid = {};
+      rowsReload.forEach((r) => {
+        const dateKey = r.work_date;
+        if (!grid[dateKey]) grid[dateKey] = {};
+        if (!grid[dateKey][r.shift_template_id]) grid[dateKey][r.shift_template_id] = [];
+        grid[dateKey][r.shift_template_id].push({
+          schedule_id: r.schedule_id,
+          user_id: r.user_id,
+          status: r.status,
+          attendance_status: r.attendance_status || "not_checked_in",
+        });
+      });
+      setSchedule(grid);
+    } catch (error) {
+      ToastNotification.error("Không thể áp dụng mẫu lịch tháng");
+    } finally {
+      setApplyingMonthTemplate(false);
+    }
+  }, [storeId, currentDate, startOfWeek, endOfWeek]);
 
   const handleOpenModal = async (
     dayKey,
@@ -839,10 +1001,10 @@ const ScheduleManagement = () => {
             </Typography>
           </Box>
 
-          {/* Week Navigation */}
+          {/* Week Navigation + Month template actions */}
           <Box
             display="flex"
-            justifyContent="center"
+            justifyContent="space-between"
             alignItems="center"
             gap={2}
             mb={3}
@@ -853,20 +1015,38 @@ const ScheduleManagement = () => {
               boxShadow: 1,
             }}
           >
-            <ActionButton
-              icon={<Icon name="ArrowBack" />}
-              onClick={handlePrevWeek}
-              color="primary"
-            />
-            <Typography variant="subtitle1" fontWeight={600}>
-              Tuần {getWeekNumber(startOfWeek)} ({formatDate(startOfWeek)} -{" "}
-              {formatDate(endOfWeek)})
-            </Typography>
-            <ActionButton
-              icon={<Icon name="ArrowForward" />}
-              onClick={handleNextWeek}
-              color="primary"
-            />
+            <Box display="flex" alignItems="center" gap={2}>
+              <ActionButton
+                icon={<Icon name="ArrowBack" />}
+                onClick={handlePrevWeek}
+                color="primary"
+              />
+              <Typography variant="subtitle1" fontWeight={600}>
+                Tuần {getWeekNumber(startOfWeek)} ({formatDate(startOfWeek)} -{" "}
+                {formatDate(endOfWeek)})
+              </Typography>
+              <ActionButton
+                icon={<Icon name="ArrowForward" />}
+                onClick={handleNextWeek}
+                color="primary"
+              />
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <SecondaryButton
+                size="small"
+                onClick={handleSaveMonthTemplate}
+                disabled={!storeId || savingMonthTemplate}
+              >
+                Lưu mẫu tháng
+              </SecondaryButton>
+              <PrimaryButton
+                size="small"
+                onClick={handleApplyMonthTemplate}
+                disabled={!storeId || applyingMonthTemplate}
+              >
+                Áp dụng mẫu tháng
+              </PrimaryButton>
+            </Stack>
           </Box>
 
           {/* Schedule Content */}
@@ -960,6 +1140,7 @@ const ScheduleManagement = () => {
                               transition: "background-color 0.2s ease",
                             }}
                             onClick={() => {
+                              const filteredShiftList = (shiftList || []).filter((it) => it.user_id);
                               setSelectedShiftDetail({
                                 dayKey,
                                 dayName: weekDayNames[weekDays.indexOf(day)],
@@ -967,7 +1148,7 @@ const ScheduleManagement = () => {
                                 shiftName,
                                 shiftTemplate: tpl,
                                 templateId,
-                                shiftList,
+                                shiftList: filteredShiftList,
                               });
                               setShowDetailModal(true);
                             }}

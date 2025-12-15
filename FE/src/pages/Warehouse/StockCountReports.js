@@ -322,12 +322,16 @@ const StockCountReports = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2">
-                          {formatQty(report.system_stock)} {report.product?.baseUnit?.symbol || ''}
+                          {report.package_conversion
+                            ? `${formatQty(report.system_stock_packages)} ${report.package_unit_label || 'Thùng'}`
+                            : `${formatQty(report.system_stock)} ${report.product?.baseUnit?.symbol || ''}`}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2">
-                          {formatQty(report.actual_stock)} {report.product?.baseUnit?.symbol || ''}
+                          {report.package_conversion
+                            ? `${formatQty(report.actual_stock_packages)} ${report.package_unit_label || 'Thùng'}`
+                            : `${formatQty(report.actual_stock)} ${report.product?.baseUnit?.symbol || ''}`}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
@@ -336,7 +340,9 @@ const StockCountReports = () => {
                           fontWeight={600}
                           color={diffColor}
                         >
-                          {difference > 0 ? '+' : ''}{formatQty(difference)} {report.product?.baseUnit?.symbol || ''}
+                          {report.package_conversion
+                            ? `${difference > 0 ? '+' : ''}${formatQty(report.difference_packages)} ${report.package_unit_label || 'Thùng'}`
+                            : `${difference > 0 ? '+' : ''}${formatQty(difference)} ${report.product?.baseUnit?.symbol || ''}`}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">

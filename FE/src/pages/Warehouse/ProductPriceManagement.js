@@ -21,6 +21,15 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { ToastNotification, PrimaryButton, SecondaryButton, DangerButton, ActionButton, Icon } from '../../components/common';
 
+// Lấy ngày hôm nay theo múi giờ local (tránh lệch 1 ngày do UTC)
+const getTodayLocalDate = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const ProductPriceManagement = () => {
     const { user } = useAuth();
     const [products, setProducts] = useState([]);
@@ -40,9 +49,10 @@ const ProductPriceManagement = () => {
     const [error, setError] = useState(null);
     
     // Form states
+    const todayStr = getTodayLocalDate();
     const [priceType, setPriceType] = useState('fixed_price');
     const [priceValue, setPriceValue] = useState('');
-    const [startDate, setStartDate] = useState('');
+    const [startDate, setStartDate] = useState(todayStr);
     const [endDate, setEndDate] = useState('');
     const [editingRule, setEditingRule] = useState(null);
     
@@ -51,7 +61,7 @@ const ProductPriceManagement = () => {
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkPriceType, setBulkPriceType] = useState('fixed_price');
     const [bulkPriceValue, setBulkPriceValue] = useState('');
-    const [bulkStartDate, setBulkStartDate] = useState('');
+    const [bulkStartDate, setBulkStartDate] = useState(todayStr);
     const [bulkEndDate, setBulkEndDate] = useState('');
     const [applyingBulk, setApplyingBulk] = useState(false);
 
@@ -244,7 +254,7 @@ const ProductPriceManagement = () => {
         setEditingRule(null);
         setPriceType('fixed_price');
         setPriceValue(product.hq_price || '0');
-        setStartDate(new Date().toISOString().split('T')[0]);
+        setStartDate(getTodayLocalDate());
         // Set end date to 1 year from now
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -260,7 +270,7 @@ const ProductPriceManagement = () => {
         // Format dates properly for date input (YYYY-MM-DD)
         const startDateFormatted = rule.start_date 
             ? (rule.start_date.includes('T') ? rule.start_date.split('T')[0] : rule.start_date)
-            : new Date().toISOString().split('T')[0];
+            : getTodayLocalDate();
         const endDateFormatted = rule.end_date 
             ? (rule.end_date.includes('T') ? rule.end_date.split('T')[0] : rule.end_date)
             : '';
@@ -434,7 +444,7 @@ const ProductPriceManagement = () => {
         }
         setBulkPriceType('fixed_price');
         setBulkPriceValue('');
-        setBulkStartDate(new Date().toISOString().split('T')[0]);
+        setBulkStartDate(getTodayLocalDate());
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
         setBulkEndDate(nextYear.toISOString().split('T')[0]);
@@ -920,7 +930,7 @@ const ProductPriceManagement = () => {
                                         setEditingRule(null);
                                         setPriceType('fixed_price');
                                         setPriceValue(selectedProduct.hq_price || '0');
-                                        setStartDate(new Date().toISOString().split('T')[0]);
+                                        setStartDate(getTodayLocalDate());
                                         const nextYear = new Date();
                                         nextYear.setFullYear(nextYear.getFullYear() + 1);
                                         setEndDate(nextYear.toISOString().split('T')[0]);
@@ -1178,10 +1188,21 @@ const ProductPriceManagement = () => {
                             label="Bắt đầu áp dụng từ ngày"
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
+                            onChange={(e) => {
+                                const todayStr = getTodayLocalDate();
+                                const val = e.target.value;
+                                // Không cho chọn ngày trong quá khứ
+                                if (val && val < todayStr) {
+                                    setStartDate(todayStr);
+                                    ToastNotification.warning('Không thể chọn ngày trong quá khứ');
+                                } else {
+                                    setStartDate(val);
+                                }
+                            }}
                             fullWidth
                             margin="normal"
                             InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: getTodayLocalDate() }}
                             required
                         />
 
@@ -1254,10 +1275,20 @@ const ProductPriceManagement = () => {
                             label="Bắt đầu áp dụng từ ngày"
                             type="date"
                             value={bulkStartDate}
-                            onChange={(e) => setBulkStartDate(e.target.value)}
+                            onChange={(e) => {
+                                const todayStr = getTodayLocalDate();
+                                const val = e.target.value;
+                                if (val && val < todayStr) {
+                                    setBulkStartDate(todayStr);
+                                    ToastNotification.warning('Không thể chọn ngày trong quá khứ');
+                                } else {
+                                    setBulkStartDate(val);
+                                }
+                            }}
                             fullWidth
                             margin="normal"
                             InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: getTodayLocalDate() }}
                             required
                         />
 

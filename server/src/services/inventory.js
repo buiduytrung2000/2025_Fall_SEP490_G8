@@ -39,6 +39,8 @@ const buildPackageMetaMap = async (productIds = []) => {
 };
 
 // Get inventory by store_id (for store manager)
+// Hiển thị toàn bộ sản phẩm trong danh mục sản phẩm,
+// những sản phẩm chưa có bản ghi tồn kho sẽ có stock = 0.
 export const getInventoryByStore = (storeId) => new Promise(async (resolve, reject) => {
     try {
         if (!storeId) {
@@ -49,57 +51,65 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
             });
         }
 
-        const inventories = await db.Inventory.findAll({
-            where: { store_id: storeId },
+        // 1. Lấy toàn bộ sản phẩm đang active
+        const products = await db.Product.findAll({
+            where: { is_active: true },
+            attributes: {
+                include: [
+                    [
+                        db.sequelize.literal(`(
+                            SELECT 
+                                CASE 
+                                    WHEN oi.unit_id = Product.base_unit_id THEN oi.unit_price
+                                    WHEN pu.conversion_to_base > 0 THEN ROUND(oi.unit_price / pu.conversion_to_base, 2)
+                                    ELSE oi.unit_price
+                                END as import_price
+                            FROM OrderItem oi
+                            INNER JOIN \`Order\` o ON oi.order_id = o.order_id
+                            LEFT JOIN ProductUnit pu ON pu.product_id = oi.product_id AND pu.unit_id = oi.unit_id
+                            WHERE oi.product_id = Product.product_id
+                            AND o.status = 'confirmed'
+                            ORDER BY o.created_at DESC, oi.created_at DESC
+                            LIMIT 1
+                        )`),
+                        'latest_import_price'
+                    ]
+                ]
+            },
             include: [
                 {
-                    model: db.Product,
-                    as: 'product',
-                    attributes: {
-                        include: [
-                            [
-                                db.sequelize.literal(`(
-                                    SELECT 
-                                        CASE 
-                                            WHEN pu.conversion_to_base > 0 
-                                            THEN oi.unit_price * pu.conversion_to_base
-                                            ELSE oi.unit_price
-                                        END as import_price
-                                    FROM OrderItem oi
-                                    INNER JOIN \`Order\` o ON oi.order_id = o.order_id
-                                    LEFT JOIN ProductUnit pu ON pu.product_id = oi.product_id AND pu.unit_id = oi.unit_id
-                                    WHERE oi.product_id = Product.product_id
-                                    AND o.status = 'confirmed'
-                                    ORDER BY o.created_at DESC, oi.created_at DESC
-                                    LIMIT 1
-                                )`),
-                                'latest_import_price'
-                            ]
-                        ]
-                    },
-                    include: [
-                        {
-                            model: db.Category,
-                            as: 'category',
-                            attributes: ['category_id', 'name']
-                        },
-                        {
-                            model: db.Supplier,
-                            as: 'supplier',
-                            attributes: ['supplier_id', 'name', 'contact']
-                        }
-                    ]
+                    model: db.Category,
+                    as: 'category',
+                    attributes: ['category_id', 'name']
+                },
+                {
+                    model: db.Supplier,
+                    as: 'supplier',
+                    attributes: ['supplier_id', 'name', 'contact']
                 }
             ],
             nest: true
         });
 
+        if (!products.length) {
+            return resolve({ err: 0, msg: 'OK', data: [] });
+        }
+
+        // 2. Lấy các bản ghi tồn kho hiện có của cửa hàng này
+        const inventories = await db.Inventory.findAll({
+            where: { store_id: storeId },
+            raw: true
+        });
+        const inventoryMap = {};
+        inventories.forEach(inv => {
+            if (inv.product_id) inventoryMap[inv.product_id] = inv;
+        });
+
         const now = new Date();
-        const productIds = inventories.map(inv => inv.product_id).filter(Boolean);
+        const productIds = products.map(p => p.product_id);
         const packageMetaMap = await buildPackageMetaMap(productIds);
 
-
-        // Get all active pricing rules for this store
+        // 3. Lấy pricing rule đang active cho cửa hàng
         const activeRules = await db.PricingRule.findAll({
             where: {
                 store_id: storeId,
@@ -109,38 +119,46 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
             nest: true
         });
 
-        // Create a map of product_id -> active rule for quick lookup
         const ruleMap = {};
         activeRules.forEach(rule => {
             const rulePlain = rule.get ? rule.get({ plain: true }) : JSON.parse(JSON.stringify(rule));
-            if (!ruleMap[rulePlain.product_id] || new Date(rulePlain.created_at) > new Date(ruleMap[rulePlain.product_id]?.created_at || 0)) {
+            if (
+                !ruleMap[rulePlain.product_id] ||
+                new Date(rulePlain.created_at) > new Date(ruleMap[rulePlain.product_id]?.created_at || 0)
+            ) {
                 ruleMap[rulePlain.product_id] = rulePlain;
             }
         });
 
-        const data = inventories.map(inv => {
-            const invPlain = inv.get ? inv.get({ plain: true }) : JSON.parse(JSON.stringify(inv));
-            const product = invPlain.product || {};
+        // 4. Kết hợp danh sách sản phẩm với tồn kho (nếu có), thiếu thì stock = 0
+        const data = products.map(prod => {
+            const product = prod.get ? prod.get({ plain: true }) : JSON.parse(JSON.stringify(prod));
 
-            const category = product.category ? {
-                category_id: product.category.category_id,
-                name: product.category.name
-            } : null;
+            const invPlain = inventoryMap[product.product_id] || {
+                inventory_id: null,
+                store_id: storeId,
+                product_id: product.product_id,
+                stock: 0,
+                min_stock_level: 0,
+                reorder_point: 0
+            };
 
-            const supplier = product.supplier ? {
-                supplier_id: product.supplier.supplier_id,
-                name: product.supplier.name,
-                contact: product.supplier.contact
-            } : null;
+            const category = product.category
+                ? { category_id: product.category.category_id, name: product.category.name }
+                : null;
+            const supplier = product.supplier
+                ? {
+                      supplier_id: product.supplier.supplier_id,
+                      name: product.supplier.name,
+                      contact: product.supplier.contact
+                  }
+                : null;
 
-            // Chỉ lấy giá nhập từ order (latest_import_price), không fallback về hq_price
             const latestImportPrice = parseFloat(product.latest_import_price || 0);
             const hqPrice = parseFloat(product.hq_price || 0);
-            // currentPrice dùng cho giá bán (có thể dùng hq_price nếu cần)
+
             let currentPrice = hqPrice;
             const activeRule = ruleMap[product.product_id];
-
-            // Calculate current price based on active rule
             if (activeRule) {
                 if (activeRule.type === 'markup') {
                     currentPrice = hqPrice + parseFloat(activeRule.value);
@@ -154,37 +172,43 @@ export const getInventoryByStore = (storeId) => new Promise(async (resolve, reje
             const packageMeta = product.product_id ? packageMetaMap[product.product_id] : null;
             const packageConversion = packageMeta?.conversion_to_base || null;
             const packageUnitLabel = packageMeta?.unit ? (packageMeta.unit.symbol || packageMeta.unit.name) : null;
-            // Giá nhập/thùng chỉ tính từ latest_import_price (từ order), nếu không có thì 0
-            const packagePrice = latestImportPrice > 0 && packageConversion && packageConversion > 0
-                ? Math.round(latestImportPrice * packageConversion)
-                : (latestImportPrice > 0 ? Math.round(latestImportPrice) : 0);
+            const packagePrice =
+                latestImportPrice > 0 && packageConversion && packageConversion > 0
+                    ? Math.round(latestImportPrice * packageConversion)
+                    : latestImportPrice > 0
+                    ? Math.round(latestImportPrice)
+                    : 0;
+
+            const stock = Number(invPlain.stock || 0);
+            const minStock = Number(invPlain.min_stock_level || 0);
 
             return {
                 inventory_id: invPlain.inventory_id,
                 store_id: invPlain.store_id,
-                product_id: invPlain.product_id,
-                stock: invPlain.stock,
+                product_id: product.product_id,
+                stock,
                 min_stock_level: invPlain.min_stock_level,
                 reorder_point: invPlain.reorder_point,
                 sku: product.sku || '',
                 name: product.name || '',
                 is_perishable: !!product.is_perishable,
                 category: category ? category.name : '',
-                supplier, // full supplier object for FE
-                unit: 'Cái', // Default unit, can be added to Product table later
-                price: latestImportPrice || 0, // Giá lẻ/đơn vị từ order (chỉ từ order, không fallback)
-                latest_import_price: latestImportPrice || 0, // Giá nhập từ order (chỉ từ order, không fallback)
+                supplier,
+                unit: 'Cái',
+                price: latestImportPrice || 0,
+                latest_import_price: latestImportPrice || 0,
                 package_conversion: packageConversion,
                 package_unit: packageUnitLabel,
-                package_price: packagePrice || 0, // Giá nhập/thùng từ order (chỉ từ order, không fallback)
-                status: invPlain.stock <= invPlain.min_stock_level ? 'Thiếu hàng' : 'Ổn định'
+                package_price: packagePrice || 0,
+                status: stock <= minStock ? 'Thiếu hàng' : 'Ổn định',
+                current_price: currentPrice
             };
         });
 
         resolve({
             err: 0,
             msg: 'OK',
-            data: data
+            data
         });
     } catch (error) {
         reject(error);
@@ -196,9 +220,6 @@ export const getAllInventoryService = async ({ page, limit, storeId, categoryId,
     try {
         const offset = (page - 1) * limit;
 
-        const whereConditions = {};
-        if (storeId) whereConditions.store_id = storeId;
-
         const productWhere = {};
         if (search) {
             productWhere[Op.or] = [
@@ -207,70 +228,103 @@ export const getAllInventoryService = async ({ page, limit, storeId, categoryId,
             ];
         }
 
-        const includeConditions = [
-            {
-                model: db.Store,
-                as: 'store',
-                attributes: ['store_id', 'name', 'address', 'phone']
-            },
-            {
-                model: db.Product,
-                as: 'product',
-                attributes: ['product_id', 'name', 'sku', 'description', 'hq_price'],
-                where: productWhere,
-                include: [
-                    {
-                        model: db.Category,
-                        as: 'category',
-                        attributes: ['category_id', 'name'],
-                        ...(categoryId && {
-                            where: { category_id: categoryId }
-                        })
-                    },
-                    {
-                        model: db.Supplier,
-                        as: 'supplier',
-                        attributes: ['supplier_id', 'name', 'contact']
-                    }
-                ]
-            }
-        ];
-
-        const { count, rows } = await db.Inventory.findAndCountAll({
-            where: whereConditions,
-            include: includeConditions,
-            limit,
-            offset,
-            order: [['updated_at', 'DESC']],
-            distinct: true
+        // 1. Lấy toàn bộ sản phẩm (catalog) thỏa điều kiện tìm kiếm / danh mục
+        const products = await db.Product.findAll({
+            where: { is_active: true, ...productWhere },
+            include: [
+                {
+                    model: db.Category,
+                    as: 'category',
+                    attributes: ['category_id', 'name'],
+                    ...(categoryId && {
+                        where: { category_id: categoryId }
+                    })
+                },
+                {
+                    model: db.Supplier,
+                    as: 'supplier',
+                    attributes: ['supplier_id', 'name', 'contact']
+                }
+            ]
         });
 
-        const inventoryWithStatus = rows.map(item => {
-            const itemData = item.toJSON();
+        if (!products.length) {
+            return {
+                err: 0,
+                msg: 'Get inventory successfully',
+                data: {
+                    inventory: [],
+                    pagination: {
+                        currentPage: page,
+                        totalPages: 0,
+                        totalItems: 0,
+                        limit
+                    }
+                }
+            };
+        }
 
+        const productIds = products.map(p => p.product_id);
+
+        // 2. Lấy các bản ghi tồn kho hiện có (theo store nếu có)
+        const whereConditions = {};
+        if (storeId) whereConditions.store_id = storeId;
+        whereConditions.product_id = { [Op.in]: productIds };
+
+        const inventories = await db.Inventory.findAll({
+            where: whereConditions,
+            include: [
+                {
+                    model: db.Store,
+                    as: 'store',
+                    attributes: ['store_id', 'name', 'address', 'phone']
+                }
+            ]
+        });
+
+        const inventoryMap = {};
+        inventories.forEach(item => {
+            const plain = item.toJSON();
+            inventoryMap[plain.product_id] = plain;
+        });
+
+        // 3. Kết hợp sản phẩm + tồn kho, sản phẩm chưa có tồn kho => stock = 0
+        const combined = products.map(prod => {
+            const product = prod.toJSON();
+            const inv = inventoryMap[product.product_id] || {
+                inventory_id: null,
+                store_id: storeId || null,
+                stock: 0,
+                min_stock_level: 0,
+                reorder_point: 0,
+                store: storeId
+                    ? inventories[0]?.store || null
+                    : null
+            };
+
+            const stock = Number(inv.stock || 0);
             let stockStatus = 'normal';
-            if (itemData.stock === 0) {
-                stockStatus = 'out_of_stock';
-            } else if (itemData.stock <= itemData.min_stock_level) {
-                stockStatus = 'critical';
-            } else if (itemData.stock <= itemData.reorder_point) {
-                stockStatus = 'low';
-            }
+            if (stock === 0) stockStatus = 'out_of_stock';
+            else if (stock <= Number(inv.min_stock_level || 0)) stockStatus = 'critical';
+            else if (stock <= Number(inv.reorder_point || 0)) stockStatus = 'low';
 
             return {
-                ...itemData,
+                ...inv,
+                product,
+                stock,
                 stockStatus,
-                stockValue: itemData.stock * (itemData.product?.hq_price || 0)
+                stockValue: stock * (product.hq_price || 0)
             };
         });
 
-        let filteredInventory = inventoryWithStatus;
+        // 4. Lọc theo trạng thái nếu có
+        let filteredInventory = combined;
         if (status) {
-            filteredInventory = inventoryWithStatus.filter(item => item.stockStatus === status);
+            filteredInventory = combined.filter(item => item.stockStatus === status);
         }
 
-        const filteredCount = filteredInventory.length;
-        const paginatedInventory = status ? filteredInventory : inventoryWithStatus;
+        const totalItems = filteredInventory.length;
+        const paginatedInventory = filteredInventory.slice(offset, offset + limit);
 
         return {
             err: 0,
@@ -279,8 +333,8 @@ export const getAllInventoryService = async ({ page, limit, storeId, categoryId,
                 inventory: paginatedInventory,
                 pagination: {
                     currentPage: page,
-                    totalPages: Math.ceil((status ? filteredCount : count) / limit),
-                    totalItems: status ? filteredCount : count,
+                    totalPages: Math.ceil(totalItems / limit),
+                    totalItems,
                     limit
                 }
             }

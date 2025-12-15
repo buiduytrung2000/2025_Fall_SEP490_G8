@@ -294,6 +294,9 @@ export default function CEORevenueBoard() {
               initialState={{ pagination: { pageSize: 10 }, density: "compact" }}
               enableColumnActions={false}
               enableColumnFilters={false}
+              localization={{
+                rowsPerPage: 'Số dòng mỗi trang',
+              }}
               renderEmptyRowsFallback={() => (
                 <Alert severity="info" sx={{ m: 2 }}>
                   Không có dữ liệu phù hợp với bộ lọc hiện tại.

@@ -203,6 +203,37 @@ export const create = (body) => new Promise(async (resolve, reject) => {
 
         const status = computeStatus(start, end)
 
+        // Tự động tách đoạn quy tắc cũ, nếu có quy tắc đang chạy và quy tắc mới bắt đầu sau nó
+        // Ví dụ: cũ 3/12-9999, mới 16/12 -> cũ sẽ thành 3/12-15/12, mới 16/12-9999
+        const permanentEnd = getPermanentEndDate()
+        const activeRules = await db.PricingRule.findAll({
+            where: {
+                product_id,
+                store_id,
+                start_date: { [Op.lte]: end },
+                end_date: { [Op.gte]: start }
+            },
+            order: [['start_date', 'ASC']]
+        })
+
+        for (const rule of activeRules) {
+            const ruleStart = new Date(rule.start_date)
+            const ruleEnd = new Date(rule.end_date)
+
+            // Chỉ xử lý nếu quy tắc mới bắt đầu sau quy tắc cũ và quy tắc cũ chưa kết thúc
+            if (ruleStart <= start && ruleEnd >= start) {
+                const newEnd = new Date(start)
+                newEnd.setDate(newEnd.getDate() - 1) // kết thúc ngày trước ngày bắt đầu mới
+
+                if (newEnd > ruleStart) {
+                    await rule.update({
+                        end_date: newEnd,
+                        status: computeStatus(ruleStart, newEnd)
+                    })
+                }
+            }
+        }
+
         const response = await db.PricingRule.create({
             product_id,
             store_id,
