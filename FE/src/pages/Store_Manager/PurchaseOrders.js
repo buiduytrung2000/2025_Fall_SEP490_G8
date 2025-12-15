@@ -96,9 +96,9 @@ const PurchaseOrders = () => {
       // Khi nhập SKU hoặc tên hàng, tự động xóa các dòng trống khác
       if (key === 'sku' || key === 'name') {
         const currentLine = updated[idx];
-        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') || 
-                       (currentLine.name && currentLine.name.trim() !== '');
-        
+        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') ||
+          (currentLine.name && currentLine.name.trim() !== '');
+
         if (hasData) {
           // Giữ dòng hiện tại và các dòng có dữ liệu, xóa các dòng trống khác
           const filtered = updated.filter((l, i) => {
@@ -132,38 +132,38 @@ const PurchaseOrders = () => {
     const validItems = [];
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      
+
       // Skip completely empty lines
       if ((!l.sku || l.sku.trim() === '') && (!l.name || l.name.trim() === '') && (!l.qty || l.qty === '') && (!l.price || l.price === '')) {
         continue;
       }
-      
+
       // Validate SKU - required
       if (!l.sku || l.sku.trim() === '') {
         ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
         return;
       }
-      
+
       // Validate name - required
       if (!l.name || l.name.trim() === '') {
         ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
         return;
       }
-      
+
       // Validate quantity
       const qty = parseInt(l.qty);
       if (isNaN(qty) || qty <= 0) {
         ToastNotification.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
         return;
       }
-      
+
       // Validate unit price - required and must be > 0
       const price = parseFloat(l.price);
       if (isNaN(price) || price <= 0) {
         ToastNotification.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
         return;
       }
-      
+
       validItems.push({
         sku: (l.sku || '').trim(),
         name: (l.name || '').trim(),
@@ -190,7 +190,7 @@ const PurchaseOrders = () => {
       };
 
       const result = await createStoreOrder(payload);
-      
+
       if (result.err === 0) {
         ToastNotification.success('Tạo đơn hàng thành công!');
         // Reset đơn
@@ -214,20 +214,23 @@ const PurchaseOrders = () => {
 
   const fetchOrders = useCallback(async (showLoading = false) => {
     if (showLoading) {
-    setLoadingOrders(true);
+      setLoadingOrders(true);
     }
     try {
       const data = await getStoreOrders({
         status: statusFilter
       });
-      setOrders(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setOrders(list);
+      return list;
     } catch (error) {
       console.error('Error loading store orders:', error);
       setOrders([]);
+      return [];
     } finally {
       if (showLoading) {
-      setLoadingOrders(false);
-    }
+        setLoadingOrders(false);
+      }
     }
   }, [statusFilter]);
 
@@ -277,8 +280,8 @@ const PurchaseOrders = () => {
       Cell: ({ row }) => {
         const statusMeta = getStatusMeta(row.original.status);
         return (
-          <Chip 
-            size="small" 
+          <Chip
+            size="small"
             label={statusMeta.label}
             color={statusMeta.color}
           />
@@ -360,9 +363,16 @@ const PurchaseOrders = () => {
       if (response.err === 0) {
         ToastNotification.success('Xác nhận đã nhận hàng thành công!');
         setConfirmReceivedDialog(false);
-        await fetchOrders(false);
-        // Update selected order
-        setSelectedOrder({ ...selectedOrder, status: 'delivered' });
+        // Reload danh sách đơn và đồng bộ lại chi tiết đơn đang xem
+        const updatedList = await fetchOrders(false);
+        const updatedDetail = updatedList.find(
+          (o) => o.store_order_id === selectedOrder.store_order_id
+        );
+        if (updatedDetail) {
+          setSelectedOrder(updatedDetail);
+        } else {
+          setSelectedOrder({ ...selectedOrder, status: 'delivered' });
+        }
       } else {
         ToastNotification.error(response.msg || 'Không thể cập nhật trạng thái đơn hàng');
       }
@@ -376,17 +386,17 @@ const PurchaseOrders = () => {
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       <Box sx={{ mb: 2 }}>
-          <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
-          <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
-        </Box>
+        <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>Đơn nhập hàng</Typography>
+        <Typography color="text.secondary">Theo dõi đơn đã tạo</Typography>
+      </Box>
 
       <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField 
-            size="small" 
-            label="Tìm kiếm mã đơn hàng" 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
+          <TextField
+            size="small"
+            label="Tìm kiếm mã đơn hàng"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Nhập mã đơn hàng..."
             sx={{ width: { xs: '100%', sm: 300 } }}
             InputProps={{
@@ -397,12 +407,12 @@ const PurchaseOrders = () => {
               ),
             }}
           />
-          <TextField 
-            select 
-            size="small" 
-            label="Trạng thái" 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)} 
+          <TextField
+            select
+            size="small"
+            label="Trạng thái"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
             sx={{ width: { xs: '100%', sm: 220 } }}
           >
             {STATUS_OPTIONS.map(option => (
@@ -473,31 +483,31 @@ const PurchaseOrders = () => {
         <DialogContent dividers>
           <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
-              <TextField 
-                label="Kho nhận" 
-                size="small" 
-                value={target} 
-                onChange={(e) => setTarget(e.target.value)} 
-                sx={{ width: { xs: '100%', sm: 280, md: 320 } }} 
+              <TextField
+                label="Kho nhận"
+                size="small"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 280, md: 320 } }}
               />
-              <TextField 
-                select 
-                size="small" 
-                label="Hàng tươi sống?" 
-                value={perishable ? 'Yes' : 'No'} 
-                onChange={(e) => setPerishable(e.target.value === 'Yes')} 
+              <TextField
+                select
+                size="small"
+                label="Hàng tươi sống?"
+                value={perishable ? 'Yes' : 'No'}
+                onChange={(e) => setPerishable(e.target.value === 'Yes')}
                 sx={{ width: { xs: '100%', sm: 180 } }}
               >
                 <MenuItem value="No">No</MenuItem>
                 <MenuItem value="Yes">Yes</MenuItem>
               </TextField>
               {perishable && (
-                <TextField 
-                  label="Nhà cung cấp tươi sống" 
-                  size="small" 
-                  value={supplier} 
-                  onChange={(e) => setSupplier(e.target.value)} 
-                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }} 
+                <TextField
+                  label="Nhà cung cấp tươi sống"
+                  size="small"
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }}
                 />
               )}
             </Stack>
@@ -519,38 +529,38 @@ const PurchaseOrders = () => {
                 {lines.map((l, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        value={l.sku} 
-                        onChange={(e) => updateLine(idx, 'sku', e.target.value)} 
+                      <TextField
+                        size="small"
+                        value={l.sku}
+                        onChange={(e) => updateLine(idx, 'sku', e.target.value)}
                         sx={{ width: { xs: 100, sm: 120 } }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        fullWidth 
-                        value={l.name} 
-                        onChange={(e) => updateLine(idx, 'name', e.target.value)} 
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={l.name}
+                        onChange={(e) => updateLine(idx, 'name', e.target.value)}
                         sx={{ minWidth: { xs: 150, sm: 200 } }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.qty} 
-                        onChange={(e) => updateLine(idx, 'qty', e.target.value)} 
-                        sx={{ width: { xs: 80, sm: 120 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.qty}
+                        onChange={(e) => updateLine(idx, 'qty', e.target.value)}
+                        sx={{ width: { xs: 80, sm: 120 } }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.price} 
-                        onChange={(e) => updateLine(idx, 'price', e.target.value)} 
-                        sx={{ width: { xs: 100, sm: 160 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.price}
+                        onChange={(e) => updateLine(idx, 'price', e.target.value)}
+                        sx={{ width: { xs: 100, sm: 160 } }}
                       />
                     </TableCell>
                     <TableCell align="right">
@@ -591,8 +601,8 @@ const PurchaseOrders = () => {
       </Dialog>
 
       {/* Order Detail Modal */}
-      <Dialog 
-        open={openModal} 
+      <Dialog
+        open={openModal}
         onClose={() => setOpenModal(false)}
         maxWidth="md"
         fullWidth
@@ -639,8 +649,8 @@ const PurchaseOrders = () => {
                   {(() => {
                     const statusMeta = getStatusMeta(selectedOrder.status);
                     return (
-                      <Chip 
-                        size="small" 
+                      <Chip
+                        size="small"
                         label={statusMeta.label}
                         color={statusMeta.color}
                         sx={{ mt: 0.5 }}
@@ -684,6 +694,7 @@ const PurchaseOrders = () => {
                       <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Tên hàng</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Số lượng</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>SL nhận thực tế</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Đơn giá</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Thành tiền</TableCell>
                     </TableRow>
@@ -697,10 +708,18 @@ const PurchaseOrders = () => {
                           <TableCell>{item.product_name || item.name || 'N/A'}</TableCell>
                           <TableCell align="right">{item.quantity || 0}</TableCell>
                           <TableCell align="right">
+                            {item.received_quantity !== null && item.received_quantity !== undefined
+                              ? Number(item.received_quantity).toLocaleString('vi-VN')
+                              : ''}
+                          </TableCell>
+                          <TableCell align="right">
                             {Number(item.unit_price || 0).toLocaleString('vi-VN')} đ
                           </TableCell>
                           <TableCell align="right">
-                            {Number(item.subtotal || (item.quantity || 0) * (item.unit_price || 0)).toLocaleString('vi-VN')} đ
+                            {Number(
+                              item.subtotal ||
+                              (item.received_quantity ?? item.quantity ?? 0) * (item.unit_price || 0)
+                            ).toLocaleString('vi-VN')} đ
                           </TableCell>
                         </TableRow>
                       ))
@@ -729,11 +748,11 @@ const PurchaseOrders = () => {
         </DialogContent>
         <DialogActions>
           {selectedOrder?.status?.toLowerCase() === 'shipped' && (
-            <PrimaryButton 
-              onClick={handleOpenConfirmReceived} 
+            <PrimaryButton
+              onClick={handleOpenConfirmReceived}
               disabled={updatingStatus}
               loading={updatingStatus}
-              sx={{ 
+              sx={{
                 mr: 'auto',
                 bgcolor: 'success.main',
                 '&:hover': { bgcolor: 'success.dark' }
@@ -822,7 +841,7 @@ const PurchaseOrders = () => {
             onClick={handleConfirmReceived}
             disabled={updatingStatus}
             loading={updatingStatus}
-            sx={{ 
+            sx={{
               bgcolor: 'success.main',
               '&:hover': { bgcolor: 'success.dark' }
             }}
