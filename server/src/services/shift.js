@@ -81,6 +81,7 @@ export const checkin = async ({ cashier_id, store_id, opening_cash = 0, note = n
 
     // Nếu không có schedule_id, tìm schedule tương ứng với cashier, store và ngày hôm nay
     let foundScheduleId = schedule_id
+    let selectedScheduleForLate = null // giữ lại schedule để tính đi muộn
     if (!foundScheduleId) {
       const today = new Date().toISOString().split('T')[0]
       const now = new Date()
@@ -167,6 +168,8 @@ export const checkin = async ({ cashier_id, store_id, opening_cash = 0, note = n
       if (selectedSchedule) {
         foundScheduleId = selectedSchedule.schedule_id
         console.log(`→ Final schedule_id: ${foundScheduleId}\n`);
+        // giữ lại để tính phút đi muộn sau này
+        selectedScheduleForLate = selectedSchedule
       }
     } else {
       console.log('=== Check-in: Sử dụng schedule_id từ request ===');
@@ -179,14 +182,47 @@ export const checkin = async ({ cashier_id, store_id, opening_cash = 0, note = n
       return { err: 1, msg: 'Bạn không có lịch làm việc hôm nay. Vui lòng liên hệ quản lý để được phân công lịch.' }
     }
 
+    // Lấy thông tin schedule + shift template để tính phút đi muộn
+    let scheduleForLate = selectedScheduleForLate
+    if (!scheduleForLate) {
+      scheduleForLate = await db.Schedule.findOne({
+        where: { schedule_id: foundScheduleId },
+        include: [
+          {
+            model: db.ShiftTemplate,
+            as: 'shiftTemplate',
+            attributes: ['start_time', 'end_time']
+          }
+        ],
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      })
+    }
+
+    // Tính phút đi muộn (nếu có)
+    let lateMinutes = 0
+    if (scheduleForLate && scheduleForLate.shiftTemplate && scheduleForLate.work_date) {
+      const [startHour, startMinute] = scheduleForLate.shiftTemplate.start_time.split(':').map(Number)
+      const shiftStart = new Date(scheduleForLate.work_date)
+      shiftStart.setHours(startHour, startMinute, 0, 0)
+      const now = new Date()
+      if (now > shiftStart) {
+        lateMinutes = Math.floor((now - shiftStart) / 60000)
+      }
+    }
+
+    const lateNote = lateMinutes > 0 ? `Đi muộn ${lateMinutes} phút` : null
+    const mergedNote = [lateNote, note].filter(Boolean).join(' | ') || null
+
     const shift = await db.Shift.create({ 
       cashier_id, 
       store_id,
       schedule_id: foundScheduleId,
       opening_cash, 
       status: 'opened', 
-      note 
+      note: mergedNote
     }, { transaction: t })
+    shift.setDataValue('late_minutes', lateMinutes)
 
     // Cập nhật attendance_status của schedule nếu có
     if (foundScheduleId) {
