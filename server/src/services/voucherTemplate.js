@@ -4,11 +4,17 @@ import { Op } from 'sequelize';
 // GET ALL VOUCHER TEMPLATES
 export const getAllVoucherTemplates = (query) => new Promise(async (resolve, reject) => {
     try {
-        const { is_active } = query;
+        const { is_active, store_id } = query;
         const whereClause = {};
         
         if (is_active !== undefined) {
             whereClause.is_active = is_active === 'true';
+        }
+        if (store_id) {
+            whereClause[Op.or] = [
+                { store_id: null },
+                { store_id }
+            ];
         }
 
         const response = await db.VoucherTemplate.findAll({

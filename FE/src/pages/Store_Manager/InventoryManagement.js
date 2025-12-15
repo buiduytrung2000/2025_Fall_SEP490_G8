@@ -24,7 +24,10 @@ import {
   MenuItem,
   InputAdornment,
   IconButton,
-  Button
+  Button,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
 import { Refresh, Add } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
@@ -56,6 +59,7 @@ const InventoryManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [query, setQuery] = useState('');
+  const [productTypeFilter, setProductTypeFilter] = useState('all'); // all | perishable | non-perishable
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
@@ -103,6 +107,8 @@ const InventoryManagement = () => {
   
   // Active pricing rules map: product_id -> active rule
   const [activePricingRules, setActivePricingRules] = useState({});
+  const skuOptions = useMemo(() => (data || []).map((i) => i.sku).filter(Boolean), [data]);
+  const nameOptions = useMemo(() => (data || []).map((i) => i.name).filter(Boolean), [data]);
   
   // Get store_id from localStorage or user context
   const getStoreId = () => {
@@ -186,6 +192,14 @@ const InventoryManagement = () => {
       ? [...data]
       : data.filter((i) => (i.name || '').toLowerCase().includes(query.toLowerCase()) || (i.sku || '').toLowerCase().includes(query.toLowerCase()));
 
+    // filter by product type
+    const filterByType = list.filter((item) => {
+      const isPerishable = !!(item.is_perishable || item.product?.is_perishable);
+      if (productTypeFilter === 'perishable') return isPerishable;
+      if (productTypeFilter === 'non-perishable') return !isPerishable;
+      return true;
+    });
+
     // sort by remaining ratio: stock / target (target = reorder_point || min*2 || 10)
     const ratio = (row) => {
       const stock = Number(row.stock || 0);
@@ -195,7 +209,7 @@ const InventoryManagement = () => {
       if (target <= 0) return 1; // avoid zero; treat as full
       return stock / target;
     };
-    return list.sort((a, b) => {
+    return filterByType.sort((a, b) => {
       const ra = ratio(a);
       const rb = ratio(b);
       if (ra !== rb) return ra - rb; // smaller ratio first (more urgent)
@@ -205,7 +219,7 @@ const InventoryManagement = () => {
       if (sa !== sb) return sa - sb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [data, query]);
+  }, [data, query, productTypeFilter]);
 
   const allVisibleIds = useMemo(() => filtered.map(rowId), [filtered]);
   const selectedCountInView = useMemo(() => allVisibleIds.filter(id => selected.has(id)).length, [allVisibleIds, selected]);
@@ -470,9 +484,34 @@ const InventoryManagement = () => {
     setLines(prev => {
       // If updating quantity and it becomes <= 0, remove this line
       if (key === 'qty') {
+        // Cho phép để trống (chưa nhập) -> không xóa dòng
+        if (val === '' || val === null || val === undefined) {
+          return prev.map((l, i) => i === idx ? { ...l, qty: '' } : l);
+        }
+
         const qtyNum = Number(val);
-        if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+        // Cho phép để trống (chưa nhập) -> không xóa dòng
+        if (!Number.isFinite(qtyNum)) {
+          return prev.map((l, i) => i === idx ? { ...l, qty: val } : l);
+        }
+        // Chỉ xóa khi người dùng nhập đúng 0
+        if (qtyNum === 0) {
           return prev.filter((_, i) => i !== idx);
+        }
+
+        // Không cho nhập quá tồn kho hiện tại
+        const currentLine = prev[idx];
+        const sku = (currentLine?.sku || '').trim();
+        const name = (currentLine?.name || '').trim();
+        const invRow = data.find(
+          (r) =>
+            (r.sku && r.sku === sku) ||
+            (r.name && r.name === name)
+        );
+        const stock = Number(invRow?.stock ?? 0);
+        if (stock >= 0 && qtyNum > stock) {
+          ToastNotification.warning(`Số lượng không được vượt quá tồn kho hiện tại (${stock})`);
+          return prev.map((l, i) => i === idx ? { ...l, qty: stock } : l);
         }
       }
       const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
@@ -803,13 +842,28 @@ const InventoryManagement = () => {
       </Box>
 
       <Paper sx={{ p: 2, mb: 2 }}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Tìm theo tên hoặc mã SKU..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Tìm theo tên hoặc mã SKU..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel id="product-type-filter-label">Loại hàng</InputLabel>
+            <Select
+              labelId="product-type-filter-label"
+              value={productTypeFilter}
+              label="Loại hàng"
+              onChange={(e) => setProductTypeFilter(e.target.value)}
+            >
+              <MenuItem value="all">Tất cả</MenuItem>
+              <MenuItem value="perishable">Tươi sống</MenuItem>
+              <MenuItem value="non-perishable">Hàng thường</MenuItem>
+            </Select>
+          </FormControl>
+        </Stack>
       </Paper>
 
       <MaterialReactTable
@@ -927,7 +981,8 @@ const InventoryManagement = () => {
                   <TableCell sx={{ minWidth: { xs: 150, sm: 200 } }}>Tên hàng</TableCell>
                   <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng (thùng)</TableCell>
                   <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá / thùng</TableCell>
-                  <TableCell width={64}></TableCell>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 100 } }}>Thành tiền</TableCell>
+                  <TableCell width={50}></TableCell>  
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -937,8 +992,13 @@ const InventoryManagement = () => {
                       <TextField 
                         size="small" 
                         value={l.sku} 
-                        onChange={(e) => updateLine(idx, 'sku', e.target.value)} 
                         sx={{ width: { xs: 100, sm: 120 } }}
+                        onChange={(e) => updateLine(idx, 'sku', e.target.value)}
+                        inputProps={!l.sku && !l.name ? { list: 'sku-options' } : {}}
+                        InputProps={{
+                          readOnly: Boolean(l.sku && l.name)
+                        }}
+                        disabled={Boolean(l.sku && l.name)}
                       />
                     </TableCell>
                     <TableCell>
@@ -946,8 +1006,13 @@ const InventoryManagement = () => {
                         size="small" 
                         fullWidth 
                         value={l.name} 
-                        onChange={(e) => updateLine(idx, 'name', e.target.value)} 
                         sx={{ minWidth: { xs: 150, sm: 200 } }}
+                        onChange={(e) => updateLine(idx, 'name', e.target.value)}
+                        inputProps={!l.sku && !l.name ? { list: 'name-options' } : {}}
+                        InputProps={{
+                          readOnly: Boolean(l.sku && l.name)
+                        }}
+                        disabled={Boolean(l.sku && l.name)}
                       />
                     </TableCell>
                     <TableCell>
@@ -966,16 +1031,28 @@ const InventoryManagement = () => {
                         size="small" 
                         type="number" 
                         value={l.price} 
-                        onChange={(e) => updateLine(idx, 'price', e.target.value)} 
                         sx={{ width: { xs: 100, sm: 160 } }} 
                         placeholder="Giá 1 thùng"
                         InputProps={{
-                          inputProps: { min: 0, step: 1000 },
+                          readOnly: true,
                           endAdornment: <InputAdornment position="end">đ/thùng</InputAdornment>
                         }}
+                        disabled
                       />
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        value={(Number(l.qty) * Number(l.price) || 0).toLocaleString('vi-VN')}
+                        InputProps={{
+                          readOnly: true,
+                          endAdornment: <InputAdornment position="end">đ</InputAdornment>
+                        }}
+                        sx={{ width: { xs: 120, sm: 160 } }}
+                        disabled
+                      />
+                    </TableCell>
+                    <TableCell align="center">
                       <ActionButton
                         icon={<Icon name="Delete" />}
                         action="delete"
@@ -986,15 +1063,23 @@ const InventoryManagement = () => {
                   </TableRow>
                 ))}
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Button startIcon={<Add />} onClick={addLine} size="small">Thêm dòng</Button>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>
+                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>
                     Tổng tiền:
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '1.1rem',
+                      color: 'primary.main',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
                     {total.toLocaleString('vi-VN')} đ
                   </TableCell>
                 </TableRow>
@@ -1011,6 +1096,17 @@ const InventoryManagement = () => {
           </PrimaryButton>
         </DialogActions>
       </Dialog>
+      {/* Suggestions for SKU and Name */}
+      <datalist id="sku-options">
+        {skuOptions.map((sku) => (
+          <option key={sku} value={sku} />
+        ))}
+      </datalist>
+      <datalist id="name-options">
+        {nameOptions.map((n, i) => (
+          <option key={`${n}-${i}`} value={n} />
+        ))}
+      </datalist>
     </Box>
   );
 };

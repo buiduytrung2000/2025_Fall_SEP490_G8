@@ -189,19 +189,27 @@ export const createVoucher = (data) => new Promise(async (resolve, reject) => {
     }
 })
 
-// AUTO-GENERATE VOUCHERS FOR CUSTOMER BASED ON LOYALTY POINTS
-export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => new Promise(async (resolve, reject) => {
+// AUTO-GENERATE VOUCHERS FOR CUSTOMER BASED ON LOYALTY POINTS (optionally scoped by store)
+export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints, storeId = null) => new Promise(async (resolve, reject) => {
     try {
         console.log('Auto-generating vouchers for customer:', customerId, 'with loyalty points:', loyaltyPoints);
 
         // Get all active voucher templates that customer qualifies for
+        const whereClause = {
+            is_active: true,
+            required_loyalty_points: {
+                [Op.lte]: loyaltyPoints
+            }
+        };
+        if (storeId) {
+            whereClause[Op.or] = [
+                { store_id: null },
+                { store_id: storeId }
+            ];
+        }
+
         const templates = await db.VoucherTemplate.findAll({
-            where: {
-                is_active: true,
-                required_loyalty_points: {
-                    [Op.lte]: loyaltyPoints
-                }
-            },
+            where: whereClause,
             order: [['required_loyalty_points', 'DESC']]
         });
 
@@ -278,7 +286,7 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints) => ne
 })
 
 // GENERATE VOUCHERS FOR EXISTING CUSTOMER (Manual trigger)
-export const generateVouchersForExistingCustomer = (customerId) => new Promise(async (resolve, reject) => {
+export const generateVouchersForExistingCustomer = (customerId, storeId = null) => new Promise(async (resolve, reject) => {
     try {
         // Get customer's current loyalty points
         const customer = await db.Customer.findByPk(customerId, {
@@ -295,7 +303,7 @@ export const generateVouchersForExistingCustomer = (customerId) => new Promise(a
         const loyaltyPoints = customer.loyalty_point || 0;
 
         // Use the auto-generate function
-        const result = await autoGenerateVouchersForCustomer(customerId, loyaltyPoints);
+        const result = await autoGenerateVouchersForCustomer(customerId, loyaltyPoints, storeId);
 
         resolve({
             err: 0,

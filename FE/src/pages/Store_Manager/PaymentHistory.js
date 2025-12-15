@@ -57,15 +57,14 @@ const PaymentHistory = () => {
         try {
             const response = await getEmployees({
                 store_id: user?.store_id,
-                role: 'Cashier',
                 status: 'active'
             });
             
             if (response.err === 0) {
-                setCashiers(response.data?.rows || []);
+                setCashiers(response.data?.rows || response.data || []);
             }
         } catch (error) {
-            console.error('Error fetching cashiers:', error);
+            console.error('Error fetching employees:', error);
         }
     };
 
@@ -106,19 +105,24 @@ const PaymentHistory = () => {
         }
     };
 
-    // Filter transactions by search term (transaction ID)
+    // Filter transactions by cashier and search term (transaction ID)
     useEffect(() => {
-        if (!searchTerm.trim()) {
-            setTransactions(allTransactions);
-            return;
+        let filtered = allTransactions;
+
+        if (selectedCashier !== 'all') {
+            filtered = filtered.filter((tx) => String(tx.cashier_id || tx.cashier?.user_id) === String(selectedCashier));
         }
 
-        const filtered = allTransactions.filter(transaction => {
-            const transactionId = String(transaction.transaction_id || '');
-            return transactionId.includes(searchTerm.trim());
-        });
+        if (searchTerm.trim()) {
+            const term = searchTerm.trim();
+            filtered = filtered.filter((transaction) => {
+                const transactionId = String(transaction.transaction_id || '');
+                return transactionId.includes(term);
+            });
+        }
+
         setTransactions(filtered);
-    }, [searchTerm, allTransactions]);
+    }, [searchTerm, allTransactions, selectedCashier]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('vi-VN', {

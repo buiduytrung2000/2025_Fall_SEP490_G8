@@ -543,6 +543,25 @@ const ShiftChangeRequest = () => {
         return `${date} - ${template?.name || 'Ca'} (${time})${employeeName ? ` - ${employeeName}` : ''}`;
     };
 
+    // Ưu tiên hiển thị các ca chưa điểm danh lên trước
+    const sortedMySchedules = useMemo(() => {
+        const priority = (status) => {
+            // Chưa điểm danh hoặc không có trạng thái -> ưu tiên cao nhất
+            if (!status || status === 'not_checked_in') return 0;
+            return 1;
+        };
+        return [...mySchedules].sort((a, b) => {
+            const pa = priority(a.attendance_status);
+            const pb = priority(b.attendance_status);
+            if (pa !== pb) return pa - pb;
+            // fallback theo ngày và ca để ổn định
+            const da = a.work_date || a.workDate || '';
+            const db = b.work_date || b.workDate || '';
+            if (da !== db) return da.localeCompare(db);
+            return (a.shift_template_id || 0) - (b.shift_template_id || 0);
+        });
+    }, [mySchedules]);
+
     // Định nghĩa cột cho bảng lịch làm việc
     const scheduleColumns = useMemo(() => [
         {
@@ -659,7 +678,7 @@ const ShiftChangeRequest = () => {
                             ) : (
                                 <MaterialReactTable
                                     columns={scheduleColumns}
-                                    data={mySchedules}
+                                    data={sortedMySchedules}
                                     enableRowActions
                                     positionActionsColumn="last"
                                     enableColumnActions={false}
