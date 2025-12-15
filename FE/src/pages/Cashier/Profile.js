@@ -7,7 +7,10 @@ import {
   TextField,
   Stack,
   Divider,
+  IconButton,
+  InputAdornment,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import {
   getCurrentUser,
@@ -31,6 +34,12 @@ const Profile = () => {
     current_password: "",
     new_password: "",
     confirm_password: "",
+  });
+  const [phoneError, setPhoneError] = useState("");
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
   });
 
   const loadProfile = async () => {
@@ -64,29 +73,53 @@ const Profile = () => {
   }, []);
 
   const handleProfileChange = (field) => (event) => {
-    setProfileForm((prev) => ({ ...prev, [field]: event.target.value }));
+    let { value } = event.target;
+
+    // Xử lý riêng cho số điện thoại: chỉ cho phép số và báo lỗi ngay khi nhập
+    if (field === "phone") {
+      // Chỉ giữ lại ký tự số
+      value = value.replace(/\D/g, "");
+
+      if (value && value.length !== 10) {
+        setPhoneError("Số điện thoại phải gồm đúng 10 chữ số.");
+      } else {
+        setPhoneError("");
+      }
+    }
+
+    setProfileForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handlePasswordChange = (field) => (event) => {
     setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
+  const togglePasswordVisibility = (field) => () => {
+    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
-    if (!profileForm.full_name?.trim()) {
-      ToastNotification.error("Vui lòng nhập họ và tên.");
+
+    const trimmedFullName = profileForm.full_name?.trim() || "";
+    const trimmedPhone = profileForm.phone?.trim() || "";
+
+    if (trimmedPhone && !/^[0-9]{10}$/.test(trimmedPhone)) {
+      ToastNotification.error("Số điện thoại phải gồm đúng 10 chữ số.");
       return;
     }
 
     setSavingProfile(true);
     try {
       const res = await updateMyProfile({
-        full_name: profileForm.full_name.trim(),
-        phone: profileForm.phone?.trim() || "",
+        full_name: trimmedFullName || "",
+        phone: trimmedPhone,
       });
       if (res.err === 0) {
         ToastNotification.success("Đã cập nhật hồ sơ.");
-        updateUserInfo?.({ name: profileForm.full_name.trim() });
+        if (trimmedFullName) {
+          updateUserInfo?.({ name: trimmedFullName });
+        }
         await loadProfile();
       } else {
         ToastNotification.error(res.msg || "Cập nhật hồ sơ thất bại.");
@@ -167,7 +200,6 @@ const Profile = () => {
                 label="Họ và tên"
                 value={profileForm.full_name}
                 onChange={handleProfileChange("full_name")}
-                required
                 disabled={loadingProfile || savingProfile}
               />
               <TextField
@@ -180,6 +212,8 @@ const Profile = () => {
                 value={profileForm.phone}
                 onChange={handleProfileChange("phone")}
                 disabled={loadingProfile || savingProfile}
+                error={Boolean(phoneError)}
+                helperText={phoneError || "Không bắt buộc. Nếu nhập, phải đủ 10 số."}
               />
             </Stack>
 
@@ -206,27 +240,63 @@ const Profile = () => {
 
             <Stack spacing={2}>
               <TextField
-                type="password"
+                type={showPasswords.current ? "text" : "password"}
                 label="Mật khẩu hiện tại"
                 value={passwordForm.current_password}
                 onChange={handlePasswordChange("current_password")}
                 disabled={changingPassword}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={togglePasswordVisibility("current")}
+                        edge="end"
+                      >
+                        {showPasswords.current ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <Divider />
               <TextField
-                type="password"
+                type={showPasswords.new ? "text" : "password"}
                 label="Mật khẩu mới"
                 value={passwordForm.new_password}
                 onChange={handlePasswordChange("new_password")}
                 helperText="Tối thiểu 6 ký tự."
                 disabled={changingPassword}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={togglePasswordVisibility("new")}
+                        edge="end"
+                      >
+                        {showPasswords.new ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
-                type="password"
+                type={showPasswords.confirm ? "text" : "password"}
                 label="Xác nhận mật khẩu mới"
                 value={passwordForm.confirm_password}
                 onChange={handlePasswordChange("confirm_password")}
                 disabled={changingPassword}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={togglePasswordVisibility("confirm")}
+                        edge="end"
+                      >
+                        {showPasswords.confirm ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Stack>
 

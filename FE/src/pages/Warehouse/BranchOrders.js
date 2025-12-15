@@ -105,7 +105,10 @@ const BranchOrders = () => {
   };
 
   const handleViewDetail = (orderId) => {
-    navigate(`/warehouse/branch-orders/${orderId}`);
+    // Trang chi tiết & xử lý đơn hàng chi nhánh đang dùng chung component OrderShipment
+    // và được khai báo route là: /warehouse/order-shipment/:id (xem trong App.js)
+    // Vì vậy cần điều hướng về đúng path này, nếu không router sẽ không match và không hiển thị gì.
+    navigate(`/warehouse/order-shipment/${orderId}`);
   };
 
   const handleShipOrder = (orderId) => {
@@ -216,7 +219,12 @@ const BranchOrders = () => {
               orders.map((order, index) => {
                 const orderCode = getOrderCode(order);
                 return (
-                <TableRow key={order.order_id} hover>
+                <TableRow
+                  key={order.order_id}
+                  hover
+                  onClick={() => handleViewDetail(order.order_id)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                   <TableCell>#{orderCode}</TableCell>
                   <TableCell>
@@ -263,7 +271,10 @@ const BranchOrders = () => {
                       <ActionButton
                         icon={<Icon name="View" />}
                         action="view"
-                        onClick={() => handleViewDetail(order.order_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetail(order.order_id);
+                        }}
                         tooltip="Xem chi tiết"
                       />
                       {['confirmed', 'shipped'].includes(
@@ -271,7 +282,10 @@ const BranchOrders = () => {
                       ) && (
                         <ActionButton
                           icon={<Icon name="Upload" />}
-                          onClick={() => handleShipOrder(order.order_id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShipOrder(order.order_id);
+                          }}
                           color="success"
                           tooltip="Xuất đơn hàng"
                         />

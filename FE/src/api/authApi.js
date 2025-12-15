@@ -18,7 +18,7 @@ export async function login(email, password) {
     } catch (error) {
         return {
             err: -1,
-            msg: 'Network error: ' + error.message,
+            msg: 'Lỗi kết nối: ' + error.message,
             token: null,
             user: null
         };
@@ -47,7 +47,7 @@ export async function register(userData) {
     } catch (error) {
         return {
             err: -1,
-            msg: 'Network error: ' + error.message,
+            msg: 'Lỗi kết nối: ' + error.message,
             token: null,
             user: null
         };

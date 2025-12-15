@@ -366,3 +366,23 @@ export const getEmployeeStatistics = (filters = {}) => new Promise(async (resolv
     }
 });
 
+// Get all stores
+export const getAllStores = () => new Promise(async (resolve, reject) => {
+    try {
+        const stores = await db.Store.findAll({
+            where: { status: 'active' },
+            attributes: ['store_id', 'name', 'address', 'phone'],
+            order: [['name', 'ASC']],
+            raw: true
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: stores
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+

@@ -103,6 +103,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
+    store_receive_note: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Ghi chú khi cửa hàng xác nhận đã nhận hàng'
+    },
     expected_delivery: {
       type: DataTypes.DATE,
       allowNull: true,

@@ -9,18 +9,19 @@ import {
     MenuItem,
     FormControl,
     InputLabel,
-    FormControlLabel,
-    Checkbox,
     Box,
     CircularProgress,
     Alert
 } from '@mui/material';
 import { createUser, updateUser } from '../../api/userApi';
+import { getAllStores } from '../../api/storeApi';
 import { PrimaryButton, SecondaryButton, ToastNotification } from './index';
 
 const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [stores, setStores] = useState([]);
+    const [loadingStores, setLoadingStores] = useState(false);
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -30,12 +31,42 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
         confirmPassword: '',
         phone: '',
         address: '',
+        store_id: '',
         is_active: true,
         status: 'active'
     });
 
     const ROLES = ['Admin', 'CEO', 'Store_Manager', 'Cashier', 'Warehouse', 'Supplier'];
-    const STATUSES = ['active', 'inactive', 'suspended'];
+    
+    // Roles that require store assignment
+    const STORE_REQUIRED_ROLES = ['Store_Manager', 'Cashier'];
+
+    // Load stores when dialog opens
+    useEffect(() => {
+        if (open) {
+            loadStores();
+        }
+    }, [open]);
+
+    const loadStores = async () => {
+        setLoadingStores(true);
+        try {
+            const response = await getAllStores();
+            console.log('Stores response:', response);
+            if (response.err === 0) {
+                setStores(response.data || []);
+                console.log('Stores loaded:', response.data);
+            } else {
+                console.error('Failed to load stores:', response.msg);
+                ToastNotification.warning('Không thể tải danh sách cửa hàng');
+            }
+        } catch (error) {
+            console.error('Error loading stores:', error);
+            ToastNotification.error('Lỗi khi tải danh sách cửa hàng');
+        } finally {
+            setLoadingStores(false);
+        }
+    };
 
     // Reset form when dialog opens/closes or editing user changes
     useEffect(() => {
@@ -50,12 +81,13 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                     confirmPassword: '',
                     phone: editingUser.phone || '',
                     address: editingUser.address || '',
+                    store_id: editingUser.store_id || '',
                     is_active: editingUser.is_active !== false,
                     status: editingUser.status || 'active'
                 });
             } else {
                 setFormData({
-                    username: '',
+                    username: '', // Will be auto-generated from email
                     email: '',
                     full_name: '',
                     role: 'Cashier',
@@ -63,6 +95,7 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                     confirmPassword: '',
                     phone: '',
                     address: '',
+                    store_id: '',
                     is_active: true,
                     status: 'active'
                 });
@@ -80,25 +113,32 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     };
 
     const validateForm = () => {
-        if (!formData.username.trim()) {
-            setError('Username không được để trống');
-            return false;
+        // For new users, email and full_name are required
+        if (!editingUser) {
+            if (!formData.email || !formData.email.trim()) {
+                setError('Email là bắt buộc');
+                return false;
+            }
+            if (!formData.full_name || !formData.full_name.trim()) {
+                setError('Họ tên là bắt buộc');
+                return false;
+            }
         }
-        if (!editingUser && !formData.password) {
-            setError('Password không được để trống khi tạo người dùng mới');
-            return false;
-        }
-        if (formData.password && formData.password !== formData.confirmPassword) {
-            setError('Password và Confirm Password không khớp');
-            return false;
-        }
-        if (formData.password && formData.password.length < 6) {
-            setError('Password phải có ít nhất 6 ký tự');
-            return false;
-        }
+        // Email validation
         if (formData.email && !formData.email.includes('@')) {
             setError('Email không hợp lệ');
             return false;
+        }
+        // Password validation only for editing (when password is provided)
+        if (editingUser && formData.password) {
+            if (formData.password !== formData.confirmPassword) {
+                setError('Password và Confirm Password không khớp');
+                return false;
+            }
+            if (formData.password.length < 6) {
+                setError('Password phải có ít nhất 6 ký tự');
+                return false;
+            }
         }
         return true;
     };
@@ -115,19 +155,35 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
 
         try {
             const submitData = {
-                username: formData.username,
                 email: formData.email || null,
                 full_name: formData.full_name || null,
                 role: formData.role,
                 phone: formData.phone || null,
                 address: formData.address || null,
+                store_id: formData.store_id ? parseInt(formData.store_id) : null,
                 is_active: formData.is_active,
                 status: formData.status
             };
 
-            // Add password only if provided
-            if (formData.password) {
-                submitData.password = formData.password;
+            // For new users, automatically set password to "123" and status to active
+            // Auto-generate username from email
+            // For editing users, only add password if provided
+            if (editingUser) {
+                // Keep existing username when editing
+                submitData.username = formData.username;
+                if (formData.password) {
+                    submitData.password = formData.password;
+                }
+            } else {
+                // Auto-generate username from email (before @)
+                if (formData.email) {
+                    submitData.username = formData.email.split('@')[0];
+                }
+                // Auto-generate password for new users
+                submitData.password = '123';
+                // Automatically set status to active for new users
+                submitData.is_active = true;
+                submitData.status = 'active';
             }
 
             let response;
@@ -161,21 +217,14 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
             </DialogTitle>
             <DialogContent sx={{ pt: 2 }}>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                {!editingUser && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Mật khẩu mặc định sẽ được tự động tạo là: <strong>123</strong>
+                    </Alert>
+                )}
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {/* Username */}
-                    <TextField
-                        label="Username"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleChange}
-                        disabled={editingUser && true} // Prevent changing username
-                        fullWidth
-                        size="small"
-                        required
-                    />
-
-                    {/* Email */}
+                    {/* Email - Required for new users */}
                     <TextField
                         label="Email"
                         name="email"
@@ -184,9 +233,11 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                         onChange={handleChange}
                         fullWidth
                         size="small"
+                        required={!editingUser}
+                        disabled={editingUser && true} // Prevent changing email when editing
                     />
 
-                    {/* Full Name */}
+                    {/* Full Name - Required for new users */}
                     <TextField
                         label="Họ tên"
                         name="full_name"
@@ -194,6 +245,7 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                         onChange={handleChange}
                         fullWidth
                         size="small"
+                        required={!editingUser}
                     />
 
                     {/* Role */}
@@ -212,6 +264,40 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                             ))}
                         </Select>
                     </FormControl>
+
+                    {/* Store - Only show for roles that require store */}
+                    {STORE_REQUIRED_ROLES.includes(formData.role) && (
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Cửa hàng</InputLabel>
+                            <Select
+                                label="Cửa hàng"
+                                name="store_id"
+                                value={formData.store_id || ''}
+                                onChange={handleChange}
+                                disabled={loadingStores}
+                            >
+                                <MenuItem value="">
+                                    <em>Không chọn</em>
+                                </MenuItem>
+                                {stores.length > 0 ? (
+                                    stores.map(store => (
+                                        <MenuItem key={store.store_id} value={String(store.store_id)}>
+                                            {store.name}
+                                        </MenuItem>
+                                    ))
+                                ) : (
+                                    <MenuItem value="" disabled>
+                                        Không có cửa hàng nào
+                                    </MenuItem>
+                                )}
+                            </Select>
+                            {loadingStores && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                                    <CircularProgress size={20} />
+                                </Box>
+                            )}
+                        </FormControl>
+                    )}
 
                     {/* Phone */}
                     <TextField
@@ -235,48 +321,8 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                         rows={2}
                     />
 
-                    {/* Status */}
-                    <FormControl fullWidth size="small">
-                        <InputLabel>Trạng thái</InputLabel>
-                        <Select
-                            label="Trạng thái"
-                            name="status"
-                            value={formData.status}
-                            onChange={handleChange}
-                        >
-                            {STATUSES.map(status => (
-                                <MenuItem key={status} value={status}>
-                                    {status === 'active' ? 'Hoạt động' : status === 'inactive' ? 'Không hoạt động' : 'Bị tạm dừng'}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    {/* Password - Only for new users */}
-                    {!editingUser ? (
-                        <>
-                            <TextField
-                                label="Mật khẩu"
-                                name="password"
-                                type="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                fullWidth
-                                size="small"
-                                required
-                            />
-                            <TextField
-                                label="Xác nhận mật khẩu"
-                                name="confirmPassword"
-                                type="password"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                                fullWidth
-                                size="small"
-                                required
-                            />
-                        </>
-                    ) : (
+                    {/* Password - Only for editing users (new users get auto password "123") */}
+                    {editingUser && (
                         <>
                             <TextField
                                 label="Mật khẩu mới (để trống nếu không thay đổi)"
@@ -301,18 +347,6 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                             )}
                         </>
                     )}
-
-                    {/* Is Active */}
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                name="is_active"
-                                checked={formData.is_active}
-                                onChange={handleChange}
-                            />
-                        }
-                        label="Hoạt động"
-                    />
                 </Box>
             </DialogContent>
             <DialogActions sx={{ p: 2, gap: 1 }}>

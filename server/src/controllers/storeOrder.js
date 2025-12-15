@@ -157,7 +157,7 @@ export const getStoreOrders = async (req, res) => {
 export const updateStoreOrderStatus = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { status, notes } = req.body;
+        const { status, notes, received_items } = req.body;
 
         if (!orderId || !status) {
             return res.status(400).json({
@@ -178,7 +178,8 @@ export const updateStoreOrderStatus = async (req, res) => {
             orderId: parseInt(orderId),
             status,
             updatedBy: req.user?.user_id,
-            notes: notes || null
+            notes: notes || null,
+            receivedItems: received_items || null
         });
 
         return res.status(response.err === 0 ? 200 : 400).json(response);

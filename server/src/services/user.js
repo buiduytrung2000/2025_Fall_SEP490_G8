@@ -13,7 +13,7 @@ export const getOne = (id) => new Promise(async (resolve, reject) => {
         })
         resolve({
             err: response ? 0 : 1,
-            msg: response ? 'OK' : 'Failed to get user.',
+            msg: response ? 'OK' : 'Không thể lấy thông tin người dùng.',
             response
         })
     } catch (error) {
@@ -53,7 +53,7 @@ export const getUserById = (userId) => new Promise(async (resolve, reject) => {
         })
         resolve({
             err: response ? 0 : 1,
-            msg: response ? 'OK' : 'User not found.',
+            msg: response ? 'OK' : 'Không tìm thấy người dùng.',
             response
         })
     } catch (error) {
@@ -64,18 +64,7 @@ export const getUserById = (userId) => new Promise(async (resolve, reject) => {
 // CREATE NEW USER
 export const createUser = (userData) => new Promise(async (resolve, reject) => {
     try {
-        // Check if username already exists
-        const existingUser = await db.User.findOne({
-            where: { username: userData.username }
-        })
-        if (existingUser) {
-            return resolve({
-                err: 1,
-                msg: 'Username already exists.'
-            })
-        }
-
-        // Check if email already exists
+        // Check if email already exists (email is required)
         if (userData.email) {
             const existingEmail = await db.User.findOne({
                 where: { email: userData.email }
@@ -83,16 +72,31 @@ export const createUser = (userData) => new Promise(async (resolve, reject) => {
             if (existingEmail) {
                 return resolve({
                     err: 1,
-                    msg: 'Email already exists.'
+                    msg: 'Email đã tồn tại.'
                 })
             }
+        }
+
+        // Generate unique username if it already exists
+        let finalUsername = userData.username;
+        let counter = 1;
+        while (true) {
+            const existingUser = await db.User.findOne({
+                where: { username: finalUsername }
+            })
+            if (!existingUser) {
+                break; // Username is available
+            }
+            // If username exists, append a number
+            finalUsername = `${userData.username}${counter}`;
+            counter++;
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(userData.password, 10)
 
         const newUser = await db.User.create({
-            username: userData.username,
+            username: finalUsername,
             password: hashedPassword,
             email: userData.email || null,
             phone: userData.phone || null,
@@ -117,7 +121,7 @@ export const createUser = (userData) => new Promise(async (resolve, reject) => {
 
         resolve({
             err: 0,
-            msg: 'User created successfully.',
+            msg: 'Tạo người dùng thành công.',
             response: userResponse
         })
     } catch (error) {
@@ -135,7 +139,7 @@ export const updateUser = (userId, updateData) => new Promise(async (resolve, re
         if (!user) {
             return resolve({
                 err: 1,
-                msg: 'User not found.'
+                msg: 'Không tìm thấy người dùng.'
             })
         }
 
@@ -147,7 +151,7 @@ export const updateUser = (userId, updateData) => new Promise(async (resolve, re
             if (existingUser) {
                 return resolve({
                     err: 1,
-                    msg: 'Username already exists.'
+                    msg: 'Tên người dùng đã tồn tại.'
                 })
             }
         }
@@ -160,7 +164,7 @@ export const updateUser = (userId, updateData) => new Promise(async (resolve, re
             if (existingEmail) {
                 return resolve({
                     err: 1,
-                    msg: 'Email already exists.'
+                    msg: 'Email đã tồn tại.'
                 })
             }
         }
@@ -185,7 +189,7 @@ export const updateUser = (userId, updateData) => new Promise(async (resolve, re
 
         resolve({
             err: 0,
-            msg: 'User updated successfully.',
+            msg: 'Cập nhật người dùng thành công.',
             response: userResponse
         })
     } catch (error) {
@@ -203,7 +207,7 @@ export const deleteUser = (userId) => new Promise(async (resolve, reject) => {
         if (!user) {
             return resolve({
                 err: 1,
-                msg: 'User not found.'
+                msg: 'Không tìm thấy người dùng.'
             })
         }
 
@@ -215,7 +219,7 @@ export const deleteUser = (userId) => new Promise(async (resolve, reject) => {
 
         resolve({
             err: 0,
-            msg: 'User deactivated successfully.'
+            msg: 'Vô hiệu hóa người dùng thành công.'
         })
     } catch (error) {
         reject(error)
@@ -232,7 +236,7 @@ export const reactivateUser = (userId) => new Promise(async (resolve, reject) =>
         if (!user) {
             return resolve({
                 err: 1,
-                msg: 'User not found.'
+                msg: 'Không tìm thấy người dùng.'
             })
         }
 
@@ -243,7 +247,7 @@ export const reactivateUser = (userId) => new Promise(async (resolve, reject) =>
 
         resolve({
             err: 0,
-            msg: 'User reactivated successfully.'
+            msg: 'Kích hoạt lại người dùng thành công.'
         })
     } catch (error) {
         reject(error)

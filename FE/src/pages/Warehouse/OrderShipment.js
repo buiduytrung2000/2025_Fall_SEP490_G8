@@ -195,20 +195,32 @@ const OrderShipment = () => {
   // =====================================================
 
   const handleEditQuantity = (item) => {
+    if (!['confirmed', 'delivered'].includes(order.status)) {
+      ToastNotification.warning('Chỉ cho phép chỉnh sửa số lượng khi đơn đã xác nhận hoặc đã giao');
+      return;
+    }
     setEditingItemId(item.order_item_id);
-    // Tính số lượng theo package unit để hiển thị khi edit
-    let editQty = item.quantity; // Mặc định dùng số lượng đặt
-    if (item.package_quantity !== null && item.package_quantity !== undefined) {
-      editQty = item.package_quantity;
-    } else if (item.actual_quantity) {
-      // Nếu có actual_quantity, cần tính về package unit
-      const packageConversion = item.inventory?.warehouse?.package_conversion;
-      if (packageConversion && packageConversion > 1) {
-        editQty = parseFloat((item.actual_quantity / packageConversion).toFixed(2));
+    // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
+    const conversionFactor = item.quantity_in_base && item.quantity_in_base > 1
+      ? item.quantity_in_base
+      : item.inventory?.warehouse?.package_conversion && item.inventory?.warehouse?.package_conversion > 1
+        ? item.inventory?.warehouse?.package_conversion
+        : null;
+
+    let editQty = item.quantity; // Mặc định dùng số lượng đặt (thùng)
+
+    if (item.actual_quantity !== null && item.actual_quantity !== undefined) {
+      // Quy đổi từ base unit (chai) sang package unit (thùng)
+      if (conversionFactor && conversionFactor > 1) {
+        editQty = parseFloat((item.actual_quantity / conversionFactor).toFixed(2));
       } else {
+        // Nếu không có conversion, coi actual_quantity đã là package unit
         editQty = item.actual_quantity;
       }
+    } else if (item.package_quantity !== null && item.package_quantity !== undefined) {
+      editQty = item.package_quantity;
     }
+
     setEditingQuantity(editQty);
   };
 
@@ -218,11 +230,51 @@ const OrderShipment = () => {
   };
 
   const handleSaveQuantity = async (itemId) => {
-    const qty = parseInt(editingQuantity);
+    const qty = parseFloat(editingQuantity);
 
     if (isNaN(qty) || qty < 0) {
       ToastNotification.error('Số lượng không hợp lệ');
       return;
+    }
+
+    // Tìm item để lấy thông tin
+    const currentItem = order.orderItems?.find(it => it.order_item_id === itemId);
+    if (!currentItem) {
+      ToastNotification.error('Không tìm thấy sản phẩm');
+      return;
+    }
+
+    // Validation khi trạng thái là "confirmed"
+    if (order.status === 'confirmed') {
+      // Không cho phép số lượng thực tế lớn hơn số lượng đặt
+      if (qty > currentItem.quantity) {
+        ToastNotification.error(`Số lượng thực tế không được lớn hơn số lượng đặt (${currentItem.quantity})`);
+        return;
+      }
+
+      // Nếu số lượng hiện tại là 1, không cho giảm về 0
+      const conversionFactor = currentItem.quantity_in_base && currentItem.quantity_in_base > 1
+        ? currentItem.quantity_in_base
+        : currentItem.inventory?.warehouse?.package_conversion && currentItem.inventory?.warehouse?.package_conversion > 1
+          ? currentItem.inventory?.warehouse?.package_conversion
+          : null;
+
+      let currentDisplayQty = currentItem.quantity;
+      if (currentItem.actual_quantity !== null && currentItem.actual_quantity !== undefined) {
+        if (conversionFactor && conversionFactor > 1) {
+          currentDisplayQty = parseFloat((currentItem.actual_quantity / conversionFactor).toFixed(2));
+        } else {
+          currentDisplayQty = currentItem.actual_quantity;
+        }
+      } else if (currentItem.package_quantity !== null && currentItem.package_quantity !== undefined) {
+        currentDisplayQty = currentItem.package_quantity;
+      }
+
+      // Nếu số lượng hiện tại là 1, không cho giảm về 0
+      if (currentDisplayQty === 1 && qty < 1) {
+        ToastNotification.error('Số lượng thực tế không được nhỏ hơn 1');
+        return;
+      }
     }
 
     setUpdating(true);
@@ -230,8 +282,67 @@ const OrderShipment = () => {
       const response = await updateOrderItemQuantity(itemId, qty);
       if (response.err === 0) {
         ToastNotification.success('Cập nhật số lượng thực tế thành công!');
+        // Cập nhật ngay trên UI (optimistic) dựa trên kết quả trả về
+        setOrder((prev) => {
+          if (!prev) return prev;
+          const updatedItems = prev.orderItems?.map((it) => {
+            if (it.order_item_id !== itemId) return it;
+
+            // Ưu tiên actual_quantity trả về từ backend (đơn vị base/chai)
+            const backendActual = response.data?.actual_quantity;
+            // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
+            const conversionFactor = it.quantity_in_base && it.quantity_in_base > 1
+              ? it.quantity_in_base
+              : it.inventory?.warehouse?.package_conversion && it.inventory?.warehouse?.package_conversion > 1
+                ? it.inventory?.warehouse?.package_conversion
+                : null;
+
+            // Backend đã lưu actual_quantity theo base unit (chai), chỉ cần quy đổi về package unit để hiển thị
+            const oldActualBase = Number(it.actual_quantity || 0);
+            const actualBase = backendActual !== undefined && backendActual !== null
+              ? backendActual
+              : conversionFactor
+                ? qty * conversionFactor  // qty là thùng, quy đổi sang chai
+                : qty; // fallback: nếu không có conversion thì coi qty là base unit
+
+            // Tính delta để cập nhật tồn kho
+            const delta = actualBase - oldActualBase;
+
+            // Quy đổi từ base unit sang package unit để hiển thị
+            const packageQty = conversionFactor && conversionFactor > 0
+              ? parseFloat((actualBase / conversionFactor).toFixed(2))
+              : actualBase; // Nếu không có conversion thì hiển thị trực tiếp
+
+            // Cập nhật tồn kho: số lượng thực tế tăng → tồn kho giảm, và ngược lại
+            const updatedInventory = it.inventory?.warehouse
+              ? {
+                  ...it.inventory,
+                  warehouse: {
+                    ...it.inventory.warehouse,
+                    base_quantity: Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta),
+                    // Tính lại package_quantity nếu có conversion
+                    package_quantity: conversionFactor && conversionFactor > 1
+                      ? parseFloat(((Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta)) / conversionFactor).toFixed(2))
+                      : it.inventory.warehouse.package_quantity
+                  }
+                }
+              : it.inventory;
+
+            return {
+              ...it,
+              actual_quantity: actualBase,      // lưu theo base unit (chai)
+              package_quantity: packageQty,     // hiển thị theo thùng
+              subtotal: response.data?.subtotal !== undefined && response.data?.subtotal !== null
+                ? response.data.subtotal
+                : packageQty * parseFloat(it.unit_price), // Cập nhật subtotal từ backend hoặc tính lại
+              inventory: updatedInventory       // cập nhật tồn kho
+            };
+          }) || [];
+
+          return { ...prev, orderItems: updatedItems };
+        });
+
         handleCancelEdit();
-        loadOrderDetail();
       } else {
         ToastNotification.error(response.msg || 'Không thể cập nhật số lượng');
       }
@@ -322,25 +433,34 @@ const OrderShipment = () => {
   }
 
   const totalProducts = order.orderItems?.length || 0; // Số loại sản phẩm
+  // Dùng trực tiếp subtotal từ database để đảm bảo chính xác
   const totalAmount = order.orderItems?.reduce((sum, item) => {
-    // Tính số lượng theo package unit (thùng) để nhân với unit_price (giá 1 thùng)
+    // Ưu tiên dùng subtotal từ database (chính xác nhất)
+    if (item.subtotal !== null && item.subtotal !== undefined) {
+      return sum + parseFloat(item.subtotal);
+    }
+    // Fallback: tính lại nếu không có subtotal
+    const conversionFactor = item.quantity_in_base && item.quantity_in_base > 1
+      ? item.quantity_in_base
+      : item.inventory?.warehouse?.package_conversion && item.inventory?.warehouse?.package_conversion > 1
+        ? item.inventory?.warehouse?.package_conversion
+        : null;
+
     let qty = item.quantity; // Mặc định dùng số lượng đặt
-    
-    if (item.package_quantity !== null && item.package_quantity !== undefined) {
-      // Nếu có package_quantity từ backend, dùng nó
-      qty = item.package_quantity;
-    } else if (item.actual_quantity) {
-      // Nếu có actual_quantity (base unit), tính về package unit
-      const packageConversion = item.inventory?.warehouse?.package_conversion;
-      if (packageConversion && packageConversion > 1) {
-        qty = parseFloat((item.actual_quantity / packageConversion).toFixed(2));
+
+    if (item.actual_quantity !== null && item.actual_quantity !== undefined) {
+      // Quy đổi từ base unit (chai) sang package unit (thùng)
+      if (conversionFactor && conversionFactor > 1) {
+        qty = parseFloat((item.actual_quantity / conversionFactor).toFixed(2));
       } else {
-        // Nếu không có conversion, dùng actual_quantity trực tiếp
+        // Nếu không có conversion, coi actual_quantity đã là package unit
         qty = item.actual_quantity;
       }
+    } else if (item.package_quantity !== null && item.package_quantity !== undefined) {
+      qty = item.package_quantity;
     }
-    
-    return sum + (qty * item.unit_price);
+
+    return sum + qty * item.unit_price;
   }, 0) || 0;
 
   const currentStep = getStatusStep(order.status);
@@ -363,7 +483,7 @@ const OrderShipment = () => {
           <ShippingIcon sx={{ fontSize: 40 }} />
           <Box>
             <Typography variant="h4" fontWeight={700}>
-              ordershipment
+              Chi tiết đơn hàng
             </Typography>
           </Box>
         </Stack>
@@ -444,14 +564,67 @@ const OrderShipment = () => {
             )}
 
             {/* Store confirmation note after receiving goods */}
-            {storeConfirmNote && (
+            {(storeConfirmNote || order.orderItems?.some(item => item.received_quantity !== null && item.received_quantity !== undefined)) && (
               <Paper sx={{ p: 3, mb: 3, bgcolor: '#e8f5e9', border: '1px solid #81c784' }}>
                 <Typography variant="h6" fontWeight={600} gutterBottom color="success.dark">
                   ✅ Ghi chú khi cửa hàng xác nhận đã nhận hàng
                 </Typography>
-                <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
-                  {storeConfirmNote}
-                </Typography>
+                
+                {/* Hiển thị số lượng nhận thực tế */}
+                {order.orderItems?.some(item => item.received_quantity !== null && item.received_quantity !== undefined) && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                      Số lượng nhận thực tế:
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>Sản phẩm</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }} align="right">SL Đặt</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }} align="right">SL Nhận thực tế</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {order.orderItems
+                            ?.filter(item => item.received_quantity !== null && item.received_quantity !== undefined)
+                            .map((item) => {
+                              // received_quantity đã được lưu ở đơn vị package (thùng) từ cửa hàng, hiển thị trực tiếp
+                              const receivedQtyDisplay = parseFloat(item.received_quantity);
+                              
+                              return (
+                                <TableRow key={item.order_item_id}>
+                                  <TableCell>{item.product?.name || item.product_name || 'N/A'}</TableCell>
+                                  <TableCell align="right">{item.quantity}</TableCell>
+                                  <TableCell align="right">
+                                    <Typography
+                                      variant="body2"
+                                      fontWeight={700}
+                                      color={receivedQtyDisplay !== item.quantity ? 'warning.main' : 'inherit'}
+                                    >
+                                      {receivedQtyDisplay}
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+                
+                {/* Hiển thị ghi chú */}
+                {storeConfirmNote && (
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                      Ghi chú:
+                    </Typography>
+                    <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+                      {storeConfirmNote}
+                    </Typography>
+                  </Box>
+                )}
               </Paper>
             )}
 
@@ -495,8 +668,10 @@ const OrderShipment = () => {
                       <TableCell sx={{ fontWeight: 700 }}>Mã SP</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>ĐVT</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">SL Đặt</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">SL Thực tế</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">SL Thực tế giao</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="right">
+                        {order.status === 'confirmed' ? 'Tồn kho dự kiến' : 'Tồn kho'}
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Đơn giá</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="right">Thành tiền</TableCell>
                       <TableCell sx={{ fontWeight: 700 }} align="center">Thao tác</TableCell>
@@ -516,30 +691,48 @@ const OrderShipment = () => {
                       const packageUnit = item.inventory?.warehouse?.package_unit;
                       const packageQuantityFromBackend = item.inventory?.warehouse?.package_quantity;
                       
-                      // Tính displayQty: ưu tiên package_quantity từ item, nếu không có thì tính từ actual_quantity
-                      let displayQty = item.quantity; // Mặc định dùng số lượng đặt
-                      if (item.package_quantity !== null && item.package_quantity !== undefined) {
-                        // Nếu có package_quantity từ backend, dùng nó
+                      // Hiển thị số lượng thực tế đúng như trong database
+                      // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
+                      let displayQty = item.quantity;
+                      if (item.actual_quantity !== null && item.actual_quantity !== undefined) {
+                        // Ưu tiên dùng quantity_in_base từ item (nếu có)
+                        const conversionFactor = item.quantity_in_base && item.quantity_in_base > 1
+                          ? item.quantity_in_base
+                          : packageConversion && packageConversion > 1
+                            ? packageConversion
+                            : null;
+                        
+                        if (conversionFactor && conversionFactor > 1) {
+                          // Quy đổi từ base unit (chai) sang package unit (thùng)
+                          displayQty = parseFloat((item.actual_quantity / conversionFactor).toFixed(2));
+                        } else {
+                          // Nếu không có conversion, coi actual_quantity đã là package unit
+                          displayQty = item.actual_quantity;
+                        }
+                      } else if (item.package_quantity !== null && item.package_quantity !== undefined) {
                         displayQty = item.package_quantity;
-                      } else if (item.actual_quantity && packageConversion && packageConversion > 1) {
-                        // Nếu có actual_quantity (base unit) và có conversion, tính về package unit
-                        displayQty = parseFloat((item.actual_quantity / packageConversion).toFixed(2));
-                      } else if (item.actual_quantity) {
-                        // Nếu chỉ có actual_quantity mà không có conversion, dùng trực tiếp
-                        displayQty = item.actual_quantity;
                       }
                       
-                      // Tính tồn kho theo thùng: ưu tiên dùng từ backend, nếu không có thì tính từ base_quantity
+                      // Tính tồn kho theo thùng: luôn tính lại từ base_quantity với quantity_in_base từ item để đảm bảo chính xác
                       let stockInPackages = null;
                       let packageUnitLabel = '';
+                      
+                      // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
+                      const stockConversionFactor = item.quantity_in_base && item.quantity_in_base > 1
+                        ? item.quantity_in_base
+                        : packageConversion && packageConversion > 1
+                          ? packageConversion
+                          : null;
                       
                       if (packageUnit) {
                         packageUnitLabel =  packageUnit.name || 'Thùng';
                         
-                        if (packageQuantityFromBackend !== null && packageQuantityFromBackend !== undefined) {
+                        // Luôn tính lại từ base_quantity với conversion factor chính xác từ item
+                        if (stockConversionFactor && stockConversionFactor > 1 && stockAvailable > 0) {
+                          stockInPackages = parseFloat((stockAvailable / stockConversionFactor).toFixed(2));
+                        } else if (packageQuantityFromBackend !== null && packageQuantityFromBackend !== undefined) {
+                          // Fallback: dùng từ backend nếu không có conversion factor
                           stockInPackages = parseFloat(packageQuantityFromBackend);
-                        } else if (packageConversion && packageConversion > 1 && stockAvailable > 0) {
-                          stockInPackages = parseFloat((stockAvailable / packageConversion).toFixed(2));
                         }
                       }
                       
@@ -579,10 +772,29 @@ const OrderShipment = () => {
                                 sx={{ width: 80 }}
                                 InputProps={{
                                   inputProps: {
-                                    min: 0,
-                                    max: stockInPackages 
-                                      ? Math.min(item.quantity, Math.floor(stockInPackages))
-                                      : Math.min(item.quantity, stockAvailable)
+                                    // Khi trạng thái là "confirmed": giới hạn theo số lượng đặt và không cho giảm về 0 nếu hiện tại là 1
+                                    // Khi trạng thái là "delivered": có thể tăng đến tồn kho
+                                    min: (() => {
+                                      if (order.status === 'confirmed') {
+                                        // Tính số lượng thực tế hiện tại để kiểm tra
+                                        const currentQty = item.actual_quantity !== null && item.actual_quantity !== undefined
+                                          ? (stockConversionFactor && stockConversionFactor > 1
+                                              ? parseFloat((item.actual_quantity / stockConversionFactor).toFixed(2))
+                                              : item.actual_quantity)
+                                          : item.package_quantity !== null && item.package_quantity !== undefined
+                                            ? item.package_quantity
+                                            : item.quantity;
+                                        return currentQty === 1 ? 1 : 0;
+                                      }
+                                      return 0;
+                                    })(),
+                                    max: order.status === 'confirmed'
+                                      ? item.quantity // Giới hạn bằng số lượng đặt
+                                      : stockInPackages !== null && stockInPackages !== undefined
+                                        ? Math.floor(stockInPackages)
+                                        : stockAvailable > 0
+                                          ? Math.floor(stockAvailable)
+                                          : undefined
                                   }
                                 }}
                               />
@@ -597,33 +809,62 @@ const OrderShipment = () => {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            {stockInPackages !== null && stockInPackages !== undefined && packageUnitLabel ? (
-                              <Box>
+                            {(() => {
+                              // Tính tồn kho dự kiến khi trạng thái là "confirmed"
+                              let displayStock = stockInPackages !== null && stockInPackages !== undefined
+                                ? stockInPackages
+                                : stockAvailable;
+                              
+                              let displayStockBase = stockAvailable;
+                              
+                              if (order.status === 'confirmed') {
+                                // Tồn kho dự kiến = tồn kho hiện tại - số lượng đặt (hoặc số lượng thực tế nếu đã có)
+                                const qtyToSubtract = displayQty; // Số lượng thực tế hoặc số lượng đặt
+                                
+                                if (stockInPackages !== null && stockInPackages !== undefined) {
+                                  // Tính theo package unit
+                                  displayStock = Math.max(0, stockInPackages - qtyToSubtract);
+                                } else {
+                                  // Tính theo base unit
+                                  const qtyToSubtractBase = stockConversionFactor && stockConversionFactor > 1
+                                    ? qtyToSubtract * stockConversionFactor
+                                    : qtyToSubtract;
+                                  displayStockBase = Math.max(0, stockAvailable - qtyToSubtractBase);
+                                  displayStock = displayStockBase;
+                                }
+                              }
+                              
+                              return stockInPackages !== null && stockInPackages !== undefined && packageUnitLabel ? (
+                                <Box>
+                                  <Chip
+                                    label={`${displayStock.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${packageUnitLabel}`}
+                                    size="small"
+                                    sx={{
+                                      bgcolor: order.status === 'confirmed' 
+                                        ? (displayStock < 0 ? '#ff5252' : '#4caf50')
+                                        : (isLowStock ? '#ff5252' : '#4caf50'),
+                                      color: 'white',
+                                      fontWeight: 700,
+                                      minWidth: 80,
+                                      mb: 0.5
+                                    }}
+                                  />
+                                </Box>
+                              ) : (
                                 <Chip
-                                  label={`${stockInPackages.toLocaleString('vi-VN')} ${packageUnitLabel}`}
+                                  label={displayStockBase.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}
                                   size="small"
                                   sx={{
-                                    bgcolor: isLowStock ? '#ff5252' : '#4caf50',
+                                    bgcolor: order.status === 'confirmed'
+                                      ? (displayStockBase < 0 ? '#ff5252' : '#4caf50')
+                                      : (isLowStock ? '#ff5252' : '#4caf50'),
                                     color: 'white',
                                     fontWeight: 700,
-                                    minWidth: 80,
-                                    mb: 0.5
+                                    minWidth: 50
                                   }}
                                 />
-                               
-                              </Box>
-                            ) : (
-                              <Chip
-                                label={stockAvailable.toLocaleString('vi-VN')}
-                                size="small"
-                                sx={{
-                                  bgcolor: isLowStock ? '#ff5252' : '#4caf50',
-                                  color: 'white',
-                                  fontWeight: 700,
-                                  minWidth: 50
-                                }}
-                              />
-                            )}
+                              );
+                            })()}
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2">
@@ -632,7 +873,8 @@ const OrderShipment = () => {
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" fontWeight={700}>
-                              {formatVnd(displayQty * item.unit_price)}
+                              {/* Dùng subtotal từ database để đảm bảo chính xác */}
+                              {formatVnd(item.subtotal !== null && item.subtotal !== undefined ? item.subtotal : displayQty * item.unit_price)}
                             </Typography>
                           </TableCell>
                           <TableCell align="center">
@@ -656,7 +898,11 @@ const OrderShipment = () => {
                                   icon={<Icon name="Edit" />}
                                   size="small"
                                   onClick={() => handleEditQuantity(item)}
-                                  disabled={stockAvailable === 0 || (stockInPackages !== null && stockInPackages < 1)}
+                                  disabled={
+                                    !['confirmed', 'delivered'].includes(order.status) ||
+                                    stockAvailable === 0 ||
+                                    (stockInPackages !== null && stockInPackages < 1)
+                                  }
                                 />
                             )}
                           </TableCell>
