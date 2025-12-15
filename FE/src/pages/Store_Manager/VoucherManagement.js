@@ -30,8 +30,10 @@ import {
     ToastNotification,
     Icon
 } from '../../components/common';
+import { useAuth } from '../../contexts/AuthContext';
 
 function VoucherManagement() {
+    const { user } = useAuth();
     const [templates, setTemplates] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -53,6 +55,20 @@ function VoucherManagement() {
         is_active: true
     });
 
+    const getStoreId = () => {
+        if (user?.store_id) return user.store_id;
+        try {
+            const persisted = localStorage.getItem('user');
+            if (persisted) {
+                const parsed = JSON.parse(persisted);
+                return parsed.store_id || null;
+            }
+        } catch (error) {
+            console.error('Error reading store_id from localStorage:', error);
+        }
+        return null;
+    };
+
     useEffect(() => {
         loadTemplates();
         loadCustomers();
@@ -60,10 +76,13 @@ function VoucherManagement() {
 
     const loadTemplates = async () => {
         try {
-            const res = await voucherTemplateApi.getAllVoucherTemplates();
+            const storeId = getStoreId();
+            const res = await voucherTemplateApi.getAllVoucherTemplates({ store_id: storeId });
             console.log('Voucher templates response:', res);
             if (res && res.err === 0) {
-                setTemplates(res.data || []);
+                const list = res.data || [];
+                const filtered = storeId ? list.filter(t => !t.store_id || t.store_id === storeId) : list;
+                setTemplates(filtered);
             } else {
                 console.error('Error loading templates:', res);
                 ToastNotification.error(res?.msg || 'Lỗi khi tải danh sách mẫu mã khuyến mãi');
@@ -87,9 +106,12 @@ function VoucherManagement() {
 
     const loadAvailableTemplatesForCustomer = async (customerId) => {
         try {
-            const res = await voucherTemplateApi.getAvailableTemplatesForCustomer(customerId);
+            const storeId = getStoreId();
+            const res = await voucherTemplateApi.getAvailableTemplatesForCustomer(customerId, { store_id: storeId });
             if (res && res.err === 0) {
-                setAvailableTemplates(res.data);
+                const list = res.data || [];
+                const filtered = storeId ? list.filter(t => !t.store_id || t.store_id === storeId) : list;
+                setAvailableTemplates(filtered);
             }
         } catch (error) {
             ToastNotification.error('Lỗi khi tải danh sách mã khuyến mãi khả dụng');
@@ -135,10 +157,12 @@ function VoucherManagement() {
     const handleSaveTemplate = async () => {
         try {
             let res;
+            const storeId = getStoreId();
+            const payload = { ...formData, store_id: storeId };
             if (editingTemplate) {
-                res = await voucherTemplateApi.updateVoucherTemplate(editingTemplate.voucher_template_id, formData);
+                res = await voucherTemplateApi.updateVoucherTemplate(editingTemplate.voucher_template_id, payload);
             } else {
-                res = await voucherTemplateApi.createVoucherTemplate(formData);
+                res = await voucherTemplateApi.createVoucherTemplate(payload);
             }
 
             if (res && res.err === 0) {

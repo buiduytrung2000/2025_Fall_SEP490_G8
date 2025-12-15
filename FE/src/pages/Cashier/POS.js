@@ -85,8 +85,7 @@ const POS = () => {
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newCustomer, setNewCustomer] = useState({
         name: '',
-        phone: '',
-        email: ''
+        phone: ''
     });
     const [vouchers, setVouchers] = useState([]);
     const [selectedVoucher, setSelectedVoucher] = useState(null);
@@ -426,6 +425,23 @@ const POS = () => {
         return () => clearTimeout(timer);
     }, [searchTerm, user]);
 
+    // Chặn đăng xuất khi chưa kết ca
+    useEffect(() => {
+        const handleLogoutBlock = (e) => {
+            const target = e.target;
+            const clickable = target?.closest && target.closest('button, a');
+            if (!clickable) return;
+            const text = (clickable.textContent || '').trim();
+            if (isShiftActive && text === 'Đăng xuất') {
+                e.preventDefault();
+                e.stopPropagation();
+                ToastNotification.error('Vui lòng kết ca trước khi đăng xuất');
+            }
+        };
+        document.addEventListener('click', handleLogoutBlock, true);
+        return () => document.removeEventListener('click', handleLogoutBlock, true);
+    }, [isShiftActive]);
+
     // Tải sản phẩm theo store_id của cashier
     useEffect(() => {
         const load = async () => {
@@ -651,6 +667,16 @@ const POS = () => {
 
         return () => clearTimeout(delaySearch);
     }, [customerPhone, handleSearchCustomer]);
+
+    // Đồng bộ số điện thoại tạo mới với ô tìm kiếm (khóa sửa ở form dưới)
+    useEffect(() => {
+        if (showCreateForm) {
+            setNewCustomer(prev => ({
+                ...prev,
+                phone: customerPhone
+            }));
+        }
+    }, [customerPhone, showCreateForm]);
 
     // Xử lý chọn khách hàng
     const handleSelectCustomer = async (customer) => {
@@ -880,6 +906,14 @@ const POS = () => {
     const handleCreateCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) {
             ToastNotification.error('Vui lòng nhập tên và số điện thoại');
+            return;
+        }
+        if (newCustomer.phone.length !== 10 || newCustomer.phone[0] !== '0') {
+            ToastNotification.error('Số điện thoại phải bắt đầu bằng 0 và đủ 10 số');
+            return;
+        }
+        if (customerPhone !== newCustomer.phone) {
+            ToastNotification.error('Số điện thoại phải khớp với ô tìm kiếm');
             return;
         }
 
@@ -1207,8 +1241,13 @@ const POS = () => {
                                 placeholder="Nhập số điện thoại..."
                                 value={customerPhone}
                                 onChange={(e) => {
-                                    // Chỉ cho phép nhập số và tối đa 10 ký tự
-                                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                    // Chỉ cho phép nhập số, bắt buộc bắt đầu bằng 0 và tối đa 10 ký tự
+                                    let value = e.target.value.replace(/\D/g, '');
+                                    if (value && value[0] !== '0') {
+                                        value = '0' + value.slice(0, 9);
+                                    } else {
+                                        value = value.slice(0, 10);
+                                    }
                                     setCustomerPhone(value);
                                 }}
                                 autoComplete="off"
@@ -1309,15 +1348,14 @@ const POS = () => {
                                                     type="tel"
                                                     placeholder="Số điện thoại *"
                                                     value={newCustomer.phone}
-                                                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                                                    fullWidth
-                                                />
-                                                <TextField
-                                                    size="small"
-                                                    type="email"
-                                                    placeholder="Email (tùy chọn)"
-                                                    value={newCustomer.email}
-                                                    onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                                    disabled
+                                                    inputProps={{
+                                                        maxLength: 10,
+                                                        pattern: '[0-9]*',
+                                                        inputMode: 'numeric',
+                                                        readOnly: true
+                                                    }}
+                                                    helperText="Số điện thoại lấy từ ô tìm kiếm (bắt đầu bằng 0, đủ 10 số)"
                                                     fullWidth
                                                 />
                                                 <Stack direction="row" spacing={1}>

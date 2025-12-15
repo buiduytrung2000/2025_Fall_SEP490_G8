@@ -14,6 +14,17 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
+    store_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Store',
+        key: 'store_id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      comment: 'Cửa hàng áp dụng (NULL = áp dụng cho mọi cửa hàng)'
+    },
     voucher_code_prefix: {
       type: DataTypes.STRING(20),
       allowNull: false,

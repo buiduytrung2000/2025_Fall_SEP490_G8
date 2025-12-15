@@ -806,10 +806,9 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                         await fromSchedule.update({ user_id: toSchedule.user_id });
                         await toSchedule.update({ user_id: tempUserId });
                     } else {
-                        // To schedule is empty, just move user
+                        // To schedule is empty, just move user and keep the old schedule record
                         await toSchedule.update({ user_id: tempUserId });
-                        // Xóa schedule cũ
-                        await fromSchedule.destroy();
+                        await fromSchedule.update({ user_id: null, status: 'draft' });
                     }
                 } else if (requestData.to_work_date && requestData.to_shift_template_id) {
                     // Swap với ca trống - tìm schedule ở ca trống (nếu có)
@@ -847,27 +846,25 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                         if (existingSchedule) {
                             // Đã có schedule ở ca trống
                             if (existingSchedule.user_id && existingSchedule.user_id === fromUserId) {
-                                // Cùng user, cùng ca - xóa fromSchedule
-                                await fromSchedule.destroy();
+                                // Cùng user, cùng ca - giữ lại fromSchedule nhưng làm trống user
+                                await fromSchedule.update({ user_id: null, status: 'draft' });
                             } else if (existingSchedule.user_id) {
                                 // Đã có nhân viên khác - swap
                                 const tempUserId = fromSchedule.user_id;
                                 await existingSchedule.update({ user_id: tempUserId, status: 'confirmed' });
-                                // Xóa schedule cũ
-                                await fromSchedule.destroy();
+                                await fromSchedule.update({ user_id: null, status: 'draft' });
                             } else {
                                 // Schedule trống (user_id = null) - chỉ cần gán user
                                 await existingSchedule.update({ user_id: fromUserId, status: 'confirmed' });
-                                // Xóa schedule cũ
-                                await fromSchedule.destroy();
+                                await fromSchedule.update({ user_id: null, status: 'draft' });
                             }
                         } else {
                             // Chưa có schedule - tạo mới
                             // Nhưng kiểm tra xem có trùng với fromSchedule không
                             if (fromSchedule.shift_template_id === toShiftTemplateId && 
                                 fromSchedule.work_date === toWorkDate) {
-                                // Cùng ca - xóa schedule cũ
-                                await fromSchedule.destroy();
+                                // Cùng ca - giữ lại fromSchedule nhưng làm trống user
+                                await fromSchedule.update({ user_id: null, status: 'draft' });
                             } else {
                                 // Khác ca - tạo schedule mới
                                 const scheduleData = {
@@ -880,9 +877,8 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                                 };
 
                                 const newSchedule = await db.Schedule.create(scheduleData);
-                                
-                                // Xóa schedule cũ
-                                await fromSchedule.destroy();
+                                // Sau khi tạo ca mới, giải phóng ca cũ thay vì xóa
+                                await fromSchedule.update({ user_id: null, status: 'draft' });
                             }
                         }
                     } catch (createError) {
@@ -890,8 +886,8 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                     }
                 } else {
                     // Swap nhưng không có to_schedule và không có thông tin ca trống
-                    // Có thể là để quản lý tự phân công - xóa schedule cũ
-                    await fromSchedule.destroy();
+                    // Để quản lý tự phân công - giữ lại record và giải phóng user
+                    await fromSchedule.update({ user_id: null, status: 'draft' });
                 }
             } else if (requestData.request_type === 'give_away' && requestData.to_user_id) {
                 // Give away: transfer the shift to another user
@@ -902,8 +898,7 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                     await fromSchedule.update({ user_id: requestData.to_user_id });
                 } else {
                     // Take over nhưng không có to_user_id - để quản lý tự phân công
-                    // Xóa schedule cũ
-                    await fromSchedule.destroy();
+                    await fromSchedule.update({ user_id: null, status: 'draft' });
                 }
             }
         }

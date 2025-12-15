@@ -12,12 +12,17 @@ function getAuthHeaders() {
 }
 
 // Get all voucher templates
-export async function getAllVoucherTemplates(isActive = null) {
-    const params = new URLSearchParams();
-    if (isActive !== null) {
-        params.append('is_active', isActive);
+// params: { is_active?, store_id? }
+export async function getAllVoucherTemplates(params = {}) {
+    const search = new URLSearchParams();
+    if (params.is_active !== undefined && params.is_active !== null) {
+        search.append('is_active', params.is_active);
     }
-    const res = await fetch(`${API_BASE}/voucher-template?${params.toString()}`, {
+    if (params.store_id !== undefined && params.store_id !== null) {
+        search.append('store_id', params.store_id);
+    }
+    const qs = search.toString();
+    const res = await fetch(`${API_BASE}/voucher-template${qs ? `?${qs}` : ''}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
     });
@@ -63,8 +68,14 @@ export async function deleteVoucherTemplate(id) {
 }
 
 // Get available templates for customer
-export async function getAvailableTemplatesForCustomer(customerId) {
-    const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available-templates`, {
+// params: { store_id? }
+export async function getAvailableTemplatesForCustomer(customerId, params = {}) {
+    const search = new URLSearchParams();
+    if (params.store_id !== undefined && params.store_id !== null) {
+        search.append('store_id', params.store_id);
+    }
+    const qs = search.toString();
+    const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available-templates${qs ? `?${qs}` : ''}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
     });

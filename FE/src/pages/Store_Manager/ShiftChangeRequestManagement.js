@@ -150,18 +150,9 @@ const ShiftChangeRequestManagement = ({ onRequestsUpdated = () => {} }) => {
     const loadRequests = useCallback(async () => {
         try {
             setLoading(true);
-            const filters = { store_id: storeId };
-            
-            if (tabValue === 0) {
-                filters.status = 'pending';
-            } else if (tabValue === 1) {
-                filters.status = 'approved';
-            } else if (tabValue === 2) {
-                filters.status = 'rejected';
-            }
-            // tabValue === 3: all requests
-
-            const res = await getShiftChangeRequests(filters);
+            // Always load all statuses so a request stays visible in the
+            // corresponding tab after being reviewed.
+            const res = await getShiftChangeRequests({ store_id: storeId });
             if (res?.err === 0) {
                 setRequests(res.data || []);
                 try {

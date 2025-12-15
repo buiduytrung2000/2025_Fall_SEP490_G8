@@ -118,7 +118,8 @@ const ShiftChangeRequest = () => {
         to_schedule_id: '',
         to_user_id: '',
         reason: '',
-        swap_option: 'auto',
+        // Mặc định cho phép chọn ca cụ thể để đổi
+        swap_option: 'manual',
     });
 
     const loadData = useCallback(async () => {
@@ -294,7 +295,7 @@ const ShiftChangeRequest = () => {
                 to_schedule_id: '',
                 to_user_id: '',
                 reason: '',
-                swap_option: 'auto',
+                swap_option: 'manual',
             });
         } else {
             setFormData({
@@ -303,7 +304,7 @@ const ShiftChangeRequest = () => {
                 to_schedule_id: '',
                 to_user_id: '',
                 reason: '',
-                swap_option: 'auto',
+                swap_option: 'manual',
             });
         }
         setSelectedWeek('');
@@ -543,6 +544,68 @@ const ShiftChangeRequest = () => {
         return `${date} - ${template?.name || 'Ca'} (${time})${employeeName ? ` - ${employeeName}` : ''}`;
     };
 
+// Hiển thị option ca làm rõ ràng hơn (2 dòng + chip trạng thái)
+const renderShiftOption = (shift, shiftTemplates) => {
+    const scheduleData = shift.get ? shift.get({ plain: true }) : shift;
+    const workDate = scheduleData.work_date || scheduleData.workDate;
+    const shiftTemplateId =
+        scheduleData.shift_template_id ||
+        scheduleData.shiftTemplateId ||
+        scheduleData.shiftTemplate?.shift_template_id ||
+        scheduleData.shiftTemplate?.id;
+    const template =
+        scheduleData.shiftTemplate ||
+        shiftTemplates.find((t) => t.shift_template_id === shiftTemplateId || t.id === shiftTemplateId);
+
+    const dateLabel = workDate ? formatDate(workDate) : 'N/A';
+    const timeLabel = template ? `${formatTime(template.start_time)} - ${formatTime(template.end_time)}` : 'N/A';
+    const isEmpty = scheduleData.is_empty || !scheduleData.user_id;
+    const employee = scheduleData.employee || {};
+    const employeeName =
+        employee.username ||
+        employee.email ||
+        scheduleData.user_id ||
+        (scheduleData.userId ? `NV#${scheduleData.userId}` : '');
+
+    return (
+        <Box display="flex" flexDirection="column" alignItems="flex-start" gap={0.25}>
+            <Typography variant="body2" fontWeight={600}>
+                {dateLabel} - {template?.name || 'Ca'} ({timeLabel})
+            </Typography>
+            <Box display="flex" alignItems="center" gap={1}>
+                <Typography variant="caption" color="text.secondary">
+                    {isEmpty ? 'Ca trống' : employeeName}
+                </Typography>
+                <Chip
+                    size="small"
+                    label={isEmpty ? 'Ca trống' : 'Đã có nhân viên'}
+                    color={isEmpty ? 'default' : 'info'}
+                    variant="outlined"
+                />
+            </Box>
+        </Box>
+    );
+};
+
+    // Ưu tiên hiển thị các ca chưa điểm danh lên trước
+    const sortedMySchedules = useMemo(() => {
+        const priority = (status) => {
+            // Chưa điểm danh hoặc không có trạng thái -> ưu tiên cao nhất
+            if (!status || status === 'not_checked_in') return 0;
+            return 1;
+        };
+        return [...mySchedules].sort((a, b) => {
+            const pa = priority(a.attendance_status);
+            const pb = priority(b.attendance_status);
+            if (pa !== pb) return pa - pb;
+            // fallback theo ngày và ca để ổn định
+            const da = a.work_date || a.workDate || '';
+            const db = b.work_date || b.workDate || '';
+            if (da !== db) return da.localeCompare(db);
+            return (a.shift_template_id || 0) - (b.shift_template_id || 0);
+        });
+    }, [mySchedules]);
+
     // Định nghĩa cột cho bảng lịch làm việc
     const scheduleColumns = useMemo(() => [
         {
@@ -659,7 +722,7 @@ const ShiftChangeRequest = () => {
                             ) : (
                                 <MaterialReactTable
                                     columns={scheduleColumns}
-                                    data={mySchedules}
+                                    data={sortedMySchedules}
                                     enableRowActions
                                     positionActionsColumn="last"
                                     enableColumnActions={false}
@@ -975,8 +1038,8 @@ const ShiftChangeRequest = () => {
                                         onChange={(e) => setFormData({ ...formData, swap_option: e.target.value, to_schedule_id: '' })}
                                         row
                                     >
-                                        <FormControlLabel value="auto" control={<Radio />} label="Để quản lý tự phân công" />
                                         <FormControlLabel value="manual" control={<Radio />} label="Chọn ca muốn đổi" />
+                                        <FormControlLabel value="auto" control={<Radio />} label="Để quản lý tự phân công" />
                                     </RadioGroup>
                                 </FormControl>
 
@@ -1028,7 +1091,7 @@ const ShiftChangeRequest = () => {
                                                             const value = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}`;
                                                             return (
                                                                 <MenuItem key={key} value={value}>
-                                                                    {getScheduleLabel(shift)}
+                                                                    {renderShiftOption(shift, shiftTemplates)}
                                                                 </MenuItem>
                                                             );
                                                         })
