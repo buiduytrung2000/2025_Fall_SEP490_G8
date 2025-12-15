@@ -177,13 +177,15 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
             return resolve({ err: 1, msg: 'Supplier not found' });
         }
 
-        // Create order - tự động set status thành 'confirmed' để cập nhật tồn kho ngay
+        // Create order - KHỞI TẠO ở trạng thái 'pending'.
+        // Tồn kho CHỈ được cập nhật khi đơn được xác nhận (status chuyển sang 'confirmed')
+        // thông qua hàm updateOrderStatus (không cộng tồn ngay lúc tạo).
         const orderCode = await generateOrderCode();
         const order = await db.Order.create({
             supplier_id: effectiveSupplierId,
             created_by,
             order_code: orderCode,
-            status: 'confirmed', // Tự động confirmed để cập nhật tồn kho
+            status: 'pending',
             expected_delivery: expected_delivery || null
         }, { transaction });
 
@@ -244,23 +246,9 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
             createdOrderItems.push(orderItem);
         }
 
-        // Tự động cập nhật tồn kho khi tạo order thành công
-        // Đơn nhập kho tổng, cộng vào WarehouseInventory
-        for (const orderItem of createdOrderItems) {
-            const inventory = await db.WarehouseInventory.findOne({
-                where: { product_id: orderItem.product_id },
-                transaction
-            });
-
-            if (inventory) {
-                await inventory.increment('stock', { by: orderItem.quantity_in_base, transaction });
-            } else {
-                await db.WarehouseInventory.create({
-                    product_id: orderItem.product_id,
-                    stock: orderItem.quantity_in_base,
-                }, { transaction });
-            }
-        }
+        // KHÔNG cập nhật tồn kho tại đây.
+        // Khi phiếu nhập được xác nhận (status: 'confirmed'),
+        // hàm updateOrderStatus sẽ cộng tồn kho tương ứng.
 
         await transaction.commit();
         resolve({

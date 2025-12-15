@@ -418,7 +418,7 @@ export const getOrderDetailService = async (orderId) => {
                 const conversionFromItem = item.package_quantity && item.actual_quantity
                     ? Number(item.actual_quantity) / Number(item.package_quantity)
                     : null;
-                
+
                 preferredPackageMeta = {
                     conversion_to_base: conversionFromItem,
                     unit: {
@@ -428,7 +428,7 @@ export const getOrderDetailService = async (orderId) => {
                     }
                 };
             }
-            
+
             // Nếu chưa có conversion, lấy từ ProductUnit
             if (!preferredPackageMeta?.conversion_to_base || preferredPackageMeta.conversion_to_base <= 1) {
                 const productUnitMeta = await getPreferredPackageUnit(item.product_id);
@@ -440,7 +440,7 @@ export const getOrderDetailService = async (orderId) => {
             if (warehouseInventory) {
                 const rawWarehouse = warehouseInventory.get({ plain: true });
                 const baseQty = Number(rawWarehouse.base_quantity) || 0;
-                
+
                 // Lấy package_conversion: ưu tiên từ rawWarehouse, nếu không có thì từ preferredPackageMeta
                 let pkgConversion = null;
                 if (rawWarehouse.package_conversion && rawWarehouse.package_conversion > 1) {
@@ -448,7 +448,7 @@ export const getOrderDetailService = async (orderId) => {
                 } else if (preferredPackageMeta?.conversion_to_base && preferredPackageMeta.conversion_to_base > 1) {
                     pkgConversion = Number(preferredPackageMeta.conversion_to_base);
                 }
-                
+
                 // Tính package_quantity: nếu có conversion thì tính, giữ 2 chữ số thập phân
                 let packageQty = null;
                 if (pkgConversion && pkgConversion > 1 && baseQty > 0) {
@@ -910,12 +910,12 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy, not
                 ],
                 transaction
             });
-            
+
             const itemsToUpdate = perishableItems.filter(item => item.product?.is_perishable);
-            
+
             // Tạo đơn NCC
             await createDirectSupplierOrdersForPerishable(order, transaction);
-            
+
             // Tự động cập nhật tồn kho của store cho các sản phẩm tươi sống
             await receivePerishableInventoryAtStore(orderId, itemsToUpdate, transaction);
         }
@@ -1157,11 +1157,12 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
             }
         }
 
-        // Lưu actual_quantity theo base unit (chai) vào DB
+        // Lưu actual_quantity theo base unit (chai) và package_quantity theo thùng vào DB
         await orderItem.update(
             {
-                actual_quantity: newActualBase, // Lưu theo base unit (chai)
-                subtotal: newActualPackage * parseFloat(orderItem.unit_price), // Tính tiền theo package unit (thùng)
+                actual_quantity: newActualBase, // Lưu theo base unit (chai) cho xử lý tồn kho
+                package_quantity: newActualPackage, // Lưu đúng số thùng mà user nhập để hiển thị lại
+                subtotal: newActualPackage * parseFloat(orderItem.unit_price), // Tính tiền theo đơn vị thùng
                 updated_at: new Date()
             },
             { transaction }
