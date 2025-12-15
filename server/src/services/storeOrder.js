@@ -289,24 +289,128 @@ export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes, rece
                     }, { transaction });
                 }
 
-                // Update received_quantity for each item if receivedItems provided
+                // Nếu có receivedItems: cập nhật SL nhận thực tế, điều chỉnh tồn kho chi nhánh và tổng tiền đơn
                 if (receivedItems && Array.isArray(receivedItems) && receivedItems.length > 0) {
+                    let newTotalAmount = 0;
+
                     for (const receivedItem of receivedItems) {
                         const item = await db.StoreOrderItem.findOne({
                             where: {
                                 store_order_id: orderId,
                                 sku: receivedItem.sku
                             },
-                            transaction
+                            transaction,
+                            lock: transaction.LOCK.UPDATE
                         });
 
-                        if (item) {
-                            await item.update({
-                                received_quantity: receivedItem.received_quantity || null,
-                                updated_at: new Date()
-                            }, { transaction });
+                        if (!item) continue;
+
+                        const receivedQtyPackage = Number(receivedItem.received_quantity ?? 0);
+                        if (isNaN(receivedQtyPackage) || receivedQtyPackage < 0) {
+                            continue;
                         }
+
+                        const unitPrice = Number(item.unit_price || 0);
+
+                        // Xác định conversion (thùng -> đơn vị base) để tính delta tồn kho
+                        let conversionToBase = null;
+                        if (item.quantity_in_base && item.quantity && Number(item.quantity) > 0 && Number(item.quantity_in_base) > Number(item.quantity)) {
+                            conversionToBase = Number(item.quantity_in_base) / Number(item.quantity);
+                        } else if (item.product_id) {
+                            const pkgMeta = await getPreferredPackageUnit(item.product_id);
+                            if (pkgMeta?.conversion_to_base && pkgMeta.conversion_to_base > 1) {
+                                conversionToBase = Number(pkgMeta.conversion_to_base);
+                            }
+                        }
+
+                        // shippedBase: số lượng base đã được cộng vào tồn kho khi warehouse chuyển trạng thái shipped -> delivered
+                        let shippedBase = 0;
+                        if (item.actual_quantity !== null && item.actual_quantity !== undefined) {
+                            shippedBase = Number(item.actual_quantity || 0);
+                        } else if (item.quantity_in_base !== null && item.quantity_in_base !== undefined) {
+                            shippedBase = Number(item.quantity_in_base || 0);
+                        } else if (conversionToBase && conversionToBase > 1) {
+                            shippedBase = Number(item.quantity || 0) * conversionToBase;
+                        } else {
+                            shippedBase = Number(item.quantity || 0);
+                        }
+
+                        // receivedBase: số lượng base tương ứng với SL nhận thực tế (thùng)
+                        let receivedBase = 0;
+                        if (conversionToBase && conversionToBase > 1) {
+                            receivedBase = receivedQtyPackage * conversionToBase;
+                        } else {
+                            receivedBase = receivedQtyPackage;
+                        }
+
+                        const deltaBase = receivedBase - shippedBase;
+
+                        // Điều chỉnh tồn kho chi nhánh theo chênh lệch giữa shipped và received
+                        if (deltaBase !== 0 && item.product_id && order.store_id) {
+                            const inventory = await db.Inventory.findOne({
+                                where: {
+                                    store_id: order.store_id,
+                                    product_id: item.product_id
+                                },
+                                transaction,
+                                lock: transaction.LOCK.UPDATE
+                            });
+
+                            if (inventory) {
+                                const newStock = Number(inventory.stock || 0) + deltaBase;
+                                if (newStock < 0) {
+                                    // Không cho tồn kho âm, rollback và báo lỗi
+                                    await transaction.rollback();
+                                    return resolve({
+                                        err: 1,
+                                        msg: `Tồn kho tại cửa hàng không đủ để điều chỉnh cho sản phẩm ${item.product_name || item.sku}`
+                                    });
+                                }
+
+                                await inventory.update(
+                                    {
+                                        stock: newStock,
+                                        updated_at: new Date()
+                                    },
+                                    { transaction }
+                                );
+                            } else if (deltaBase > 0) {
+                                // Nếu chưa có bản ghi tồn và delta > 0, tạo mới
+                                await db.Inventory.create(
+                                    {
+                                        store_id: order.store_id,
+                                        product_id: item.product_id,
+                                        stock: deltaBase,
+                                        min_stock_level: 0,
+                                        reorder_point: 0
+                                    },
+                                    { transaction }
+                                );
+                            }
+                        }
+
+                        // Cập nhật received_quantity và subtotal theo SL nhận thực tế
+                        const newSubtotal = receivedQtyPackage * unitPrice;
+                        await item.update(
+                            {
+                                received_quantity: receivedQtyPackage,
+                                subtotal: newSubtotal,
+                                updated_at: new Date()
+                            },
+                            { transaction }
+                        );
+
+                        newTotalAmount += newSubtotal;
                     }
+
+                    // Cập nhật tổng tiền đơn theo SL nhận thực tế
+                    await order.update(
+                        {
+                            total_amount: newTotalAmount,
+                            updated_at: new Date()
+                        },
+                        { transaction }
+                    );
                 }
 
                 await transaction.commit();
