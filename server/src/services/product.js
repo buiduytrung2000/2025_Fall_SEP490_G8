@@ -63,6 +63,29 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
             )
         }
 
+        // Attach inventory thresholds (min_stock_level, reorder_point) per product
+        // Note: one WarehouseInventory per product (warehouse level)
+        if (filteredData?.length) {
+            const productIds = filteredData.map(p => p.product_id)
+            const inventories = await db.WarehouseInventory.findAll({
+                where: { product_id: productIds },
+                attributes: ['product_id', 'min_stock_level', 'reorder_point'],
+                raw: true
+            })
+            const invMap = {}
+            inventories.forEach(inv => {
+                invMap[inv.product_id] = inv
+            })
+            filteredData = filteredData.map(prod => {
+                const inv = invMap[prod.product_id]
+                if (inv) {
+                    prod.dataValues.min_stock_level = inv.min_stock_level
+                    prod.dataValues.reorder_point = inv.reorder_point
+                }
+                return prod
+            })
+        }
+
         resolve({
             err: 0,
             msg: 'OK',
@@ -133,6 +156,17 @@ export const getOne = (product_id, include_inactive = false) => new Promise(asyn
             ],
             nest: true
         })
+        // Attach warehouse inventory thresholds (if any)
+        if (response) {
+            const inventory = await db.WarehouseInventory.findOne({
+                where: { product_id },
+                attributes: ['min_stock_level', 'reorder_point']
+            })
+            if (inventory) {
+                response.dataValues.min_stock_level = inventory.min_stock_level
+                response.dataValues.reorder_point = inventory.reorder_point
+            }
+        }
         resolve({
             err: response ? 0 : 1,
             msg: response ? 'OK' : 'Product not found',
@@ -157,11 +191,14 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             await transaction.rollback()
             resolve({
                 err: 1,
-                msg: 'SKU already exists',
+                msg: 'SKU đã tồng tại',
                 data: null
             })
             return
         }
+
+        const minStockLevel = body.min_stock_level !== undefined ? Number(body.min_stock_level) : 0
+        const reorderPoint = body.reorder_point !== undefined ? Number(body.reorder_point) : 0
 
         const response = await db.Product.create({
             name: body.name,
@@ -183,6 +220,15 @@ export const create = (body) => new Promise(async (resolve, reject) => {
                 conversion_to_base: body.conversion_factor
             }, { transaction })
         }
+
+        // Auto-create WarehouseInventory record with stock = 0
+        await db.WarehouseInventory.create({
+            product_id: response.product_id,
+            stock: 0,
+            reserved_quantity: 0,
+            min_stock_level: Math.max(0, minStockLevel),
+            reorder_point: Math.max(0, reorderPoint)
+        }, { transaction })
 
         await transaction.commit()
         resolve({
@@ -214,7 +260,7 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
                 await transaction.rollback()
                 resolve({
                     err: 1,
-                    msg: 'SKU already exists',
+                    msg: 'SKU đã tông tại',
                     data: false
                 })
                 return
@@ -281,6 +327,18 @@ export const update = (product_id, body) => new Promise(async (resolve, reject) 
                     conversion_to_base: body.conversion_factor
                 }, { transaction })
             }
+        }
+
+        // Update inventory thresholds if provided
+        if (body.min_stock_level !== undefined || body.reorder_point !== undefined) {
+            const invUpdate = {}
+            if (body.min_stock_level !== undefined) invUpdate.min_stock_level = Math.max(0, Number(body.min_stock_level) || 0)
+            if (body.reorder_point !== undefined) invUpdate.reorder_point = Math.max(0, Number(body.reorder_point) || 0)
+
+            await db.WarehouseInventory.update(invUpdate, {
+                where: { product_id },
+                transaction
+            })
         }
 
         await transaction.commit()

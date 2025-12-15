@@ -83,6 +83,7 @@ const ProductManagement = () => {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [filterCategory, setFilterCategory] = useState('');
     const [filterSupplier, setFilterSupplier] = useState('');
+    const [filterSku, setFilterSku] = useState('');
     const [editData, setEditData] = useState({
         product_id: null,
         sku: '',
@@ -95,6 +96,8 @@ const ProductManagement = () => {
         base_unit_id: '',
         package_unit_id: '',
         conversion_factor: '',
+        min_stock_level: '',
+        reorder_point: '',
         is_active: true
     });
     const [isEditMode, setIsEditMode] = useState(false);
@@ -247,6 +250,11 @@ const ProductManagement = () => {
     const filteredProducts = useMemo(() => {
         let filtered = products;
 
+        if (filterSku.trim()) {
+            const q = filterSku.trim().toLowerCase();
+            filtered = filtered.filter(p => (p.sku || '').toString().toLowerCase().includes(q));
+        }
+
         if (filterCategory) {
             filtered = filtered.filter(p => p.category_id === parseInt(filterCategory));
         }
@@ -256,7 +264,7 @@ const ProductManagement = () => {
         }
 
         return filtered;
-    }, [products, filterCategory, filterSupplier]);
+    }, [products, filterSku, filterCategory, filterSupplier]);
 
     const handleOpenAdd = () => {
         setEditData({
@@ -269,7 +277,9 @@ const ProductManagement = () => {
             description: '',
             base_unit_id: '',
             package_unit_id: '',
-            conversion_factor: ''
+            conversion_factor: '',
+            min_stock_level: '',
+            reorder_point: ''
         });
         setIsEditMode(false);
         setError(null);
@@ -282,7 +292,7 @@ const ProductManagement = () => {
             const productRes = await getProduct(prod.product_id);
             let packageUnitId = '';
             let conversionFactor = '';
-            
+
             if (productRes.err === 0 && productRes.data) {
                 const productData = productRes.data;
                 // Try to get package unit from units array if available
@@ -291,25 +301,27 @@ const ProductManagement = () => {
                     const packageUnit = productData.units
                         .filter(pu => pu.unit_id !== productData.base_unit_id)
                         .sort((a, b) => (b.conversion_to_base || 0) - (a.conversion_to_base || 0))[0];
-                    
+
                     if (packageUnit) {
                         packageUnitId = packageUnit.unit_id;
                         conversionFactor = packageUnit.conversion_to_base || '';
                     }
                 }
             }
-            
-        setEditData({
-            product_id: prod.product_id,
-            sku: prod.sku || '',
-            name: prod.name || '',
-            hq_price: prod.hq_price || '',
-            category_id: prod.category_id || '',
-            supplier_id: prod.supplier_id || '',
+
+            setEditData({
+                product_id: prod.product_id,
+                sku: prod.sku || '',
+                name: prod.name || '',
+                hq_price: prod.hq_price || '',
+                category_id: prod.category_id || '',
+                supplier_id: prod.supplier_id || '',
                 description: prod.description || '',
                 base_unit_id: prod.base_unit_id || '',
                 package_unit_id: packageUnitId,
-                conversion_factor: conversionFactor
+                conversion_factor: conversionFactor,
+                min_stock_level: prod.min_stock_level ?? '',
+                reorder_point: prod.reorder_point ?? ''
             });
         } catch (err) {
             // Fallback to basic data if API fails
@@ -323,10 +335,12 @@ const ProductManagement = () => {
                 description: prod.description || '',
                 base_unit_id: prod.base_unit_id || '',
                 package_unit_id: '',
-                conversion_factor: ''
+                conversion_factor: '',
+                min_stock_level: prod.min_stock_level ?? '',
+                reorder_point: prod.reorder_point ?? ''
             });
         }
-        
+
         setIsEditMode(true);
         setError(null);
         setShowEditDialog(true);
@@ -351,6 +365,14 @@ const ProductManagement = () => {
             setError('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
             return;
         }
+        if (editData.min_stock_level === '' || editData.reorder_point === '') {
+            setError('Vui lòng nhập Tồn tối thiểu và Điểm đặt hàng');
+            return;
+        }
+        if (Number(editData.min_stock_level) < 0 || Number(editData.reorder_point) < 0) {
+            setError('Tồn tối thiểu và Điểm đặt hàng phải lớn hơn hoặc bằng 0');
+            return;
+        }
 
         try {
             const productData = {
@@ -364,6 +386,8 @@ const ProductManagement = () => {
                 base_unit_id: editData.base_unit_id || null,
                 package_unit_id: editData.package_unit_id || null,
                 conversion_factor: editData.conversion_factor ? parseFloat(editData.conversion_factor) : null,
+                min_stock_level: Number(editData.min_stock_level),
+                reorder_point: Number(editData.reorder_point),
                 is_active: editData.is_active !== undefined ? editData.is_active : true
             };
 
@@ -402,17 +426,17 @@ const ProductManagement = () => {
                 const history = (response.data || []).map(rule => {
                     const isPermanent = isPermanentEndDateValue(rule.end_date);
                     return {
-                    rule_id: rule.rule_id,
-                    type: rule.type,
-                    value: parseFloat(rule.value),
-                    start_date: rule.start_date ? rule.start_date.split('T')[0] : '',
+                        rule_id: rule.rule_id,
+                        type: rule.type,
+                        value: parseFloat(rule.value),
+                        start_date: rule.start_date ? rule.start_date.split('T')[0] : '',
                         end_date: isPermanent
                             ? ''
                             : (rule.end_date ? rule.end_date.split('T')[0] : ''),
                         end_date_raw: rule.end_date,
                         status: rule.status || 'upcoming', // Lấy status từ DB
-                    created_at: rule.created_at,
-                    store: rule.store
+                        created_at: rule.created_at,
+                        store: rule.store
                     };
                 });
                 setPriceHistory(history);
@@ -432,10 +456,10 @@ const ProductManagement = () => {
         setEditingRule(null);
         setPriceType('fixed_price');
         setPriceValue(normalizePriceValue(product.latest_import_price) || '0');
-        
+
         // Load price history trước để tính ngày bắt đầu mặc định
         await loadPriceHistory(product.product_id);
-        
+
         // Tìm quy tắc hiện tại (quy tắc có start_date lớn nhất)
         let defaultStartDate = getTomorrowDate();
         if (priceHistory && priceHistory.length > 0) {
@@ -453,7 +477,7 @@ const ProductManagement = () => {
                 defaultStartDate = latestStartDate.toISOString().split('T')[0];
             }
         }
-        
+
         setStartDate(defaultStartDate);
         setEndDate('');
         setShowPriceModal(true);
@@ -522,7 +546,7 @@ const ProductManagement = () => {
 
         // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
         if (priceHistory && priceHistory.length > 0) {
-            
+
             // Tìm quy tắc có start_date lớn nhất (quy tắc cũ gần nhất)
             const sortedRules = [...priceHistory]
                 .filter(rule => {
@@ -535,12 +559,12 @@ const ProductManagement = () => {
                     const dateB = new Date(b.start_date);
                     return dateB - dateA; // Sắp xếp giảm dần
                 });
-            
+
             if (sortedRules.length > 0) {
                 const latestRule = sortedRules[0];
                 const latestStartDate = new Date(latestRule.start_date);
                 latestStartDate.setHours(0, 0, 0, 0);
-                
+
                 // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
                 if (startDateObj.getTime() === latestStartDate.getTime()) {
                     ToastNotification.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
@@ -565,32 +589,32 @@ const ProductManagement = () => {
             } else {
                 // Tạo quy tắc mới
                 response = await createPricingRule(ruleData);
-                
+
                 // Nếu tạo thành công, kiểm tra và tách quy tắc cũ nếu cần
                 if (response.err === 0 && priceHistory && priceHistory.length > 0) {
                     const newStartDate = new Date(actualStartDate);
                     newStartDate.setHours(0, 0, 0, 0);
                     const newEndDate = endDate ? new Date(endDate) : getPermanentEndDate();
                     newEndDate.setHours(23, 59, 59, 999);
-                    
+
                     // Tìm quy tắc có overlap với quy tắc mới
                     const coveringRule = priceHistory.find(rule => {
                         if (!rule.start_date) return false;
                         const ruleStart = new Date(rule.start_date);
                         ruleStart.setHours(0, 0, 0, 0);
-                        
+
                         // Quy tắc cũ phải bắt đầu trước hoặc bằng ngày bắt đầu quy tắc mới
                         if (ruleStart > newStartDate) return false;
-                        
-                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date) 
-                            ? getPermanentEndDate() 
+
+                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date)
+                            ? getPermanentEndDate()
                             : new Date(rule.end_date_raw || rule.end_date);
                         ruleEnd.setHours(23, 59, 59, 999);
-                        
+
                         // Quy tắc cũ phải kết thúc sau hoặc bằng ngày bắt đầu quy tắc mới (có overlap)
                         return ruleEnd >= newStartDate;
                     });
-                    
+
                     if (coveringRule) {
                         try {
                             const coveringStart = new Date(coveringRule.start_date);
@@ -599,13 +623,13 @@ const ProductManagement = () => {
                                 ? getPermanentEndDate()
                                 : new Date(coveringRule.end_date_raw || coveringRule.end_date);
                             coveringEnd.setHours(23, 59, 59, 999);
-                            
+
                             // Cập nhật phần trước quy tắc mới (nếu có)
                             if (coveringStart < newStartDate) {
                                 const beforeEndDate = new Date(newStartDate);
                                 beforeEndDate.setDate(beforeEndDate.getDate() - 1);
                                 beforeEndDate.setHours(23, 59, 59, 999);
-                                
+
                                 await updatePricingRule(coveringRule.rule_id, {
                                     end_date: beforeEndDate.toISOString()
                                 });
@@ -613,18 +637,18 @@ const ProductManagement = () => {
                                 // Nếu start_date trùng, xóa quy tắc cũ
                                 await deletePricingRule(coveringRule.rule_id);
                             }
-                            
+
                             // Tạo phần sau quy tắc mới (nếu có)
                             // Kiểm tra nếu quy tắc cũ kết thúc sau quy tắc mới
                             const isCoveringEndPermanent = isPermanentEndDateValue(coveringRule.end_date_raw || coveringRule.end_date);
                             const isNewEndPermanent = !endDate || isPermanentEndDateValue(endDate);
-                            
+
                             if (isCoveringEndPermanent && !isNewEndPermanent) {
                                 // Quy tắc cũ vĩnh viễn, quy tắc mới có ngày kết thúc → tạo phần sau
                                 const afterStartDate = new Date(newEndDate);
                                 afterStartDate.setDate(afterStartDate.getDate() + 1);
                                 afterStartDate.setHours(0, 0, 0, 0);
-                                
+
                                 await createPricingRule({
                                     product_id: selectedProduct.product_id,
                                     store_id: selectedStoreId,
@@ -638,9 +662,9 @@ const ProductManagement = () => {
                                 const afterStartDate = new Date(newEndDate);
                                 afterStartDate.setDate(afterStartDate.getDate() + 1);
                                 afterStartDate.setHours(0, 0, 0, 0);
-                                
+
                                 const afterEndDate = coveringEnd.toISOString();
-                                
+
                                 await createPricingRule({
                                     product_id: selectedProduct.product_id,
                                     store_id: selectedStoreId,
@@ -655,23 +679,23 @@ const ProductManagement = () => {
                             ToastNotification.error('Lỗi khi tách quy tắc cũ');
                         }
                     }
-                    
+
                     // Tìm và xóa các quy tắc nằm hoàn toàn trong khoảng thời gian của quy tắc mới
                     const containedRules = priceHistory.filter(rule => {
                         if (!rule.start_date) return false;
                         const ruleStart = new Date(rule.start_date);
                         ruleStart.setHours(0, 0, 0, 0);
-                        
+
                         // Quy tắc cũ phải bắt đầu sau hoặc bằng ngày bắt đầu quy tắc mới
                         if (ruleStart < newStartDate) return false;
-                        
-                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date) 
-                            ? getPermanentEndDate() 
+
+                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date)
+                            ? getPermanentEndDate()
                             : new Date(rule.end_date_raw || rule.end_date);
                         ruleEnd.setHours(23, 59, 59, 999);
-                        
+
                         const isNewEndPermanent = !endDate || isPermanentEndDateValue(endDate);
-                        
+
                         // Quy tắc cũ phải nằm hoàn toàn trong quy tắc mới
                         if (isNewEndPermanent) {
                             // Quy tắc mới vĩnh viễn → quy tắc cũ chỉ cần bắt đầu sau newStartDate
@@ -681,7 +705,7 @@ const ProductManagement = () => {
                             return ruleStart >= newStartDate && ruleEnd <= newEndDate;
                         }
                     });
-                    
+
                     if (containedRules.length > 0) {
                         try {
                             for (const containedRule of containedRules) {
@@ -692,7 +716,7 @@ const ProductManagement = () => {
                             ToastNotification.error('Lỗi khi xóa quy tắc cũ');
                         }
                     }
-                    
+
                     // Logic cũ: cập nhật quy tắc trước đó (nếu không có coveringRule và không có containedRules)
                     if (!coveringRule && containedRules.length === 0) {
                         const sortedRules = [...priceHistory].sort((a, b) => {
@@ -700,18 +724,18 @@ const ProductManagement = () => {
                             const dateB = new Date(b.start_date || 0);
                             return dateB - dateA;
                         });
-                        
+
                         const previousRule = sortedRules.find(rule => {
                             const ruleStart = new Date(rule.start_date);
                             const newStart = new Date(actualStartDate);
                             return ruleStart < newStart;
                         });
-                        
+
                         if (previousRule) {
                             const newEndDate = new Date(startDate);
                             newEndDate.setDate(newEndDate.getDate() - 1);
                             const endDateStr = newEndDate.toISOString().split('T')[0] + 'T23:59:59';
-                            
+
                             try {
                                 await updatePricingRule(previousRule.rule_id, {
                                     end_date: endDateStr
@@ -816,7 +840,7 @@ const ProductManagement = () => {
                     };
                 });
                 setProductPriceHistory(normalized);
-                
+
                 // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                 let defaultStartDate = getTomorrowDate();
                 if (normalized && normalized.length > 0) {
@@ -929,7 +953,7 @@ const ProductManagement = () => {
 
         // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
         if (productPriceHistory && productPriceHistory.length > 0) {
-            
+
             // Tìm quy tắc có start_date lớn nhất (quy tắc cũ gần nhất)
             const sortedRules = [...productPriceHistory]
                 .filter(rule => {
@@ -942,12 +966,12 @@ const ProductManagement = () => {
                     const dateB = new Date(b.start_date);
                     return dateB - dateA; // Sắp xếp giảm dần
                 });
-            
+
             if (sortedRules.length > 0) {
                 const latestRule = sortedRules[0];
                 const latestStartDate = new Date(latestRule.start_date);
                 latestStartDate.setHours(0, 0, 0, 0);
-                
+
                 // Kiểm tra nếu ngày bắt đầu trùng với quy tắc khác
                 if (startDateObj.getTime() === latestStartDate.getTime()) {
                     ToastNotification.error('Ngày bắt đầu không được trùng với ngày bắt đầu của quy tắc đã tồn tại');
@@ -1002,32 +1026,32 @@ const ProductManagement = () => {
             } else {
                 // Tạo quy tắc mới
                 response = await createPricingRule(ruleData);
-                
+
                 // Nếu tạo thành công, kiểm tra và tách quy tắc cũ nếu cần
                 if (response.err === 0 && productPriceHistory && productPriceHistory.length > 0) {
                     const newStartDate = new Date(actualStartDateDetail);
                     newStartDate.setHours(0, 0, 0, 0);
                     const newEndDate = detailEndDate ? new Date(detailEndDate) : getPermanentEndDate();
                     newEndDate.setHours(23, 59, 59, 999);
-                    
+
                     // Tìm quy tắc có overlap với quy tắc mới
                     const coveringRule = productPriceHistory.find(rule => {
                         if (!rule.start_date) return false;
                         const ruleStart = new Date(rule.start_date);
                         ruleStart.setHours(0, 0, 0, 0);
-                        
+
                         // Quy tắc cũ phải bắt đầu trước hoặc bằng ngày bắt đầu quy tắc mới
                         if (ruleStart > newStartDate) return false;
-                        
-                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date) 
-                            ? getPermanentEndDate() 
+
+                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date)
+                            ? getPermanentEndDate()
                             : new Date(rule.end_date_raw || rule.end_date);
                         ruleEnd.setHours(23, 59, 59, 999);
-                        
+
                         // Quy tắc cũ phải kết thúc sau hoặc bằng ngày bắt đầu quy tắc mới (có overlap)
                         return ruleEnd >= newStartDate;
                     });
-                    
+
                     if (coveringRule) {
                         try {
                             const coveringStart = new Date(coveringRule.start_date);
@@ -1036,13 +1060,13 @@ const ProductManagement = () => {
                                 ? getPermanentEndDate()
                                 : new Date(coveringRule.end_date_raw || coveringRule.end_date);
                             coveringEnd.setHours(23, 59, 59, 999);
-                            
+
                             // Cập nhật phần trước quy tắc mới (nếu có)
                             if (coveringStart < newStartDate) {
                                 const beforeEndDate = new Date(newStartDate);
                                 beforeEndDate.setDate(beforeEndDate.getDate() - 1);
                                 beforeEndDate.setHours(23, 59, 59, 999);
-                                
+
                                 await updatePricingRule(coveringRule.rule_id, {
                                     end_date: beforeEndDate.toISOString()
                                 });
@@ -1050,18 +1074,18 @@ const ProductManagement = () => {
                                 // Nếu start_date trùng, xóa quy tắc cũ
                                 await deletePricingRule(coveringRule.rule_id);
                             }
-                            
+
                             // Tạo phần sau quy tắc mới (nếu có)
                             // Kiểm tra nếu quy tắc cũ kết thúc sau quy tắc mới
                             const isCoveringEndPermanent = isPermanentEndDateValue(coveringRule.end_date_raw || coveringRule.end_date);
                             const isNewEndPermanent = !detailEndDate || isPermanentEndDateValue(detailEndDate);
-                            
+
                             if (isCoveringEndPermanent && !isNewEndPermanent) {
                                 // Quy tắc cũ vĩnh viễn, quy tắc mới có ngày kết thúc → tạo phần sau
                                 const afterStartDate = new Date(newEndDate);
                                 afterStartDate.setDate(afterStartDate.getDate() + 1);
                                 afterStartDate.setHours(0, 0, 0, 0);
-                                
+
                                 await createPricingRule({
                                     product_id: productDetail.product_id,
                                     store_id: selectedStoreId,
@@ -1075,9 +1099,9 @@ const ProductManagement = () => {
                                 const afterStartDate = new Date(newEndDate);
                                 afterStartDate.setDate(afterStartDate.getDate() + 1);
                                 afterStartDate.setHours(0, 0, 0, 0);
-                                
+
                                 const afterEndDate = coveringEnd.toISOString();
-                                
+
                                 await createPricingRule({
                                     product_id: productDetail.product_id,
                                     store_id: selectedStoreId,
@@ -1092,23 +1116,23 @@ const ProductManagement = () => {
                             ToastNotification.error('Lỗi khi tách quy tắc cũ');
                         }
                     }
-                    
+
                     // Tìm và xóa các quy tắc nằm hoàn toàn trong khoảng thời gian của quy tắc mới
                     const containedRules = productPriceHistory.filter(rule => {
                         if (!rule.start_date) return false;
                         const ruleStart = new Date(rule.start_date);
                         ruleStart.setHours(0, 0, 0, 0);
-                        
+
                         // Quy tắc cũ phải bắt đầu sau hoặc bằng ngày bắt đầu quy tắc mới
                         if (ruleStart < newStartDate) return false;
-                        
-                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date) 
-                            ? getPermanentEndDate() 
+
+                        const ruleEnd = isPermanentEndDateValue(rule.end_date_raw || rule.end_date)
+                            ? getPermanentEndDate()
                             : new Date(rule.end_date_raw || rule.end_date);
                         ruleEnd.setHours(23, 59, 59, 999);
-                        
+
                         const isNewEndPermanent = !detailEndDate || isPermanentEndDateValue(detailEndDate);
-                        
+
                         // Quy tắc cũ phải nằm hoàn toàn trong quy tắc mới
                         if (isNewEndPermanent) {
                             // Quy tắc mới vĩnh viễn → quy tắc cũ chỉ cần bắt đầu sau newStartDate
@@ -1118,7 +1142,7 @@ const ProductManagement = () => {
                             return ruleStart >= newStartDate && ruleEnd <= newEndDate;
                         }
                     });
-                    
+
                     if (containedRules.length > 0) {
                         try {
                             for (const containedRule of containedRules) {
@@ -1129,7 +1153,7 @@ const ProductManagement = () => {
                             ToastNotification.error('Lỗi khi xóa quy tắc cũ');
                         }
                     }
-                    
+
                     // Logic cũ: cập nhật quy tắc trước đó (nếu không có coveringRule và không có containedRules)
                     if (!coveringRule && containedRules.length === 0) {
                         const sortedRules = [...productPriceHistory].sort((a, b) => {
@@ -1137,18 +1161,18 @@ const ProductManagement = () => {
                             const dateB = new Date(b.start_date || 0);
                             return dateB - dateA;
                         });
-                        
+
                         const previousRule = sortedRules.find(rule => {
                             const ruleStart = new Date(rule.start_date);
                             const newStart = new Date(actualStartDateDetail);
                             return ruleStart < newStart;
                         });
-                        
+
                         if (previousRule) {
                             const newEndDate = new Date(detailStartDate);
                             newEndDate.setDate(newEndDate.getDate() - 1);
                             const endDateStr = newEndDate.toISOString().split('T')[0] + 'T23:59:59';
-                            
+
                             try {
                                 await updatePricingRule(previousRule.rule_id, {
                                     end_date: endDateStr
@@ -1168,7 +1192,7 @@ const ProductManagement = () => {
                 setDetailEditingRule(null);
                 setDetailPriceType('fixed_price');
                 setDetailPriceValue(productDetail.latest_import_price || '0');
-                
+
                 // Tính lại ngày bắt đầu mặc định sau khi reload
                 const priceHistoryRes = await getProductPriceHistory(productDetail.product_id, selectedStoreId);
                 if (priceHistoryRes.err === 0) {
@@ -1182,7 +1206,7 @@ const ProductManagement = () => {
                         };
                     });
                     setProductPriceHistory(normalized);
-                    
+
                     // Tính ngày bắt đầu mặc định
                     let defaultStartDate = getTomorrowDate();
                     if (normalized && normalized.length > 0) {
@@ -1394,32 +1418,32 @@ const ProductManagement = () => {
                         }
                     } else {
                         // Tính toán lại nếu không có status từ DB (dữ liệu cũ)
-                    const now = new Date();
-                    now.setHours(0, 0, 0, 0);
-                    const startDate = item.start_date ? new Date(item.start_date) : null;
-                    const endDate = item.end_date ? new Date(item.end_date) : null;
+                        const now = new Date();
+                        now.setHours(0, 0, 0, 0);
+                        const startDate = item.start_date ? new Date(item.start_date) : null;
+                        const endDate = item.end_date ? new Date(item.end_date) : null;
 
-                    if (startDate) {
-                        startDate.setHours(0, 0, 0, 0);
-                        if (endDate) {
-                            endDate.setHours(23, 59, 59, 999);
-                            if (now >= startDate && now <= endDate) {
-                                status = 'Đang áp dụng';
-                                statusColor = 'success';
-                            } else if (now < startDate) {
-                                status = 'Chuẩn bị áp dụng';
-                                statusColor = 'warning';
+                        if (startDate) {
+                            startDate.setHours(0, 0, 0, 0);
+                            if (endDate) {
+                                endDate.setHours(23, 59, 59, 999);
+                                if (now >= startDate && now <= endDate) {
+                                    status = 'Đang áp dụng';
+                                    statusColor = 'success';
+                                } else if (now < startDate) {
+                                    status = 'Chuẩn bị áp dụng';
+                                    statusColor = 'warning';
+                                } else {
+                                    status = 'Đã hết hạn';
+                                    statusColor = 'default';
+                                }
                             } else {
-                                status = 'Đã hết hạn';
-                                statusColor = 'default';
-                            }
-                        } else {
-                            if (now >= startDate) {
-                                status = 'Đang áp dụng';
-                                statusColor = 'success';
-                            } else {
-                                status = 'Chuẩn bị áp dụng';
-                                statusColor = 'warning';
+                                if (now >= startDate) {
+                                    status = 'Đang áp dụng';
+                                    statusColor = 'success';
+                                } else {
+                                    status = 'Chuẩn bị áp dụng';
+                                    statusColor = 'warning';
                                 }
                             }
                         }
@@ -1458,6 +1482,12 @@ const ProductManagement = () => {
 
             {/* Bộ lọc */}
             <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <TextField
+                    label="Nhập mã SKU"
+                    value={filterSku}
+                    onChange={(e) => setFilterSku(e.target.value)}
+                    sx={{ minWidth: 200 }}
+                />
                 <FormControl sx={{ minWidth: 200 }}>
                     <InputLabel>Danh mục</InputLabel>
                     <Select
@@ -1494,9 +1524,10 @@ const ProductManagement = () => {
                     </Select>
                 </FormControl>
 
-                {(filterCategory || filterSupplier) && (
+                {(filterSku || filterCategory || filterSupplier) && (
                     <SecondaryButton
                         onClick={() => {
+                            setFilterSku('');
                             setFilterCategory('');
                             setFilterSupplier('');
                         }}
@@ -1605,6 +1636,35 @@ const ProductManagement = () => {
                             fullWidth
                             margin="normal"
                         />
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Tồn tối thiểu"
+                                    name="min_stock_level"
+                                    type="number"
+                                    inputProps={{ min: 0, step: 1 }}
+                                    value={editData.min_stock_level}
+                                    onChange={handleEditField}
+                                    fullWidth
+                                    margin="normal"
+                                    required
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Điểm đặt hàng"
+                                    name="reorder_point"
+                                    type="number"
+                                    inputProps={{ min: 0, step: 1 }}
+                                    value={editData.reorder_point}
+                                    onChange={handleEditField}
+                                    fullWidth
+                                    margin="normal"
+                                    required
+                                    helperText="Khi tồn kho xuống tới mức này sẽ cần đặt hàng"
+                                />
+                            </Grid>
+                        </Grid>
                         <FormControl fullWidth margin="normal">
                             <InputLabel>Danh mục</InputLabel>
                             <Select
@@ -1725,7 +1785,7 @@ const ProductManagement = () => {
                                     setEditingRule(null);
                                     setPriceType('fixed_price');
                                     setPriceValue(normalizePriceValue(selectedProduct?.latest_import_price) || '0');
-                                    
+
                                     // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                                     let defaultStartDate = getTomorrowDate();
                                     if (priceHistory && priceHistory.length > 0) {
@@ -1804,17 +1864,17 @@ const ProductManagement = () => {
                                     <TableBody>
                                         {priceHistory && priceHistory.length > 0 ? (
                                             priceHistory.map((rule) => (
-                                                    <TableRow key={rule.rule_id} hover>
-                                                        <TableCell align="right">
-                                                            {rule.type === 'fixed_price'
-                                                                ? formatCurrency(rule.value)
-                                                                : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
-                                                            }
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
-                                                        </TableCell>
-                                                        <TableCell>
+                                                <TableRow key={rule.rule_id} hover>
+                                                    <TableCell align="right">
+                                                        {rule.type === 'fixed_price'
+                                                            ? formatCurrency(rule.value)
+                                                            : formatCurrency(rule.value) + (rule.type === 'markup' ? ' (+)' : ' (-)')
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {rule.start_date ? new Date(rule.start_date).toLocaleDateString('vi-VN') : 'N/A'}
+                                                    </TableCell>
+                                                    <TableCell>
                                                         {rule.end_date ? new Date(rule.end_date).toLocaleString('vi-VN', {
                                                             year: 'numeric',
                                                             month: '2-digit',
@@ -1823,28 +1883,28 @@ const ProductManagement = () => {
                                                             minute: '2-digit',
                                                             second: '2-digit'
                                                         }) : 'Không giới hạn'}
-                                                        </TableCell>
-                                                        <TableCell align="center">
-                                                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                                <ActionButton
-                                                                    icon={<Icon name="Edit" size="small" />}
-                                                                    action="edit"
-                                                                    size="small"
-                                                                    onClick={() => handleEditRule(rule)}
-                                                                    tooltip="Chỉnh sửa"
-                                                                    disabled={rule.status === 'active'}
-                                                                />
-                                                                <ActionButton
-                                                                    icon={<Icon name="Delete" size="small" />}
-                                                                    action="delete"
-                                                                    size="small"
-                                                                    onClick={() => handleDeleteRule(rule.rule_id)}
-                                                                    tooltip="Xóa"
-                                                                    disabled={rule.status === 'active'}
-                                                                />
-                                                            </Box>
-                                                        </TableCell>
-                                                    </TableRow>
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                                                            <ActionButton
+                                                                icon={<Icon name="Edit" size="small" />}
+                                                                action="edit"
+                                                                size="small"
+                                                                onClick={() => handleEditRule(rule)}
+                                                                tooltip="Chỉnh sửa"
+                                                                disabled={rule.status === 'active'}
+                                                            />
+                                                            <ActionButton
+                                                                icon={<Icon name="Delete" size="small" />}
+                                                                action="delete"
+                                                                size="small"
+                                                                onClick={() => handleDeleteRule(rule.rule_id)}
+                                                                tooltip="Xóa"
+                                                                disabled={rule.status === 'active'}
+                                                            />
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
@@ -2100,7 +2160,7 @@ const ProductManagement = () => {
                                                                         setDetailEditingRule(null);
                                                                         setDetailPriceType('fixed_price');
                                                                         setDetailPriceValue(productDetail?.latest_import_price || '0');
-                                                                        
+
                                                                         // Tính ngày bắt đầu mặc định dựa trên quy tắc cũ
                                                                         let defaultStartDate = getTomorrowDate();
                                                                         if (productPriceHistory && productPriceHistory.length > 0) {

@@ -19,7 +19,7 @@ import {
 // --- Cấu hình navLinks và getMenuHeading giữ nguyên ---
 const navLinks = {
     Admin: [
-        { to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" },
+        // { to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" },
         { to: "/admin/users", icon: <FaUserFriends />, text: "Quản lý Người dùng" }
     ],
     Manager: [
@@ -50,7 +50,7 @@ const navLinks = {
         { to: "/warehouse/inventory", icon: <FaBoxes />, text: "Quản lý Tồn kho" },
         { to: "/warehouse/stock-count-reports", icon: <FaChartPie />, text: "Báo cáo Kiểm kê" },
         // Đơn hàng
-        { to: "/warehouse/orders", icon: <FaClipboardList />, text: "Đơn đặt hàng (Kho → NCC)" },
+        { to: "/warehouse/orders", icon: <FaClipboardList />, text: "Phiếu nhập/xuất hàng" },
         { to: "/warehouse/branch-orders", icon: <FaTruck />, text: "Đơn hàng chi nhánh" },
         // Sản phẩm & Giá
         { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
@@ -144,7 +144,7 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
             <div className="sidebar-footer">
                 {user && (
                     <div className="user-info">
-                     
+
                         <span className="user-role">{getRoleLabel(user.role)}</span>
                     </div>
                 )}

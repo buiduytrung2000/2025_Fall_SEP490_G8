@@ -189,11 +189,11 @@ const InventoryList = () => {
       if (isNaN(numValue)) numValue = '';
     }
     next[index][field] = numValue;
-    
+
     // Recalculate difference
     const actualStock = numValue === '' ? next[index].system_stock : numValue;
     next[index].difference = actualStock - next[index].system_stock;
-    
+
     setStockCountItems(next);
   };
 
@@ -203,7 +203,7 @@ const InventoryList = () => {
       const actualStock = item.actual_stock === '' || item.actual_stock === null || item.actual_stock === undefined
         ? null
         : Number(item.actual_stock);
-      
+
       if (actualStock === null || isNaN(actualStock)) {
         ToastNotification.error(`Vui lòng nhập số lượng thực tế cho: ${item.product_name}`);
         return;
@@ -218,11 +218,11 @@ const InventoryList = () => {
 
       // Prepare reports for items with shortage (thiếu hàng)
       const shortageReports = [];
-      
+
       for (const item of stockCountItems) {
         const actualStock = Number(item.actual_stock);
         const adjustment = actualStock - item.system_stock;
-        
+
         // Skip if no adjustment needed
         if (adjustment === 0) {
           successCount++;
@@ -237,7 +237,7 @@ const InventoryList = () => {
 
         if (response.err === 0) {
           successCount++;
-          
+
           // If shortage (thiếu hàng), create report with reason "Mất hàng"
           if (adjustment < 0) {
             shortageReports.push({
@@ -361,7 +361,7 @@ const InventoryList = () => {
   const handleOrderItemChange = (supplierIndex, itemIndex, field, value) => {
     const next = [...orderItems];
     next[supplierIndex].items[itemIndex][field] = value;
-    setOrderItems(next); 
+    setOrderItems(next);
   };
 
   // Handle unit toggle for order items
@@ -557,7 +557,7 @@ const InventoryList = () => {
               </PrimaryButton>
             </>
           )}
-          
+
         </Stack>
       </Stack>
 
@@ -642,7 +642,7 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell>
+                {/* <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell> */}
                 <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn tối thiểu / Điểm đặt hàng</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
@@ -702,12 +702,12 @@ const InventoryList = () => {
                       <TableCell>
                         <Chip size="small" label={item.product?.category?.name || 'N/A'} variant="outlined" />
                       </TableCell>
-                      <TableCell align="right">
+                      {/* <TableCell align="right">
                         <Typography variant="body2">
                           {formatQty(item.stock)} {item.product?.base_unit_label || ''}
                         </Typography>
-                      </TableCell>
-                      <TableCell align="right"> 
+                      </TableCell> */}
+                      <TableCell align="right">
                         {item.stock_in_packages ? (
                           <Typography variant="body2">
                             {formatQty(item.stock_in_packages)} {item.package_unit_label || ''}
@@ -829,14 +829,14 @@ const InventoryList = () => {
                           </TableCell>
                           <TableCell align="right">
                             <Stack alignItems="flex-end" spacing={0.5}>
-                             
+
                               {item.stock_in_packages && item.package_unit_label && (
                                 <Typography variant="body2" fontWeight={600}>
                                   {formatQty(item.stock_in_packages)} {item.package_unit_label}
                                 </Typography>
                               )}
-                               <Typography  variant="caption" color="primary.main" fontWeight={600}>
-                               ≈ {formatQty(item.stock)} {item.base_unit_label}
+                              <Typography variant="caption" color="primary.main" fontWeight={600}>
+                                ≈ {formatQty(item.stock)} {item.base_unit_label}
                               </Typography>
                             </Stack>
                           </TableCell>
@@ -1003,7 +1003,7 @@ const InventoryList = () => {
                 {stockCountItems.map((item, index) => {
                   const difference = item.actual_stock - item.system_stock;
                   const diffColor = difference > 0 ? 'success.main' : difference < 0 ? 'error.main' : 'text.secondary';
-                  
+
                   return (
                     <TableRow key={item.inventory_id}>
                       <TableCell>
@@ -1066,8 +1066,8 @@ const InventoryList = () => {
                     stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) > 0
                       ? 'success.main'
                       : stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) < 0
-                      ? 'error.main'
-                      : 'text.secondary'
+                        ? 'error.main'
+                        : 'text.secondary'
                   }
                 >
                   {(() => {

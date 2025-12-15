@@ -150,6 +150,19 @@ export const update = (supplier_id, body) => new Promise(async (resolve, reject)
 // DELETE SUPPLIER
 export const remove = (supplier_id) => new Promise(async (resolve, reject) => {
     try {
+        // Check if supplier is referenced by any product
+        const productCount = await db.Product.count({
+            where: { supplier_id }
+        })
+
+        if (productCount > 0) {
+            return resolve({
+                err: 1,
+                msg: 'Không thể xóa nhà cung cấp vì còn sản phẩm đang liên kết',
+                data: false
+            })
+        }
+
         const affectedRows = await db.Supplier.destroy({
             where: { supplier_id }
         })

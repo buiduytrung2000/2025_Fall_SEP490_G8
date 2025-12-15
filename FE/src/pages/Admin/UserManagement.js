@@ -22,9 +22,22 @@ import {
     InputAdornment,
     Switch,
     Tooltip,
+    Divider,
+    Grid,
+    Card,
+    CardContent,
+    Avatar,
+    Chip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
+import PhoneIcon from '@mui/icons-material/Phone';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import BusinessIcon from '@mui/icons-material/Business';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { getAllUsers, deleteUser, reactivateUser } from '../../api/userApi';
+import { getAllStores } from '../../api/storeApi';
 import UserDialog from '../../components/common/UserDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -47,11 +60,31 @@ const UserManagement = () => {
     const [toggleConfirm, setToggleConfirm] = useState(null);
     const [globalFilter, setGlobalFilter] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
+    const [storeFilter, setStoreFilter] = useState('');
+    const [stores, setStores] = useState([]);
+    const [loadingStores, setLoadingStores] = useState(false);
+    const [viewingUser, setViewingUser] = useState(null);
+    const [openViewDialog, setOpenViewDialog] = useState(false);
 
     // Fetch users on component mount
     useEffect(() => {
         fetchUsers();
+        fetchStores();
     }, []);
+
+    const fetchStores = async () => {
+        try {
+            setLoadingStores(true);
+            const response = await getAllStores();
+            if (response.err === 0 && response.data) {
+                setStores(response.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching stores:', error);
+        } finally {
+            setLoadingStores(false);
+        }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -113,7 +146,7 @@ const UserManagement = () => {
 
             if (response.err === 0) {
                 ToastNotification.success(
-                    newStatus 
+                    newStatus
                         ? 'Người dùng đã được kích hoạt lại thành công'
                         : 'Người dùng đã được vô hiệu hóa thành công'
                 );
@@ -138,7 +171,7 @@ const UserManagement = () => {
         setToggleConfirm(null);
     };
 
-    // Filter users based on search and role filter
+    // Filter users based on search, role filter, and store filter
     const filteredUsers = useMemo(() => {
         let filtered = users;
 
@@ -154,24 +187,31 @@ const UserManagement = () => {
             filtered = filtered.filter(user => user.role === roleFilter);
         }
 
+        if (storeFilter) {
+            filtered = filtered.filter(user => {
+                const userStoreId = user.store_id?.toString() || '';
+                return userStoreId === storeFilter;
+            });
+        }
+
         return filtered;
-    }, [users, globalFilter, roleFilter]);
+    }, [users, globalFilter, roleFilter, storeFilter]);
 
     // Role display names
     const roleConfig = {
-        'Admin': { label: 'Admin' },
-        'CEO': { label: 'CEO' },
-        'Store_Manager': { label: 'Manager' },
-        'Cashier': { label: 'Cashier' },
+        'Admin': { label: 'Quản trị viên' },
+        'CEO': { label: 'Giám đốc điều hành' },
+        'Store_Manager': { label: 'Quản lý cửa hàng' },
+        'Cashier': { label: 'Thu ngân' },
         'Warehouse': { label: 'Kho' },
-        'Supplier': { label: 'NCC' }
+        'Supplier': { label: 'Nhà cung cấp' }
     };
 
     const columns = useMemo(
         () => [
             {
                 accessorKey: 'user_id',
-                header: 'ID',
+                header: 'Mã số',
                 size: 50,
                 Cell: ({ row, table }) => {
                     const index = table.getState().pagination.pageIndex * table.getState().pagination.pageSize + row.index + 1;
@@ -180,7 +220,7 @@ const UserManagement = () => {
             },
             {
                 accessorKey: 'email',
-                header: 'Email',
+                header: 'Thư điện tử',
                 size: 150,
             },
             {
@@ -196,20 +236,6 @@ const UserManagement = () => {
                     const role = cell.getValue();
                     const config = roleConfig[role] || { label: role };
                     return <Typography variant="body2">{config.label}</Typography>;
-                },
-            },
-            {
-                accessorKey: 'status',
-                header: 'Trạng thái',
-                size: 100,
-                Cell: ({ cell }) => {
-                    const status = cell.getValue();
-                    const statusLabels = {
-                        'active': 'Hoạt động',
-                        'inactive': 'Không hoạt động',
-                        'suspended': 'Bị tạm dừng'
-                    };
-                    return <Typography variant="body2">{statusLabels[status] || status}</Typography>;
                 },
             },
             {
@@ -238,12 +264,21 @@ const UserManagement = () => {
         data: filteredUsers,
         enableRowActions: true,
         positionActionsColumn: 'last',
+        enableGlobalFilter: false, // Disable built-in global filter since we have custom search
         renderRowActions: ({ row }) => {
             const userData = row.original;
             const isCurrentUser = userData.user_id === currentUser.user_id;
-            
+
             return (
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <ActionButton
+                        icon={<Icon name="View" />}
+                        action="view"
+                        onClick={() => {
+                            setViewingUser(userData);
+                            setOpenViewDialog(true);
+                        }}
+                    />
                     <ActionButton
                         icon={<Icon name="Edit" />}
                         action="edit"
@@ -261,10 +296,6 @@ const UserManagement = () => {
                 </Box>
             );
         },
-        state: {
-            globalFilter,
-        },
-        onGlobalFilterChange: setGlobalFilter,
         localization: {
             actions: 'Hành động',
             search: 'Tìm kiếm',
@@ -342,6 +373,22 @@ const UserManagement = () => {
                             ))}
                         </Select>
                     </FormControl>
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel>Cửa hàng</InputLabel>
+                        <Select
+                            value={storeFilter}
+                            onChange={(e) => setStoreFilter(e.target.value)}
+                            label="Cửa hàng"
+                            disabled={loadingStores}
+                        >
+                            <MenuItem value="">Tất cả cửa hàng</MenuItem>
+                            {stores.map(store => (
+                                <MenuItem key={store.store_id} value={store.store_id.toString()}>
+                                    {store.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 </Stack>
             </Paper>
 
@@ -401,6 +448,257 @@ const UserManagement = () => {
                             Vô hiệu hóa
                         </DangerButton>
                     )}
+                </DialogActions>
+            </Dialog>
+
+            {/* View User Details Dialog */}
+            <Dialog
+                open={openViewDialog}
+                onClose={() => {
+                    setOpenViewDialog(false);
+                    setViewingUser(null);
+                }}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Typography variant="h5" fontWeight={600}>
+                        Thông tin chi tiết người dùng
+                    </Typography>
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    {viewingUser && (
+                        <Box>
+                            {/* Header Card with Avatar */}
+                            <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+                                <CardContent>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar
+                                            sx={{
+                                                width: 80,
+                                                height: 80,
+                                                bgcolor: 'rgba(255,255,255,0.2)',
+                                                fontSize: '2rem',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >
+                                            {viewingUser.full_name?.charAt(0)?.toUpperCase() || viewingUser.email?.charAt(0)?.toUpperCase() || 'N'}
+                                        </Avatar>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography variant="h5" fontWeight={600} gutterBottom>
+                                                {viewingUser.full_name || 'Chưa có tên'}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                                {viewingUser.email || 'Không có'}
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                                                <Chip
+                                                    label={roleConfig[viewingUser.role]?.label || viewingUser.role || 'Không có'}
+                                                    size="small"
+                                                    sx={{
+                                                        bgcolor: 'rgba(255,255,255,0.2)',
+                                                        color: 'white',
+                                                        fontWeight: 500
+                                                    }}
+                                                />
+                                                <Chip
+                                                    label={viewingUser.is_active ? 'Hoạt động' : 'Không hoạt động'}
+                                                    size="small"
+                                                    sx={{
+                                                        bgcolor: viewingUser.is_active ? 'rgba(76, 175, 80, 0.3)' : 'rgba(244, 67, 54, 0.3)',
+                                                        color: 'white',
+                                                        fontWeight: 500
+                                                    }}
+                                                />
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                </CardContent>
+                            </Card>
+
+                            {/* Information Cards */}
+                            <Grid container spacing={2}>
+                                {/* Basic Information */}
+                                <Grid item xs={8}>
+                                    <Card variant="outlined">
+                                        <CardContent>
+                                            <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                                                Thông tin cơ bản
+                                            </Typography>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <PersonIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                ID
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                #{viewingUser.user_id}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <EmailIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Email
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                {viewingUser.email || 'Không có'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <PhoneIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Số điện thoại
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                {viewingUser.phone || 'Không có'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                            </Grid>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+
+                                {/* Work Information */}
+                                <Grid item xs={4}>
+                                    <Card variant="outlined">
+                                        <CardContent>
+                                            <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                                                Thông tin công việc
+                                            </Typography>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <BusinessIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Vai trò
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                {roleConfig[viewingUser.role]?.label || viewingUser.role || 'Không có'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <BusinessIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Cửa hàng
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                {viewingUser.store_id
+                                                                    ? stores.find(s => s.store_id === viewingUser.store_id)?.name || `Mã số: ${viewingUser.store_id}`
+                                                                    : 'Không có'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                            </Grid>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+
+                                {/* Address Information */}
+                                <Grid item xs={12} md={6}>
+                                    {viewingUser.address ? (
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                                                    Địa chỉ
+                                                </Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                    <LocationOnIcon color="action" sx={{ mt: 0.5 }} />
+                                                    <Typography variant="body1" fontWeight={500}>
+                                                        {viewingUser.address}
+                                                    </Typography>
+                                                </Box>
+                                            </CardContent>
+                                        </Card>
+                                    ) : (
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                                                    Địa chỉ
+                                                </Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                    <LocationOnIcon color="action" sx={{ mt: 0.5 }} />
+                                                    <Typography variant="body1" fontWeight={500} color="text.secondary">
+                                                        Không có
+                                                    </Typography>
+                                                </Box>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </Grid>
+
+                                {/* Timestamp Information */}
+                                <Grid item xs={12} md={6}>
+                                    <Card variant="outlined">
+                                        <CardContent>
+                                            <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ mb: 2, color: 'primary.main' }}>
+                                                Thông tin thời gian
+                                            </Typography>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                        <CalendarTodayIcon color="action" sx={{ mt: 0.5 }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                Ngày tạo
+                                                            </Typography>
+                                                            <Typography variant="body1" fontWeight={500}>
+                                                                {viewingUser.created_at
+                                                                    ? new Date(viewingUser.created_at).toLocaleString('vi-VN')
+                                                                    : 'Không có'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+                                                {viewingUser.updated_at && (
+                                                    <Grid item xs={12} sm={6}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                            <CalendarTodayIcon color="action" sx={{ mt: 0.5 }} />
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    Ngày cập nhật
+                                                                </Typography>
+                                                                <Typography variant="body1" fontWeight={500}>
+                                                                    {new Date(viewingUser.updated_at).toLocaleString('vi-VN')}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    </Grid>
+                                                )}
+                                            </Grid>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            </Grid>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                    <SecondaryButton
+                        onClick={() => {
+                            setOpenViewDialog(false);
+                            setViewingUser(null);
+                        }}
+                    >
+                        Đóng
+                    </SecondaryButton>
                 </DialogActions>
             </Dialog>
 

@@ -316,16 +316,16 @@ const OrderShipment = () => {
             // Cập nhật tồn kho: số lượng thực tế tăng → tồn kho giảm, và ngược lại
             const updatedInventory = it.inventory?.warehouse
               ? {
-                  ...it.inventory,
-                  warehouse: {
-                    ...it.inventory.warehouse,
-                    base_quantity: Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta),
-                    // Tính lại package_quantity nếu có conversion
-                    package_quantity: conversionFactor && conversionFactor > 1
-                      ? parseFloat(((Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta)) / conversionFactor).toFixed(2))
-                      : it.inventory.warehouse.package_quantity
-                  }
+                ...it.inventory,
+                warehouse: {
+                  ...it.inventory.warehouse,
+                  base_quantity: Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta),
+                  // Tính lại package_quantity nếu có conversion
+                  package_quantity: conversionFactor && conversionFactor > 1
+                    ? parseFloat(((Math.max(0, (it.inventory.warehouse.base_quantity || 0) - delta)) / conversionFactor).toFixed(2))
+                    : it.inventory.warehouse.package_quantity
                 }
+              }
               : it.inventory;
 
             return {
@@ -401,6 +401,15 @@ const OrderShipment = () => {
       if (response.err === 0) {
         ToastNotification.success(response.msg || 'Cập nhật trạng thái thành công!');
         setConfirmDialog(false);
+        // In phiếu xuất kho ngay khi xác nhận thành công
+        if (nextStatus === 'confirmed') {
+          try {
+            await printShipmentTicket(order);
+          } catch (e) {
+            console.error('Error printing shipment ticket:', e);
+            ToastNotification.warning('Đã xác nhận nhưng in phiếu xuất kho thất bại');
+          }
+        }
         loadOrderDetail();
       } else {
         ToastNotification.error(response.msg || 'Không thể cập nhật trạng thái');
@@ -569,7 +578,7 @@ const OrderShipment = () => {
                 <Typography variant="h6" fontWeight={600} gutterBottom color="success.dark">
                   ✅ Ghi chú khi cửa hàng xác nhận đã nhận hàng
                 </Typography>
-                
+
                 {/* Hiển thị số lượng nhận thực tế */}
                 {order.orderItems?.some(item => item.received_quantity !== null && item.received_quantity !== undefined) && (
                   <Box sx={{ mb: 2 }}>
@@ -591,7 +600,7 @@ const OrderShipment = () => {
                             .map((item) => {
                               // received_quantity đã được lưu ở đơn vị package (thùng) từ cửa hàng, hiển thị trực tiếp
                               const receivedQtyDisplay = parseFloat(item.received_quantity);
-                              
+
                               return (
                                 <TableRow key={item.order_item_id}>
                                   <TableCell>{item.product?.name || item.product_name || 'N/A'}</TableCell>
@@ -613,7 +622,7 @@ const OrderShipment = () => {
                     </TableContainer>
                   </Box>
                 )}
-                
+
                 {/* Hiển thị ghi chú */}
                 {storeConfirmNote && (
                   <Box>
@@ -655,7 +664,7 @@ const OrderShipment = () => {
 
             {/* Products Table */}
             <Paper>
-              <Box sx={{  bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
+              <Box sx={{ bgcolor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
                 <Typography variant="h6" fontWeight={600}>
                   Chi tiết sản phẩm xuất kho
                 </Typography>
@@ -680,17 +689,17 @@ const OrderShipment = () => {
                   <TableBody>
                     {order.orderItems?.map((item) => {
                       const isEditing = editingItemId === item.order_item_id;
-                      
+
                       // Lấy tồn kho từ warehouse (ưu tiên) hoặc store
                       const warehouseStock = item.inventory?.warehouse?.base_quantity ?? 0;
                       const storeStock = item.inventory?.store?.base_quantity ?? 0;
                       const stockAvailable = warehouseStock || storeStock;
-                      
+
                       // Lấy thông tin package unit để hiển thị tồn kho theo thùng
                       const packageConversion = item.inventory?.warehouse?.package_conversion;
                       const packageUnit = item.inventory?.warehouse?.package_unit;
                       const packageQuantityFromBackend = item.inventory?.warehouse?.package_quantity;
-                      
+
                       // Hiển thị số lượng thực tế đúng như trong database
                       // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
                       let displayQty = item.quantity;
@@ -701,7 +710,7 @@ const OrderShipment = () => {
                           : packageConversion && packageConversion > 1
                             ? packageConversion
                             : null;
-                        
+
                         if (conversionFactor && conversionFactor > 1) {
                           // Quy đổi từ base unit (chai) sang package unit (thùng)
                           displayQty = parseFloat((item.actual_quantity / conversionFactor).toFixed(2));
@@ -712,21 +721,21 @@ const OrderShipment = () => {
                       } else if (item.package_quantity !== null && item.package_quantity !== undefined) {
                         displayQty = item.package_quantity;
                       }
-                      
+
                       // Tính tồn kho theo thùng: luôn tính lại từ base_quantity với quantity_in_base từ item để đảm bảo chính xác
                       let stockInPackages = null;
                       let packageUnitLabel = '';
-                      
+
                       // Ưu tiên dùng quantity_in_base từ item (chính xác nhất), sau đó dùng package_conversion từ inventory
                       const stockConversionFactor = item.quantity_in_base && item.quantity_in_base > 1
                         ? item.quantity_in_base
                         : packageConversion && packageConversion > 1
                           ? packageConversion
                           : null;
-                      
+
                       if (packageUnit) {
-                        packageUnitLabel =  packageUnit.name || 'Thùng';
-                        
+                        packageUnitLabel = packageUnit.name || 'Thùng';
+
                         // Luôn tính lại từ base_quantity với conversion factor chính xác từ item
                         if (stockConversionFactor && stockConversionFactor > 1 && stockAvailable > 0) {
                           stockInPackages = parseFloat((stockAvailable / stockConversionFactor).toFixed(2));
@@ -735,7 +744,7 @@ const OrderShipment = () => {
                           stockInPackages = parseFloat(packageQuantityFromBackend);
                         }
                       }
-                      
+
                       // So sánh tồn kho với số lượng đặt (item.quantity là số thùng)
                       const requiredStock = item.quantity * (packageConversion || 1);
                       const isLowStock = stockAvailable < requiredStock;
@@ -779,8 +788,8 @@ const OrderShipment = () => {
                                         // Tính số lượng thực tế hiện tại để kiểm tra
                                         const currentQty = item.actual_quantity !== null && item.actual_quantity !== undefined
                                           ? (stockConversionFactor && stockConversionFactor > 1
-                                              ? parseFloat((item.actual_quantity / stockConversionFactor).toFixed(2))
-                                              : item.actual_quantity)
+                                            ? parseFloat((item.actual_quantity / stockConversionFactor).toFixed(2))
+                                            : item.actual_quantity)
                                           : item.package_quantity !== null && item.package_quantity !== undefined
                                             ? item.package_quantity
                                             : item.quantity;
@@ -814,13 +823,13 @@ const OrderShipment = () => {
                               let displayStock = stockInPackages !== null && stockInPackages !== undefined
                                 ? stockInPackages
                                 : stockAvailable;
-                              
+
                               let displayStockBase = stockAvailable;
-                              
+
                               if (order.status === 'confirmed') {
                                 // Tồn kho dự kiến = tồn kho hiện tại - số lượng đặt (hoặc số lượng thực tế nếu đã có)
                                 const qtyToSubtract = displayQty; // Số lượng thực tế hoặc số lượng đặt
-                                
+
                                 if (stockInPackages !== null && stockInPackages !== undefined) {
                                   // Tính theo package unit
                                   displayStock = Math.max(0, stockInPackages - qtyToSubtract);
@@ -833,14 +842,14 @@ const OrderShipment = () => {
                                   displayStock = displayStockBase;
                                 }
                               }
-                              
+
                               return stockInPackages !== null && stockInPackages !== undefined && packageUnitLabel ? (
                                 <Box>
                                   <Chip
                                     label={`${displayStock.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${packageUnitLabel}`}
                                     size="small"
                                     sx={{
-                                      bgcolor: order.status === 'confirmed' 
+                                      bgcolor: order.status === 'confirmed'
                                         ? (displayStock < 0 ? '#ff5252' : '#4caf50')
                                         : (isLowStock ? '#ff5252' : '#4caf50'),
                                       color: 'white',
@@ -879,31 +888,31 @@ const OrderShipment = () => {
                           </TableCell>
                           <TableCell align="center">
                             {isEditing ? (
-                                <Stack direction="row" spacing={0.5} justifyContent="center">
-                                  <ActionButton
-                                    icon={<Icon name="Save" />}
-                                    size="small"
-                                    onClick={() => handleSaveQuantity(item.order_item_id)}
-                                    sx={{ color: 'success.main' }}
-                                  />
-                                  <ActionButton
-                                    icon={<Icon name="Cancel" />}
-                                    action="delete"
-                                    size="small"
-                                    onClick={handleCancelEdit}
-                                  />
-                                </Stack>
-                              ) : (
+                              <Stack direction="row" spacing={0.5} justifyContent="center">
                                 <ActionButton
-                                  icon={<Icon name="Edit" />}
+                                  icon={<Icon name="Save" />}
                                   size="small"
-                                  onClick={() => handleEditQuantity(item)}
-                                  disabled={
-                                    !['confirmed', 'delivered'].includes(order.status) ||
-                                    stockAvailable === 0 ||
-                                    (stockInPackages !== null && stockInPackages < 1)
-                                  }
+                                  onClick={() => handleSaveQuantity(item.order_item_id)}
+                                  sx={{ color: 'success.main' }}
                                 />
+                                <ActionButton
+                                  icon={<Icon name="Cancel" />}
+                                  action="delete"
+                                  size="small"
+                                  onClick={handleCancelEdit}
+                                />
+                              </Stack>
+                            ) : (
+                              <ActionButton
+                                icon={<Icon name="Edit" />}
+                                size="small"
+                                onClick={() => handleEditQuantity(item)}
+                                disabled={
+                                  !['confirmed', 'delivered'].includes(order.status) ||
+                                  stockAvailable === 0 ||
+                                  (stockInPackages !== null && stockInPackages < 1)
+                                }
+                              />
                             )}
                           </TableCell>
                         </TableRow>
@@ -941,7 +950,7 @@ const OrderShipment = () => {
                     Ngày giao dự kiến
                   </Typography>
                   <TextField
-                      fullWidth
+                    fullWidth
                     type="datetime-local"
                     size="small"
                     value={deliveryDate}
@@ -1058,3 +1067,156 @@ const OrderShipment = () => {
 };
 
 export default OrderShipment;
+
+// ============================
+// Helper: In phiếu xuất kho
+// ============================
+const printShipmentTicket = async (order) => {
+  if (!order) throw new Error('Missing order data to print');
+
+  const formatCurrency = (n) => Number(n || 0).toLocaleString('vi-VN') + ' đ';
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
+  const itemsHTML = (order.orderItems || []).map((item, idx) => {
+    const name = item.product?.name || item.product_name || 'N/A';
+    const sku = item.product?.sku || item.product_sku || '';
+    const qtyOrdered = item.quantity || 0;
+    const qtyDelivered = item.actual_quantity !== null && item.actual_quantity !== undefined
+      ? item.actual_quantity
+      : item.package_quantity !== null && item.package_quantity !== undefined
+        ? item.package_quantity
+        : qtyOrdered;
+    const unitPrice = item.unit_price || 0;
+    const subtotal = item.subtotal !== null && item.subtotal !== undefined
+      ? item.subtotal
+      : qtyDelivered * unitPrice;
+
+    return `
+      <tr>
+        <td style="text-align:center;padding:6px;">${idx + 1}</td>
+        <td style="padding:6px;">
+          <div style="font-weight:600;">${name}</div>
+          <div style="color:#777;font-size:12px;">${sku}</div>
+        </td>
+        <td style="text-align:right;padding:6px;">${qtyOrdered}</td>
+        <td style="text-align:right;padding:6px;font-weight:700;color:#1976d2;">${qtyDelivered}</td>
+        <td style="text-align:right;padding:6px;">${formatCurrency(unitPrice)}</td>
+        <td style="text-align:right;padding:6px;font-weight:700;">${formatCurrency(subtotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalAmount = (order.orderItems || []).reduce((sum, item) => {
+    const qtyDelivered = item.actual_quantity !== null && item.actual_quantity !== undefined
+      ? item.actual_quantity
+      : item.package_quantity !== null && item.package_quantity !== undefined
+        ? item.package_quantity
+        : item.quantity || 0;
+    const unitPrice = item.unit_price || 0;
+    const subtotal = item.subtotal !== null && item.subtotal !== undefined
+      ? item.subtotal
+      : qtyDelivered * unitPrice;
+    return sum + subtotal;
+  }, 0);
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8" />
+      <title>Phiếu xuất kho #ORD${String(order.order_id).padStart(3, '0')}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin:0; padding:20px; background:#f5f5f5; }
+        .container { max-width: 960px; margin: 0 auto; background:#fff; padding:24px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+        h1 { margin:0; font-size:22px; }
+        .muted { color:#666; font-size:13px; }
+        table { width:100%; border-collapse: collapse; margin-top:16px; }
+        th { background:#f0f0f0; text-align:left; padding:8px; font-size:13px; border-bottom:2px solid #ccc; }
+        td { border-bottom:1px solid #eee; font-size:13px; }
+        .row { display:flex; justify-content:space-between; margin-top:12px; }
+        .row div { flex:1; }
+        .summary { margin-top:18px; text-align:right; font-weight:700; font-size:14px; }
+        @media print {
+          body { background:#fff; }
+          .container { box-shadow:none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h1>PHIẾU XUẤT KHO</h1>
+            <div class="muted">Mã đơn: #ORD${String(order.order_id).padStart(3, '0')}</div>
+          </div>
+          <div style="text-align:right;" class="muted">
+            Ngày in: ${formatDate(new Date())}
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:16px;">
+          <div>
+            <strong>Cửa hàng nhận:</strong><br/>
+            ${order.store?.name || 'N/A'}
+          </div>
+          <div>
+            <strong>Ngày đặt:</strong><br/>
+            ${formatDate(order.created_at)}
+          </div>
+          <div>
+            <strong>Ngày giao dự kiến:</strong><br/>
+            ${formatDate(order.expected_delivery)}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:5%;">#</th>
+              <th style="width:35%;">Sản phẩm</th>
+              <th style="width:10%;text-align:right;">SL Đặt</th>
+              <th style="width:15%;text-align:right;">SL Thực tế</th>
+              <th style="width:15%;text-align:right;">Đơn giá</th>
+              <th style="width:20%;text-align:right;">Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHTML}
+          </tbody>
+        </table>
+
+        <div class="summary">
+          Tổng cộng: ${formatCurrency(totalAmount)}
+        </div>
+
+        <div style="margin-top:18px;" class="muted">
+          Ghi chú xác nhận: ${order.store_receive_note || order.store_confirmation_note || order.receive_note || order.store_note || 'Không có'}
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open('', '', 'height=800,width=1000');
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.onload = () => {
+    printWindow.print();
+  };
+};
