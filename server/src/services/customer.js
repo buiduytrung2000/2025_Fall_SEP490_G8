@@ -166,7 +166,7 @@ export const remove = (customer_id) => new Promise(async (resolve, reject) => {
 })
 
 // UPDATE LOYALTY POINTS AND AUTO-GENERATE VOUCHERS
-// Rule: 200,000đ = 1 point
+// Rule: 10,000đ = 100 points (100đ = 1 point)
 export const updateLoyaltyPoints = (customer_id, purchaseAmount) => new Promise(async (resolve, reject) => {
     try {
         const customer = await db.Customer.findByPk(customer_id);
@@ -178,8 +178,8 @@ export const updateLoyaltyPoints = (customer_id, purchaseAmount) => new Promise(
             });
         }
 
-        // Calculate points: 200,000đ = 1 point
-        const pointsToAdd = Math.floor(purchaseAmount / 200000);
+        // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+        const pointsToAdd = Math.floor(purchaseAmount / 100);
         const oldPoints = customer.loyalty_point || 0;
         const newPoints = oldPoints + pointsToAdd;
 

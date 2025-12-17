@@ -178,9 +178,9 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             console.log(`No open shift found for cashier_id: ${cashier_id}, store_id: ${store_id}`);
         }
 
-        // Mark voucher as used if applicable
+        // Mark voucher as used if applicable (atomic update to prevent double usage)
         if (voucher_code) {
-            await db.sequelize.query(
+            const [affectedRows] = await db.sequelize.query(
                 `UPDATE CustomerVoucher
                  SET status = 'used',
                      used_at = NOW(),
@@ -192,14 +192,23 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
                     transaction
                 }
             );
+            
+            // Check if voucher was actually updated (prevent double usage)
+            if (affectedRows === 0) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: 'Voucher đã được sử dụng hoặc không hợp lệ'
+                });
+            }
         }
 
         // Update loyalty points if customer is registered
         if (customer_id) {
             const customer = await db.Customer.findByPk(customer_id, { transaction });
             if (customer) {
-                // Calculate points: 200,000đ = 1 point
-                const pointsToAdd = Math.floor(subtotal / 200000);
+                // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                const pointsToAdd = Math.floor(subtotal / 100);
                 const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
 
                 await customer.update({
@@ -548,9 +557,9 @@ export const updateQRPaymentStatus = (orderCode) => new Promise(async (resolve, 
                     }
                 }
 
-                // Mark voucher as used if applicable
+                // Mark voucher as used if applicable (atomic update to prevent double usage)
                 if (transactionRecord.voucher_code) {
-                    await db.sequelize.query(
+                    const [affectedRows] = await db.sequelize.query(
                         `UPDATE CustomerVoucher
                          SET status = 'used',
                              used_at = NOW(),
@@ -562,13 +571,23 @@ export const updateQRPaymentStatus = (orderCode) => new Promise(async (resolve, 
                             transaction
                         }
                     );
+                    
+                    // Check if voucher was actually updated (prevent double usage)
+                    if (affectedRows === 0) {
+                        await transaction.rollback();
+                        return resolve({
+                            err: 1,
+                            msg: 'Voucher đã được sử dụng hoặc không hợp lệ'
+                        });
+                    }
                 }
 
                 // Update loyalty points if customer is registered
                 if (transactionRecord.customer_id) {
                     const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
                     if (customer) {
-                        const pointsToAdd = Math.floor(transactionRecord.subtotal / 200000);
+                        // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                        const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
                         const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
 
                         await customer.update({
@@ -710,9 +729,9 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
             }
         }
 
-        // Mark voucher as used if applicable
+        // Mark voucher as used if applicable (atomic update to prevent double usage)
         if (transactionRecord.voucher_code) {
-            await db.sequelize.query(
+            const [affectedRows] = await db.sequelize.query(
                 `UPDATE CustomerVoucher
                  SET status = 'used',
                      used_at = NOW(),
@@ -724,14 +743,23 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
                     transaction
                 }
             );
+            
+            // Check if voucher was actually updated (prevent double usage)
+            if (affectedRows === 0) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: 'Voucher đã được sử dụng hoặc không hợp lệ'
+                });
+            }
         }
 
         // Update loyalty points if customer is registered
         if (transactionRecord.customer_id) {
             const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
             if (customer) {
-                // Calculate points: 200,000đ = 1 point
-                const pointsToAdd = Math.floor(transactionRecord.subtotal / 200000);
+                // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
                 const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
 
                 await customer.update({

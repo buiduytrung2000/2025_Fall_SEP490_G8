@@ -113,7 +113,9 @@ const POS = () => {
     const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
     const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
     const [selectedScheduleId, setSelectedScheduleId] = useState(null); // Lưu schedule_id được chọn để check-in
-    const [hasUncheckedSchedule, setHasUncheckedSchedule] = useState(false); // Kiểm tra có ca chưa check-in không
+    const [hasUncheckedSchedule, setHasUncheckedSchedule] = useState(false); // Có ca chưa check-in trong ngày (bao gồm cả ca chưa đến giờ)
+    const [canCheckInNow, setCanCheckInNow] = useState(false); // Có ca đang trong khung giờ có thể check-in
+    const [hasCheckedOutToday, setHasCheckedOutToday] = useState(false); // Đã có ca nào hôm nay kết ca
     const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
 
     // Helper function: Kiểm tra schedule có phải chưa check-in không
@@ -133,17 +135,12 @@ const POS = () => {
         try {
             const scheduleResp = await getMySchedules(today, today);
             if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data && scheduleResp.data.length > 0) {
-                // Normalize work_date để so sánh
+                // Chỉ lấy schedule đúng ngày hôm nay
                 const todaySchedules = scheduleResp.data.filter(s => {
                     if (!s.work_date) return false;
                     const workDateStr = s.work_date.split('T')[0];
                     return workDateStr === today;
                 });
-
-                if (todaySchedules.length === 0) {
-                    // Fallback: nếu không tìm thấy theo work_date, dùng tất cả schedules từ API
-                    return scheduleResp.data;
-                }
                 return todaySchedules;
             }
             return [];
@@ -159,6 +156,8 @@ const POS = () => {
             setHasTodaySchedule(false);
             setScheduleAttendanceStatus(null);
             setHasUncheckedSchedule(false);
+            setCanCheckInNow(false);
+            setHasCheckedOutToday(false);
             setSelectedScheduleId(null);
             return;
         }
@@ -169,6 +168,8 @@ const POS = () => {
             setHasTodaySchedule(false);
             setScheduleAttendanceStatus('absent');
             setHasUncheckedSchedule(false);
+            setCanCheckInNow(false);
+            setHasCheckedOutToday(false);
             setSelectedScheduleId(null);
             return;
         }
@@ -179,16 +180,18 @@ const POS = () => {
         // Tìm tất cả ca chưa check-in
         const uncheckedSchedules = todaySchedules.filter(isUncheckedSchedule);
         
-        // Tìm ca đã checkout
+        // Tìm ca đã checkout (bất kỳ ca nào trong ngày đã kết ca)
         const checkedOutSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
+        const hasCheckedOut = !!checkedOutSchedule;
 
         // Xác định schedule được chọn để hiển thị status
         let selectedSchedule = activeSchedule || uncheckedSchedules[0] || checkedOutSchedule || todaySchedules[0];
 
-        // Cập nhật state
+        // Cập nhật state cơ bản
         setHasTodaySchedule(true);
         setScheduleAttendanceStatus(selectedSchedule?.attendance_status || null);
         setHasUncheckedSchedule(uncheckedSchedules.length > 0);
+        setHasCheckedOutToday(hasCheckedOut);
         
         // Lưu schedule_id để check-in (ưu tiên ca chưa check-in)
         if (uncheckedSchedules.length > 0) {
@@ -203,6 +206,7 @@ const POS = () => {
             // Nếu có nhiều ca chưa check-in, ưu tiên ca đang trong thời gian làm việc
             let selectedUncheckedSchedule = null;
             const now = new Date();
+            let canCheckIn = false;
             
             for (const s of uncheckedSchedules) {
                 const shiftTemplate = s.shiftTemplate || s.shift_template;
@@ -227,6 +231,7 @@ const POS = () => {
                 if (now >= shiftStart && now <= shiftEnd) {
                     selectedUncheckedSchedule = s;
                     console.log(`Ca đang trong thời gian làm việc: Schedule ID ${s.schedule_id} (${shiftTemplate.start_time} - ${shiftTemplate.end_time})`);
+                    canCheckIn = true;
                     break;
                 }
             }
@@ -239,10 +244,13 @@ const POS = () => {
             const selectedId = selectedUncheckedSchedule.schedule_id;
             console.log('Selected schedule_id for check-in:', selectedId, 'from shift_template_id:', selectedUncheckedSchedule.shift_template_id);
             setSelectedScheduleId(selectedId);
+            setCanCheckInNow(canCheckIn);
         } else if (selectedSchedule) {
             setSelectedScheduleId(selectedSchedule.schedule_id);
+            setCanCheckInNow(false);
         } else {
             setSelectedScheduleId(null);
+            setCanCheckInNow(false);
         }
     }, [isUncheckedSchedule]);
 
@@ -271,6 +279,7 @@ const POS = () => {
                     setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
                     setHasTodaySchedule(true);
                     setHasUncheckedSchedule(false); // Đang trong ca, không có ca chưa check-in
+                    setCanCheckInNow(false);
                 } else {
                     // Không có schedule info, load lại từ API
                     const todaySchedules = await loadTodaySchedules();
@@ -284,6 +293,7 @@ const POS = () => {
                 setBankTransferTotal(0);
                 setTotalSales(0);
                 setOpeningCash('');
+                setCanCheckInNow(false);
                 
                 // Load schedules để kiểm tra có ca nào chưa check-in không
                 const todaySchedules = await loadTodaySchedules();
@@ -316,6 +326,9 @@ const POS = () => {
                 setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
                 setHasTodaySchedule(true);
                 setHasUncheckedSchedule(false); // Đang trong ca, không có ca chưa check-in
+                setCanCheckInNow(false);
+                setHasCheckedOutToday(false);
+                setHasCheckedOutToday(false);
             } else {
                 // Không có schedule info, load lại từ API
                 const todaySchedules = await loadTodaySchedules();
@@ -329,6 +342,9 @@ const POS = () => {
             setBankTransferTotal(0);
             setTotalSales(0);
             setOpeningCash('');
+            setCanCheckInNow(false);
+            setHasCheckedOutToday(false);
+            setHasCheckedOutToday(false);
             
             // Load schedules để kiểm tra có ca nào chưa check-in không
             const todaySchedules = await loadTodaySchedules();
@@ -865,23 +881,26 @@ const POS = () => {
         await new Promise(resolve => setTimeout(resolve, 300));
         await refreshOpenShift();
 
-        // Reload customer data and vouchers (loyalty points already updated by webhook)
+        // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
         if (selectedCustomer) {
-            // Fetch updated customer info
-            const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-            if (customerRes && customerRes.err === 0 && customerRes.data) {
-                setSelectedCustomer(customerRes.data);
-                ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+            try {
+                const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                if (customerRes && customerRes.err === 0 && customerRes.data) {
+                    ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+                }
+            } catch (e) {
+                console.error('Error reloading customer after QR payment:', e);
             }
-
-            // Reload vouchers
-            await loadCustomerVouchers(selectedCustomer.customer_id);
         }
 
-        // Clear cart and reset
+        // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách
         setCart([]);
         setSelectedVoucher(null);
         setSelectedPaymentMethod(null);
+        setSelectedCustomer(null);
+        setCustomerPhone('');
+        setSearchResults([]);
+        setShowCreateForm(false);
         // Xóa cart khỏi localStorage khi thanh toán thành công
         try {
             localStorage.removeItem('pos_cart');
@@ -981,20 +1000,26 @@ const POS = () => {
                 await new Promise(resolve => setTimeout(resolve, 300));
                 await refreshOpenShift();
 
-                // Reload customer data if customer is selected
+                // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
                 if (selectedCustomer) {
-                    await loadCustomerVouchers(selectedCustomer.customer_id);
-                    // Fetch updated customer info
-                    const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                    if (customerRes && customerRes.err === 0 && customerRes.data) {
-                        setSelectedCustomer(customerRes.data);
+                    try {
+                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                        if (customerRes && customerRes.err === 0 && customerRes.data) {
+                            // Có thể dùng dữ liệu mới nếu cần hiển thị ở nơi khác
+                            console.log('Updated customer loyalty:', customerRes.data.loyalty_point);
+                        }
+                    } catch (e) {
+                        console.error('Error reloading customer after cash payment:', e);
                     }
                 }
 
-                // Clear cart and reset
+                // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách
                 setCart([]);
                 setSelectedVoucher(null);
                 setSelectedPaymentMethod(null);
+                setSelectedCustomer(null);
+                setCustomerPhone('');
+                setSearchResults([]);
             } else {
                 ToastNotification.error(res?.msg || 'Thanh toán thất bại');
             }
@@ -1047,11 +1072,11 @@ const POS = () => {
                                     Kết ca
                                 </Button>
                             </>
-                        ) : hasUncheckedSchedule ? (
-                            <Button 
-                                variant="contained" 
-                                color="success" 
-                                size="small" 
+                        ) : canCheckInNow ? (
+                            <Button
+                                variant="contained"
+                                color="success"
+                                size="small"
                                 startIcon={<LoginIcon />}
                                 onClick={() => {
                                     setOpeningCashInput('');
@@ -1060,7 +1085,7 @@ const POS = () => {
                             >
                                 Bắt đầu ca (Check-in)
                             </Button>
-                        ) : scheduleAttendanceStatus === 'checked_out' ? (
+                        ) : scheduleAttendanceStatus === 'checked_out' || hasCheckedOutToday ? (
                             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
                                 Đã kết ca hôm nay
                             </Typography>
@@ -1069,18 +1094,9 @@ const POS = () => {
                                 Không có lịch làm việc
                             </Typography>
                         ) : (
-                            <Button 
-                                variant="contained" 
-                                color="success" 
-                                size="small" 
-                                startIcon={<LoginIcon />}
-                                onClick={() => {
-                                    setOpeningCashInput('');
-                                    setShowCheckinModal(true);
-                                }}
-                            >
-                                Bắt đầu ca (Check-in)
-                            </Button>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                                Chưa đến giờ ca làm việc tiếp theo
+                            </Typography>
                         )}
                     </Box>
                 </Box>
@@ -1479,42 +1495,81 @@ const POS = () => {
                 )}
 
                 {/* Cart Items - Scrollable */}
-                <Box sx={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    p: 1.5,
-                    minHeight: 0,
-                    '&::-webkit-scrollbar': {
-                        display: 'none'
-                    },
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none'
-                }}>
-                    {cart.map(item => (
-                        <Box key={item.id} sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1, mb: 1, position: 'relative', pr: 3 }}>
+                <Box
+                    sx={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        p: 1.5,
+                        minHeight: 0,
+                        '&::-webkit-scrollbar': {
+                            display: 'none'
+                        },
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none'
+                    }}
+                >
+                    {cart.length > 0 && (
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                px: 0.5,
+                                pb: 1,
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: 'text.secondary',
+                            }}
+                        >
+                            <Box sx={{ flex: 4 }}>Sản phẩm</Box>
+                            <Box sx={{ flex: 2, textAlign: 'center' }}>Số lượng</Box>
+                            <Box sx={{ flex: 2, textAlign: 'right' }}>Đơn giá</Box>
+                            <Box sx={{ flex: 2, textAlign: 'right' }}>Thành tiền</Box>
+                            <Box sx={{ width: 32 }} />
+                        </Box>
+                    )}
+
+                    {cart.map((item) => (
+                        <Box
+                            key={item.id}
+                            sx={{
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                py: 0.75,
+                                pl: 0.5,
+                                pr: 3.5,
+                                position: 'relative',
+                            }}
+                        >
                             <IconButton
                                 size="small"
                                 color="error"
                                 onClick={() => handleRemoveFromCart(item.id)}
-                                sx={{ 
+                                sx={{
                                     position: 'absolute',
-                                    top: 0,
-                                    right: 0,
-                                    p: 0.25
+                                    top: 4,
+                                    right: 4,
+                                    p: 0.25,
                                 }}
                             >
                                 <CloseIcon fontSize="small" />
                             </IconButton>
-                            <Box>
+
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                }}
+                            >
                                 {/* Tên sản phẩm */}
-                                <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.75 }}>
-                                    {item.name}
-                                </Typography>
-                                
-                                {/* Dòng thứ 2: Quantity controls và giá */}
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                    {/* Quantity controls */}
+                                <Box sx={{ flex: 4, pr: 1 }}>
+                                    <Typography variant="body2" fontWeight="bold" noWrap title={item.name}>
+                                        {item.name}
+                                    </Typography>
+                                </Box>
+
+                                {/* Số lượng + nút +/- */}
+                                <Box sx={{ flex: 2, display: 'flex', justifyContent: 'center' }}>
                                     <Stack direction="row" spacing={0.5} alignItems="center">
                                         <Button
                                             variant="outlined"
@@ -1525,7 +1580,11 @@ const POS = () => {
                                         >
                                             -
                                         </Button>
-                                        <Typography variant="body2" fontWeight="bold" sx={{ minWidth: '20px', textAlign: 'center' }}>
+                                        <Typography
+                                            variant="body2"
+                                            fontWeight="bold"
+                                            sx={{ minWidth: '24px', textAlign: 'center' }}
+                                        >
                                             {item.qty}
                                         </Typography>
                                         <Button
@@ -1538,19 +1597,25 @@ const POS = () => {
                                             +
                                         </Button>
                                     </Stack>
-                                    
-                                    {/* Giá */}
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                                        {/* <Typography variant="caption" color="text.secondary">
-                                            {formatCurrency(item.price)}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            × {item.qty}
-                                        </Typography> */}
-                                        <Typography variant="body1" fontWeight="bold" color="primary" sx={{ fontSize: '1rem' }}>
-                                            {formatCurrency(item.price * item.qty)}
-                                        </Typography>
-                                    </Box>
+                                </Box>
+
+                                {/* Đơn giá */}
+                                <Box sx={{ flex: 2, textAlign: 'right' }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {formatCurrency(item.price)}
+                                    </Typography>
+                                </Box>
+
+                                {/* Thành tiền */}
+                                <Box sx={{ flex: 2, textAlign: 'right' }}>
+                                    <Typography
+                                        variant="body1"
+                                        fontWeight="bold"
+                                        color="primary"
+                                        sx={{ fontSize: '1rem' }}
+                                    >
+                                        {formatCurrency(item.price * item.qty)}
+                                    </Typography>
                                 </Box>
                             </Box>
                         </Box>
@@ -1616,7 +1681,7 @@ const POS = () => {
                                     variant={selectedPaymentMethod === 'qr' ? 'contained' : 'outlined'}
                                     fullWidth
                                     size="small"
-                                    disabled={!isShiftActive}
+                                    disabled={!isShiftActive || total === 0}
                                     startIcon={<CreditCardIcon fontSize="small" />}
                                     onClick={() => handleSelectPaymentMethod('qr')}
                                     sx={{ py: 0.75 }}

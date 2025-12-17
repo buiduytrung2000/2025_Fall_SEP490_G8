@@ -102,14 +102,16 @@ export const createVoucher = async (req, res) => {
 // ADD VOUCHER FROM TEMPLATE
 export const addVoucherFromTemplate = async (req, res) => {
     try {
-        const { customer_id, template_id } = req.body;
+        const { customer_id, template_id, store_id } = req.body;
         if (!customer_id || !template_id) {
             return res.status(400).json({
                 err: 1,
                 msg: 'Missing customer_id or template_id'
             });
         }
-        const response = await voucherService.addVoucherFromTemplate(customer_id, template_id);
+        // Lấy store_id từ request body hoặc từ user context
+        const storeId = store_id || req.user?.store_id || null;
+        const response = await voucherService.addVoucherFromTemplate(customer_id, template_id, storeId);
         return res.status(response.err === 0 ? 201 : 400).json(response);
     } catch (error) {
         return res.status(500).json({

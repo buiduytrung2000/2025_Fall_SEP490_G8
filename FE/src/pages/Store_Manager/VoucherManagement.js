@@ -15,8 +15,6 @@ import {
   FormControlLabel,
   Checkbox,
   Chip,
-  Tabs,
-  Tab,
   Stack
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
@@ -36,11 +34,7 @@ function VoucherManagement() {
     const { user } = useAuth();
     const [templates, setTemplates] = useState([]);
     const [customers, setCustomers] = useState([]);
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
-    const [availableTemplates, setAvailableTemplates] = useState([]);
-    
     const [showTemplateModal, setShowTemplateModal] = useState(false);
-    const [showAssignModal, setShowAssignModal] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
     
     const [formData, setFormData] = useState({
@@ -56,13 +50,22 @@ function VoucherManagement() {
     });
 
     const getStoreId = () => {
+        // Ưu tiên lấy từ user context
         if (user?.store_id) return user.store_id;
+        // Fallback: lấy từ localStorage user object
         try {
             const persisted = localStorage.getItem('user');
             if (persisted) {
                 const parsed = JSON.parse(persisted);
-                return parsed.store_id || null;
+                if (parsed.store_id) return parsed.store_id;
             }
+        } catch (error) {
+            console.error('Error reading store_id from localStorage user:', error);
+        }
+        // Fallback: lấy từ localStorage store_id riêng
+        try {
+            const storeIdStr = localStorage.getItem('store_id');
+            if (storeIdStr) return Number(storeIdStr);
         } catch (error) {
             console.error('Error reading store_id from localStorage:', error);
         }
@@ -101,20 +104,6 @@ function VoucherManagement() {
             }
         } catch (error) {
             ToastNotification.error('Lỗi khi tải danh sách khách hàng');
-        }
-    };
-
-    const loadAvailableTemplatesForCustomer = async (customerId) => {
-        try {
-            const storeId = getStoreId();
-            const res = await voucherTemplateApi.getAvailableTemplatesForCustomer(customerId, { store_id: storeId });
-            if (res && res.err === 0) {
-                const list = res.data || [];
-                const filtered = storeId ? list.filter(t => !t.store_id || t.store_id === storeId) : list;
-                setAvailableTemplates(filtered);
-            }
-        } catch (error) {
-            ToastNotification.error('Lỗi khi tải danh sách mã khuyến mãi khả dụng');
         }
     };
 
@@ -158,21 +147,72 @@ function VoucherManagement() {
         try {
             let res;
             const storeId = getStoreId();
+            if (!storeId) {
+                ToastNotification.error('Không xác định được cửa hàng. Vui lòng đăng nhập lại.');
+                return;
+            }
             const payload = { ...formData, store_id: storeId };
-            if (editingTemplate) {
+            console.log('Saving voucher template with payload:', payload);
+
+            const isEditing = !!editingTemplate;
+
+            if (isEditing) {
+                // Chỉ cập nhật template, KHÔNG tự gán lại cho tất cả khách hàng
                 res = await voucherTemplateApi.updateVoucherTemplate(editingTemplate.voucher_template_id, payload);
             } else {
+                // Tạo template mới
                 res = await voucherTemplateApi.createVoucherTemplate(payload);
             }
 
             if (res && res.err === 0) {
-                ToastNotification.success(editingTemplate ? 'Cập nhật mẫu mã khuyến mãi thành công' : 'Tạo mẫu mã khuyến mãi thành công');
+                // Nếu là tạo mới, tự động gán voucher cho KH đủ điều kiện theo điểm tích lũy
+                if (!isEditing) {
+                    const newTemplateId =
+                        res.data?.voucher_template_id ||
+                        res.data?.id ||
+                        res.data?.voucherTemplate?.voucher_template_id;
+
+                    if (newTemplateId && customers && customers.length > 0) {
+                        const requiredPoints = Number(formData.required_loyalty_points || 0);
+                        // Lọc chỉ khách hàng có điểm >= required_loyalty_points
+                        const eligibleCustomers = customers.filter(
+                            (c) => Number(c.loyalty_point || 0) >= requiredPoints
+                        );
+
+                        console.log('Auto-assign voucher template', newTemplateId, 'to customers:', {
+                            totalCustomers: customers.length,
+                            requiredPoints,
+                            eligibleCount: eligibleCustomers.length,
+                        });
+
+                        try {
+                            await Promise.all(
+                                eligibleCustomers.map((c) =>
+                                    voucherTemplateApi.addVoucherFromTemplate(c.customer_id, newTemplateId, storeId)
+                                )
+                            );
+                            ToastNotification.success(
+                                `Đã tự động gán mã khuyến mãi mới cho ${eligibleCustomers.length} khách hàng đủ điểm`
+                            );
+                        } catch (assignError) {
+                            console.error('Error auto-assigning vouchers to customers:', assignError);
+                            ToastNotification.error('Đã tạo mẫu mã, nhưng lỗi khi tự gán cho khách hàng');
+                        }
+                    }
+                }
+
+                ToastNotification.success(
+                    isEditing
+                        ? 'Cập nhật mẫu mã khuyến mãi thành công'
+                        : 'Tạo mẫu mã khuyến mãi thành công'
+                );
                 handleCloseTemplateModal();
                 loadTemplates();
             } else {
-                ToastNotification.error(res.msg || 'Có lỗi xảy ra');
+                ToastNotification.error(res?.msg || 'Có lỗi xảy ra');
             }
         } catch (error) {
+            console.error('Error saving voucher template:', error);
             ToastNotification.error('Lỗi khi lưu mẫu mã khuyến mãi');
         }
     };
@@ -190,26 +230,6 @@ function VoucherManagement() {
             } catch (error) {
                 ToastNotification.error('Lỗi khi xóa mẫu mã khuyến mãi');
             }
-        }
-    };
-
-    const handleShowAssignModal = async (customer) => {
-        setSelectedCustomer(customer);
-        await loadAvailableTemplatesForCustomer(customer.customer_id);
-        setShowAssignModal(true);
-    };
-
-    const handleAssignVoucher = async (templateId) => {
-        try {
-            const res = await voucherTemplateApi.addVoucherFromTemplate(selectedCustomer.customer_id, templateId);
-            if (res && res.err === 0) {
-                ToastNotification.success(res.msg || 'Thêm mã khuyến mãi thành công');
-                await loadAvailableTemplatesForCustomer(selectedCustomer.customer_id);
-            } else {
-                ToastNotification.error(res.msg || 'Có lỗi xảy ra');
-            }
-        } catch (error) {
-            ToastNotification.error('Lỗi khi thêm mã khuyến mãi');
         }
     };
 
@@ -296,157 +316,70 @@ function VoucherManagement() {
         },
     ], []);
 
-    const [tabValue, setTabValue] = useState(0);
-
     return (
         <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
             <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý Mã Khuyến Mãi</Typography>
 
-            <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-                <Tab label="Danh sách Mã Khuyến Mãi"/>
-                <Tab label="Gán mã khuyến mãi cho Khách hàng" />
-            </Tabs>
-            {tabValue === 0 && (
-                <Paper sx={{ p: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                        <Typography variant="h6" fontWeight={600}>Danh sách mã khuyến mãi</Typography>
-                        <PrimaryButton
-                            startIcon={<Icon name="Add" />}
-                            onClick={() => handleShowTemplateModal()}
-                        >
-                            Tạo mới
-                        </PrimaryButton>
-                    </Stack>
-                    <MaterialReactTable
-                        columns={templateColumns}
-                        data={templates}
-                        enableStickyHeader
-                        enableColumnActions={false}
-                        enableColumnFilters={false}
-                        enableSorting={true}
-                        enableTopToolbar={false}
-                        enableBottomToolbar={true}
-                        enablePagination={true}
-                        enableRowActions={true}
-                        positionActionsColumn="last"
-                        layoutMode="grid"
-                        initialState={{ 
-                            density: 'compact',
-                            pagination: { pageSize: 10, pageIndex: 0 }
-                        }}
-                        renderRowActions={({ row }) => (
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <ActionButton
-                                    icon={<Icon name="Edit" />}
-                                    action="edit"
-                                    onClick={() => handleShowTemplateModal(row.original)}
-                                />
-                                <ActionButton
-                                    icon={<Icon name="Delete" />}
-                                    action="delete"
-                                    onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
-                                />
-                            </Box>
-                        )}
-                        muiTableContainerProps={{
-                            sx: { maxHeight: { xs: '70vh', md: '600px' } }
-                        }}
-                        muiTablePaperProps={{
-                            elevation: 0,
-                            sx: { boxShadow: 'none' }
-                        }}
-                        muiTableHeadCellProps={{
-                            sx: {
-                                fontWeight: 700,
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                            }
-                        }}
-                        muiTableBodyCellProps={{
-                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
-                        }}
-                        localization={MRT_Localization_VI}
-                    />
-                </Paper>
-            )}
-
-            {tabValue === 1 && (
-                <Paper sx={{ p: 2 }}>
-                    <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Danh sách Khách hàng</Typography>
-                    <MaterialReactTable
-                        columns={[
-                            {
-                                accessorKey: 'index',
-                                header: 'STT',
-                                size: 50,
-                                minSize: 50,
-                                maxSize: 60,
-                                enableResizing: true,
-                                Cell: ({ row }) => row.index + 1,
-                                enableColumnFilter: false,
-                            },
-                            {
-                                accessorKey: 'name',
-                                header: 'Tên khách hàng',
-                                size: 200,
-                            },
-                            {
-                                accessorKey: 'phone',
-                                header: 'Số điện thoại',
-                                size: 130,
-                            },
-                            {
-                                accessorKey: 'loyalty_point',
-                                header: 'Điểm tích lũy',
-                                size: 120,
-                                Cell: ({ cell }) => cell.getValue() || 0,
-                                enableColumnFilter: false,
-                            },
-                        ]}
-                        data={customers}
-                        enableStickyHeader
-                        enableColumnActions={false}
-                        enableColumnFilters={false}
-                        enableSorting={true}
-                        enableTopToolbar={false}
-                        enableBottomToolbar={true}
-                        enablePagination={true}
-                        enableRowActions={true}
-                        positionActionsColumn="last"
-                        layoutMode="grid"
-                        initialState={{ 
-                            density: 'compact',
-                            pagination: { pageSize: 10, pageIndex: 0 }
-                        }}
-                        renderRowActions={({ row }) => (
-                            <PrimaryButton
-                                size="small"
-                                startIcon={<Icon name="Add" />}
-                                onClick={() => handleShowAssignModal(row.original)}
-                                
-                            >
-                                Thêm
-                            </PrimaryButton>
-                        )}
-                        muiTableContainerProps={{
-                            sx: { maxHeight: { xs: '70vh', md: '600px' } }
-                        }}
-                        muiTablePaperProps={{
-                            elevation: 0,
-                            sx: { boxShadow: 'none' }
-                        }}
-                        muiTableHeadCellProps={{
-                            sx: {
-                                fontWeight: 700,
-                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                            }
-                        }}
-                        muiTableBodyCellProps={{
-                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
-                        }}
-                        localization={MRT_Localization_VI}
-                    />
-                </Paper>
-            )}
+            <Paper sx={{ p: 2 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                    <Typography variant="h6" fontWeight={600}>Danh sách mã khuyến mãi</Typography>
+                    <PrimaryButton
+                        startIcon={<Icon name="Add" />}
+                        onClick={() => handleShowTemplateModal()}
+                    >
+                        Tạo mới
+                    </PrimaryButton>
+                </Stack>
+                <MaterialReactTable
+                    columns={templateColumns}
+                    data={templates}
+                    enableStickyHeader
+                    enableColumnActions={false}
+                    enableColumnFilters={false}
+                    enableSorting={true}
+                    enableTopToolbar={false}
+                    enableBottomToolbar={true}
+                    enablePagination={true}
+                    enableRowActions={true}
+                    positionActionsColumn="last"
+                    layoutMode="grid"
+                    initialState={{ 
+                        density: 'compact',
+                        pagination: { pageSize: 10, pageIndex: 0 }
+                    }}
+                    renderRowActions={({ row }) => (
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <ActionButton
+                                icon={<Icon name="Edit" />}
+                                action="edit"
+                                onClick={() => handleShowTemplateModal(row.original)}
+                            />
+                            <ActionButton
+                                icon={<Icon name="Delete" />}
+                                action="delete"
+                                onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
+                            />
+                        </Box>
+                    )}
+                    muiTableContainerProps={{
+                        sx: { maxHeight: { xs: '70vh', md: '600px' } }
+                    }}
+                    muiTablePaperProps={{
+                        elevation: 0,
+                        sx: { boxShadow: 'none' }
+                    }}
+                    muiTableHeadCellProps={{
+                        sx: {
+                            fontWeight: 700,
+                            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                        }
+                    }}
+                    muiTableBodyCellProps={{
+                        sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
+                    }}
+                    localization={MRT_Localization_VI}
+                />
+            </Paper>
 
             {/* Template Modal */}
             <Dialog open={showTemplateModal} onClose={handleCloseTemplateModal} maxWidth="md" fullWidth>
@@ -541,103 +474,6 @@ function VoucherManagement() {
                 </DialogActions>
             </Dialog>
 
-            {/* Assign Voucher Modal */}
-            <Dialog open={showAssignModal} onClose={() => setShowAssignModal(false)} maxWidth="md" fullWidth>
-                <DialogTitle>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6">Thêm mã khuyến mãi cho {selectedCustomer?.name}</Typography>
-                        <Chip label={`${selectedCustomer?.loyalty_point || 0} điểm`} color="info" size="small" />
-                    </Stack>
-                </DialogTitle>
-                <DialogContent>
-                    {availableTemplates.length === 0 ? (
-                        <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
-                            Không có mã khuyến mãi khả dụng cho khách hàng này
-                        </Typography>
-                    ) : (
-                        <MaterialReactTable
-                            columns={[
-                                {
-                                    accessorKey: 'index',
-                                    header: 'STT',
-                                    size: 60,
-                                    Cell: ({ row }) => row.index + 1,
-                                    enableColumnFilter: false,
-                                },
-                                {
-                                    accessorKey: 'voucher_name',
-                                    header: 'Tên mã khuyến mãi',
-                                    size: 200,
-                                },
-                                {
-                                    accessorKey: 'discount_value',
-                                    header: 'Giảm giá',
-                                    size: 120,
-                                    Cell: ({ row }) => {
-                                        const template = row.original;
-                                        return template.discount_type === 'percentage'
-                                            ? `${template.discount_value}%`
-                                            : formatCurrency(template.discount_value);
-                                    },
-                                    enableColumnFilter: false,
-                                },
-                                {
-                                    accessorKey: 'min_purchase_amount',
-                                    header: 'Đơn tối thiểu',
-                                    size: 130,
-                                    Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
-                                    enableColumnFilter: false,
-                                },
-                                {
-                                    accessorKey: 'required_loyalty_points',
-                                    header: 'Điểm yêu cầu',
-                                    size: 120,
-                                    Cell: ({ cell }) => cell.getValue() || 0,
-                                    enableColumnFilter: false,
-                                },
-                            ]}
-                            data={availableTemplates}
-                            enableColumnActions={false}
-                            enableColumnFilters={false}
-                            enableSorting={true}
-                            enableTopToolbar={false}
-                            enableBottomToolbar={false}
-                            enablePagination={false}
-                            enableRowActions={true}
-                            positionActionsColumn="last"
-                            renderRowActions={({ row }) => (
-                                <PrimaryButton
-                                    size="small"
-                                    startIcon={<Icon name="Add" />}
-                                    onClick={() => handleAssignVoucher(row.original.voucher_template_id)}
-                                    sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
-                                >
-                                    Thêm
-                                </PrimaryButton>
-                            )}
-                            muiTableContainerProps={{
-                                sx: { maxHeight: '60vh' }
-                            }}
-                            muiTablePaperProps={{
-                                elevation: 0,
-                                sx: { boxShadow: 'none' }
-                            }}
-                            muiTableHeadCellProps={{
-                                sx: {
-                                    fontWeight: 700,
-                                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                                }
-                            }}
-                            localization={{
-                                noRecordsToDisplay: 'Không có dữ liệu'
-                            }}
-                        />
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <SecondaryButton onClick={() => setShowAssignModal(false)}>Đóng</SecondaryButton>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 }

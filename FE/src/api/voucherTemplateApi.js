@@ -83,11 +83,20 @@ export async function getAvailableTemplatesForCustomer(customerId, params = {}) 
 }
 
 // Add voucher from template
-export async function addVoucherFromTemplate(customerId, templateId) {
+// Optional third param: storeId - để gán voucher theo cửa hàng của người tạo
+export async function addVoucherFromTemplate(customerId, templateId, storeId) {
+    const payload = {
+        customer_id: customerId,
+        template_id: templateId,
+    };
+    if (storeId !== undefined && storeId !== null) {
+        payload.store_id = storeId;
+    }
+
     const res = await fetch(`${API_BASE}/voucher/add-from-template`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ customer_id: customerId, template_id: templateId })
+        body: JSON.stringify(payload)
     });
     return res.json();
 }

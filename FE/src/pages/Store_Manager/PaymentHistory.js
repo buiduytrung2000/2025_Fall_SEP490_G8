@@ -27,6 +27,7 @@ import {
 import { ToastNotification } from '../../components/common';
 import { getTransactionHistory } from '../../api/paymentApi';
 import { getEmployees } from '../../api/employeeApi';
+import { getShiftsByDate } from '../../api/shiftApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateAndPrintInvoice } from '../../utils/invoicePDF';
 import { exportPaymentHistoryToExcel } from '../../utils/exportExcel';
@@ -36,6 +37,7 @@ const PaymentHistory = () => {
     const [transactions, setTransactions] = useState([]);
     const [allTransactions, setAllTransactions] = useState([]); // Store all transactions for filtering
     const [cashiers, setCashiers] = useState([]);
+    const [shifts, setShifts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(() => {
         const today = new Date();
@@ -43,15 +45,42 @@ const PaymentHistory = () => {
     });
     const [paymentMethod, setPaymentMethod] = useState('all');
     const [selectedCashier, setSelectedCashier] = useState('all');
+    const [selectedShift, setSelectedShift] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchCashiers();
     }, []);
 
+    // Fetch shifts when date or cashier changes
+    useEffect(() => {
+        const fetchShifts = async () => {
+            try {
+                const params = {
+                    store_id: user?.store_id,
+                    date: selectedDate
+                };
+                if (selectedCashier !== 'all') {
+                    params.cashier_id = selectedCashier;
+                }
+                const response = await getShiftsByDate(params);
+                if (response.err === 0) {
+                    setShifts(response.data || []);
+                } else {
+                    setShifts([]);
+                }
+            } catch (error) {
+                console.error('Error fetching shifts:', error);
+                setShifts([]);
+            }
+        };
+        fetchShifts();
+        setSelectedShift('all'); // Reset shift filter when date/cashier changes
+    }, [selectedDate, selectedCashier, user?.store_id]);
+
     useEffect(() => {
         fetchTransactions();
-    }, [selectedDate, paymentMethod, selectedCashier]);
+    }, [selectedDate, paymentMethod, selectedCashier, selectedShift]);
 
     const fetchCashiers = async () => {
         try {
@@ -82,6 +111,10 @@ const PaymentHistory = () => {
 
             if (selectedCashier !== 'all') {
                 filters.cashier_id = selectedCashier;
+            }
+
+            if (selectedShift !== 'all') {
+                filters.shift_id = selectedShift;
             }
 
             const response = await getTransactionHistory(filters);
@@ -318,21 +351,14 @@ const PaymentHistory = () => {
                         </Select>
                     </FormControl>
                 </Grid>
-                <Grid item xs={12} md={3}>
-                    <FormControl fullWidth sx={{ minWidth: '200px' }} size="small">
-                        <InputLabel id="cashier-label">Nhân viên thu ngân</InputLabel>
+                <Grid item xs={12} md={2}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel id="cashier-label">Nhân viên</InputLabel>
                         <Select
                             labelId="cashier-label"
                             value={selectedCashier}
                             onChange={(e) => setSelectedCashier(e.target.value)}
-                            label="Nhân viên thu ngân"
-                            sx={{ 
-                                minWidth: '200px',
-                                '& .MuiSelect-select': { 
-                                    whiteSpace: 'normal',
-                                    wordBreak: 'break-word'
-                                }
-                            }}
+                            label="Nhân viên"
                         >
                             <MenuItem value="all">Tất cả</MenuItem>
                             {cashiers.map(cashier => (
@@ -344,6 +370,24 @@ const PaymentHistory = () => {
                     </FormControl>
                 </Grid>
                 <Grid item xs={12} md={2}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel id="shift-label">Ca làm việc</InputLabel>
+                        <Select
+                            labelId="shift-label"
+                            value={selectedShift}
+                            onChange={(e) => setSelectedShift(e.target.value)}
+                            label="Ca làm việc"
+                        >
+                            <MenuItem value="all">Tất cả</MenuItem>
+                            {shifts.map(shift => (
+                                <MenuItem key={shift.shift_id} value={shift.shift_id}>
+                                    Ca #{shift.shift_id} ({new Date(shift.check_in_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={1}>
                     <Button
                         variant="contained"
                         color="success"

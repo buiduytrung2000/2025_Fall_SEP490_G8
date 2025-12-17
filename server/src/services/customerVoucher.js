@@ -103,7 +103,15 @@ export const validateVoucher = (voucherCode, customerId, purchaseAmount) => new 
         if (!voucher) {
             return resolve({
                 err: 1,
-                msg: 'Voucher không hợp lệ hoặc đã hết hạn'
+                msg: 'Voucher không hợp lệ, đã hết hạn hoặc đã được sử dụng'
+            })
+        }
+
+        // Double check: Ensure voucher is not already used
+        if (voucher.status === 'used' || voucher.used_at) {
+            return resolve({
+                err: 1,
+                msg: 'Voucher đã được sử dụng'
             })
         }
 
@@ -149,22 +157,47 @@ export const markVoucherAsUsed = (voucherCode, transactionId) => new Promise(asy
     try {
         const voucher = await db.CustomerVoucher.findOne({
             where: {
-                voucher_code: voucherCode
+                voucher_code: voucherCode,
+                status: 'available' // Only mark as used if still available
             }
         })
 
         if (!voucher) {
             return resolve({
                 err: 1,
-                msg: 'Voucher không tồn tại'
+                msg: 'Voucher không tồn tại hoặc đã được sử dụng'
             })
         }
 
-        await voucher.update({
-            status: 'used',
-            used_at: new Date(),
-            transaction_id: transactionId
-        })
+        // Double check: Ensure voucher is not already used
+        if (voucher.status === 'used' || voucher.used_at) {
+            return resolve({
+                err: 1,
+                msg: 'Voucher đã được sử dụng'
+            })
+        }
+
+        // Use atomic update to prevent race condition
+        const [updatedRows] = await db.CustomerVoucher.update(
+            {
+                status: 'used',
+                used_at: new Date(),
+                transaction_id: transactionId
+            },
+            {
+                where: {
+                    voucher_code: voucherCode,
+                    status: 'available' // Only update if still available
+                }
+            }
+        )
+
+        if (updatedRows === 0) {
+            return resolve({
+                err: 1,
+                msg: 'Voucher đã được sử dụng bởi giao dịch khác'
+            })
+        }
 
         resolve({
             err: 0,
@@ -264,7 +297,8 @@ export const autoGenerateVouchersForCustomer = (customerId, loyaltyPoints, store
                     required_loyalty_points: template.required_loyalty_points,
                     start_date: now,
                     end_date: endDate,
-                    status: 'available'
+                    status: 'available',
+                    store_id: storeId || template.store_id || null
                 });
 
                 console.log('Created voucher:', newVoucher.voucher_code);
@@ -316,7 +350,7 @@ export const generateVouchersForExistingCustomer = (customerId, storeId = null) 
 })
 
 // ADD VOUCHER MANUALLY FROM TEMPLATE
-export const addVoucherFromTemplate = (customerId, templateId) => new Promise(async (resolve, reject) => {
+export const addVoucherFromTemplate = (customerId, templateId, storeId = null) => new Promise(async (resolve, reject) => {
     try {
         // Get customer
         const customer = await db.Customer.findByPk(customerId, {
@@ -337,6 +371,9 @@ export const addVoucherFromTemplate = (customerId, templateId) => new Promise(as
                 is_active: true
             }
         });
+
+        // Lấy store_id từ template nếu không có từ request (ưu tiên store_id từ request)
+        const finalStoreId = storeId || template?.store_id || null;
 
         if (!template) {
             return resolve({
@@ -389,7 +426,8 @@ export const addVoucherFromTemplate = (customerId, templateId) => new Promise(as
             required_loyalty_points: template.required_loyalty_points,
             start_date: now,
             end_date: endDate,
-            status: 'available'
+            status: 'available',
+            store_id: finalStoreId
         });
 
         resolve({

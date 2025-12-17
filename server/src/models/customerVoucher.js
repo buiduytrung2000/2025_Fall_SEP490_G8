@@ -71,6 +71,17 @@ module.exports = (sequelize, DataTypes) => {
     transaction_id: {
       type: DataTypes.INTEGER,
       allowNull: true
+    },
+    store_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'Store',
+        key: 'store_id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      comment: 'Cửa hàng tạo voucher (lấy từ người tạo hoặc template)'
     }
   }, {
     sequelize,

@@ -401,6 +401,17 @@ const ShiftChangeRequest = () => {
             return;
         }
 
+        // Không cho phép tạo yêu cầu đổi ca cho ca của ngày hôm nay
+        const fromSchedule = mySchedules.find((s) => s.schedule_id === parseInt(formData.from_schedule_id));
+        if (fromSchedule) {
+            const workDateStr = (fromSchedule.work_date || fromSchedule.workDate || '').slice(0, 10);
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (workDateStr === todayStr) {
+                ToastNotification.error('Không thể tạo yêu cầu đổi ca cho ca làm việc trong ngày hôm nay');
+                return;
+            }
+        }
+
         // Kiểm tra nếu chọn option "manual" thì phải chọn ca/nhân viên
         if (formData.request_type === 'swap' && formData.swap_option === 'manual' && !formData.to_schedule_id) {
             ToastNotification.error('Vui lòng chọn ca muốn đổi với');
@@ -588,22 +599,32 @@ const renderShiftOption = (shift, shiftTemplates) => {
 };
 
     // Ưu tiên hiển thị các ca chưa điểm danh lên trước
+    // Chỉ cho phép đổi ca từ ngày mai trở đi (không cho đổi ca hôm nay)
     const sortedMySchedules = useMemo(() => {
         const priority = (status) => {
             // Chưa điểm danh hoặc không có trạng thái -> ưu tiên cao nhất
             if (!status || status === 'not_checked_in') return 0;
             return 1;
         };
-        return [...mySchedules].sort((a, b) => {
-            const pa = priority(a.attendance_status);
-            const pb = priority(b.attendance_status);
-            if (pa !== pb) return pa - pb;
-            // fallback theo ngày và ca để ổn định
-            const da = a.work_date || a.workDate || '';
-            const db = b.work_date || b.workDate || '';
-            if (da !== db) return da.localeCompare(db);
-            return (a.shift_template_id || 0) - (b.shift_template_id || 0);
-        });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        return [...mySchedules]
+            .filter((s) => {
+                const d = (s.work_date || s.workDate || '').slice(0, 10);
+                // Chỉ lấy ca có ngày > hôm nay
+                return d && d > todayStr;
+            })
+            .sort((a, b) => {
+                const pa = priority(a.attendance_status);
+                const pb = priority(b.attendance_status);
+                if (pa !== pb) return pa - pb;
+                // fallback theo ngày và ca để ổn định
+                const da = a.work_date || a.workDate || '';
+                const db = b.work_date || b.workDate || '';
+                if (da !== db) return da.localeCompare(db);
+                return (a.shift_template_id || 0) - (b.shift_template_id || 0);
+            });
     }, [mySchedules]);
 
     // Định nghĩa cột cho bảng lịch làm việc
@@ -997,10 +1018,16 @@ const renderShiftOption = (shift, shiftTemplates) => {
                                     Chọn một ca của bạn...
                                 </MenuItem>
                                 {(() => {
-                                    // Lọc bỏ các ca đã vắng mặt hoặc đã kết ca
-                                    const availableSchedules = mySchedules.filter(
-                                        (schedule) => schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out'
-                                    );
+                                    // Lọc bỏ các ca hôm nay và các ca đã vắng mặt / đã kết ca
+                                    const todayStr = new Date().toISOString().split('T')[0];
+                                    const availableSchedules = mySchedules.filter((schedule) => {
+                                        const d = (schedule.work_date || schedule.workDate || '').slice(0, 10);
+                                        const notTodayOrPast = d && d > todayStr;
+                                        const notFinished =
+                                            schedule.attendance_status !== 'absent' &&
+                                            schedule.attendance_status !== 'checked_out';
+                                        return notTodayOrPast && notFinished;
+                                    });
                                     
                                     if (availableSchedules.length === 0) {
                                         return (

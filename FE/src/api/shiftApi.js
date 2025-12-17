@@ -78,3 +78,20 @@ export async function getShiftReport({ store_id, cashier_id, date_from, date_to 
   }
 }
 
+export async function getShiftsByDate({ store_id, date, cashier_id }) {
+  try {
+    const params = new URLSearchParams()
+    if (store_id) params.append('store_id', store_id)
+    if (date) params.append('date', date)
+    if (cashier_id) params.append('cashier_id', cashier_id)
+    
+    const res = await fetch(`${API_BASE}/shifts?${params.toString()}`, {
+      method: 'GET',
+      headers: headers()
+    })
+    return await res.json()
+  } catch (e) {
+    return { err: -1, msg: e.message }
+  }
+}
+
