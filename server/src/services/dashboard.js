@@ -890,3 +890,95 @@ export const getInventoryOverview = () => new Promise(async (resolve, reject) =>
     }
 });
 
+// Get recent branch orders (store orders from warehouse to stores)
+export const getRecentBranchOrders = (limit = 8) => new Promise(async (resolve, reject) => {
+    try {
+        const ordersQuery = `
+            SELECT
+                so.store_order_id,
+                so.order_code,
+                so.status,
+                so.created_at,
+                so.notes,
+                s.name AS store_name,
+                COALESCE(SUM(soi.quantity * COALESCE(p.retail_price, 0)), 0) AS totalAmount,
+                COUNT(DISTINCT soi.store_order_item_id) AS itemCount
+            FROM StoreOrder so
+            LEFT JOIN Store s ON so.store_id = s.store_id
+            LEFT JOIN StoreOrderItem soi ON so.store_order_id = soi.store_order_id
+            LEFT JOIN Product p ON soi.product_id = p.product_id
+            GROUP BY so.store_order_id, so.order_code, so.status, so.created_at, so.notes, s.name
+            ORDER BY so.created_at DESC
+            LIMIT :limit
+        `;
+
+        const rows = await db.sequelize.query(ordersQuery, {
+            replacements: { limit: parseInt(limit) },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const orders = rows.map(row => ({
+            store_order_id: row.store_order_id,
+            order_code: row.order_code,
+            status: row.status,
+            store_name: row.store_name || 'N/A',
+            created_at: row.created_at,
+            notes: row.notes,
+            total_amount: parseFloat(row.totalAmount || 0),
+            item_count: parseInt(row.itemCount || 0)
+        }));
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: orders
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get branch orders summary statistics
+export const getBranchOrdersSummary = () => new Promise(async (resolve, reject) => {
+    try {
+        const summaryQuery = `
+            SELECT
+                COUNT(DISTINCT so.store_order_id) AS total,
+                COALESCE(SUM(CASE WHEN so.status = 'pending' THEN 1 ELSE 0 END), 0) AS pending,
+                COALESCE(SUM(CASE WHEN so.status = 'preparing' THEN 1 ELSE 0 END), 0) AS preparing,
+                COALESCE(SUM(CASE WHEN so.status = 'shipped' THEN 1 ELSE 0 END), 0) AS shipped,
+                COALESCE(SUM(CASE WHEN so.status = 'delivered' THEN 1 ELSE 0 END), 0) AS delivered,
+                COALESCE(SUM(CASE WHEN so.status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled,
+                COALESCE(
+                    (SELECT SUM(soi.quantity * COALESCE(p.retail_price, 0))
+                     FROM StoreOrderItem soi
+                     INNER JOIN Product p ON soi.product_id = p.product_id
+                     WHERE soi.store_order_id IN (SELECT store_order_id FROM StoreOrder)), 0
+                ) AS totalAmount
+            FROM StoreOrder so
+        `;
+
+        const [row] = await db.sequelize.query(summaryQuery, {
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        const summary = {
+            total: parseInt(row?.total || 0),
+            pending: parseInt(row?.pending || 0),
+            preparing: parseInt(row?.preparing || 0),
+            shipped: parseInt(row?.shipped || 0),
+            delivered: parseInt(row?.delivered || 0),
+            cancelled: parseInt(row?.cancelled || 0),
+            totalAmount: parseFloat(row?.totalAmount || 0)
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: summary
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+

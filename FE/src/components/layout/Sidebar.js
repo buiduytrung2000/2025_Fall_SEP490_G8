@@ -20,7 +20,8 @@ import {
 const navLinks = {
     Admin: [
         // { to: "/admin/permissions", icon: <FaUsersCog />, text: "Phân quyền" },
-        { to: "/admin/users", icon: <FaUserFriends />, text: "Quản lý Người dùng" }
+        { to: "/admin/users", icon: <FaUserFriends />, text: "Quản lý Người dùng" },
+        { to: "/admin/stores", icon: <FaStore />, text: "Quản lý Cửa hàng" }
     ],
     Manager: [
         { to: "/manager/dashboard", icon: <FaChartPie />, text: "Tổng quan" },

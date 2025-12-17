@@ -20,6 +20,7 @@ import POS from "./pages/Cashier/POS";
 import ManagerDashboard from "./pages/Store_Manager/ManagerDashboard";
 import AdminPermissions from "./pages/Admin/AdminPermissions";
 import UserManagement from "./pages/Admin/UserManagement";
+import AdminStoreManagement from "./pages/Admin/StoreManagement";
 import CEODashboard from "./pages/CEO/CEODashboard";
 import StoreManagement from "./pages/CEO/StoreManagement";
 import CEORevenueBoard from "./pages/CEO/CEORevenueBoard";
@@ -83,6 +84,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/stores"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <AdminStoreManagement />
                 </ProtectedRoute>
               }
             />

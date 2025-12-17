@@ -22,12 +22,17 @@ import {
   Grid,
   useMediaQuery,
   useTheme,
-  InputAdornment
+  InputAdornment,
+  Button
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
-import { createStoreOrder, getStoreOrders, updateStoreOrderStatus } from '../../api/storeOrderApi';
+import { createStoreOrder, getStoreOrders, updateStoreOrderStatus, updateStoreOrder, cancelStoreOrder } from '../../api/storeOrderApi';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 import { IconButton, Tooltip } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -73,6 +78,15 @@ const PurchaseOrders = () => {
   const [confirmReceivedDialog, setConfirmReceivedDialog] = useState(false);
   const [receiveNote, setReceiveNote] = useState('');
   const [receiveItems, setReceiveItems] = useState([]);
+  const [openEditOrderModal, setOpenEditOrderModal] = useState(false);
+  const [editLines, setEditLines] = useState([emptyLine()]);
+  const [editTarget, setEditTarget] = useState('');
+  const [editPerishable, setEditPerishable] = useState(false);
+  const [editSupplier, setEditSupplier] = useState('');
+  const [confirmCancelDialog, setConfirmCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [editingItemIndex, setEditingItemIndex] = useState(null);
+  const [editingItemData, setEditingItemData] = useState({});
 
   const getStatusMeta = useCallback((status) => {
     if (!status) return STATUS_META.pending;
@@ -383,6 +397,307 @@ const PurchaseOrders = () => {
     }
   };
 
+  const handleOpenEditOrder = () => {
+    if (!selectedOrder) return;
+    // Load dữ liệu đơn hàng vào form edit
+    setEditTarget(selectedOrder.target_warehouse || '');
+    setEditPerishable(selectedOrder.perishable || false);
+    setEditSupplier(selectedOrder.supplier_name || '');
+    const orderItems = (selectedOrder.items || []).map(item => ({
+      sku: item.sku || '',
+      name: item.product_name || item.name || '',
+      qty: item.quantity || 1,
+      price: item.unit_price || 0
+    }));
+    setEditLines(orderItems.length > 0 ? orderItems : [emptyLine()]);
+    setOpenEditOrderModal(true);
+  };
+
+  const addEditLine = () => {
+    setEditLines(prev => {
+      const filtered = prev.filter(l => !(l.sku === '' && l.name === '' && l.qty === 1 && l.price === 0));
+      return [...filtered, emptyLine()];
+    });
+  };
+
+  const removeEditLine = (idx) => setEditLines(prev => prev.filter((_, i) => i !== idx));
+
+  const updateEditLine = (idx, key, val) => {
+    setEditLines(prev => {
+      const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
+      if (key === 'sku' || key === 'name') {
+        const currentLine = updated[idx];
+        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') ||
+          (currentLine.name && currentLine.name.trim() !== '');
+
+        if (hasData) {
+          const filtered = updated.filter((l, i) => {
+            if (i === idx) return true;
+            return (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '');
+          });
+          const hasEmptyLine = filtered.some(l => l.sku === '' && l.name === '');
+          return hasEmptyLine ? filtered : [...filtered, emptyLine()];
+        }
+      }
+      return updated;
+    });
+  };
+
+  const handleSaveEditOrder = async () => {
+    if (!selectedOrder) return;
+
+    // Validation
+    if (editLines.length === 0 || editLines.every(l => !l.sku && !l.name)) {
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+      return;
+    }
+
+    if (!editTarget || editTarget.trim() === '') {
+      ToastNotification.error('Vui lòng nhập tên kho nhận hàng');
+      return;
+    }
+
+    const validItems = [];
+    for (let i = 0; i < editLines.length; i++) {
+      const l = editLines[i];
+
+      if ((!l.sku || l.sku.trim() === '') && (!l.name || l.name.trim() === '') && (!l.qty || l.qty === '') && (!l.price || l.price === '')) {
+        continue;
+      }
+
+      if (!l.sku || l.sku.trim() === '') {
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập mã SKU`);
+        return;
+      }
+
+      if (!l.name || l.name.trim() === '') {
+        ToastNotification.error(`Dòng ${i + 1}: Vui lòng nhập tên hàng`);
+        return;
+      }
+
+      const qty = parseInt(l.qty);
+      if (isNaN(qty) || qty <= 0) {
+        ToastNotification.error(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
+        return;
+      }
+
+      const price = parseFloat(l.price);
+      if (isNaN(price) || price <= 0) {
+        ToastNotification.error(`Dòng ${i + 1}: Đơn giá phải lớn hơn 0`);
+        return;
+      }
+
+      validItems.push({
+        sku: (l.sku || '').trim(),
+        name: (l.name || '').trim(),
+        quantity: qty,
+        unit_price: price
+      });
+    }
+
+    if (validItems.length === 0) {
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm hợp lệ vào đơn hàng');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        order_type: 'ToWarehouse',
+        target_warehouse: editTarget.trim(),
+        supplier_id: null,
+        items: validItems,
+        perishable: editPerishable,
+        notes: null
+      };
+
+      const result = await updateStoreOrder(selectedOrder.store_order_id, payload);
+
+      if (result.err === 0) {
+        ToastNotification.success('Cập nhật đơn hàng thành công!');
+        setOpenEditOrderModal(false);
+        // Reload danh sách và cập nhật chi tiết
+        const updatedList = await fetchOrders(false);
+        const updatedDetail = updatedList.find(
+          (o) => o.store_order_id === selectedOrder.store_order_id
+        );
+        if (updatedDetail) {
+          setSelectedOrder(updatedDetail);
+        }
+      } else {
+        ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể cập nhật đơn hàng'));
+      }
+    } catch (error) {
+      console.error('Error updating order:', error);
+      ToastNotification.error('Lỗi khi cập nhật đơn hàng: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenCancelOrder = () => {
+    setCancelReason('');
+    setConfirmCancelDialog(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!selectedOrder) return;
+
+    setUpdatingStatus(true);
+    try {
+      const response = await cancelStoreOrder(selectedOrder.store_order_id, cancelReason);
+      if (response.err === 0) {
+        ToastNotification.success('Hủy đơn hàng thành công!');
+        setConfirmCancelDialog(false);
+        setOpenModal(false);
+        setEditingItemIndex(null);
+        setEditingItemData({});
+        // Reload danh sách
+        await fetchOrders(false);
+      } else {
+        ToastNotification.error(response.msg || 'Không thể hủy đơn hàng');
+      }
+    } catch (error) {
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleStartEditItem = (idx, item) => {
+    setEditingItemIndex(idx);
+    setEditingItemData({
+      quantity: item.quantity || 0,
+      unit_price: item.unit_price || 0
+    });
+  };
+
+  const handleCancelEditItem = () => {
+    setEditingItemIndex(null);
+    setEditingItemData({});
+  };
+
+  const handleSaveEditItem = async (idx) => {
+    if (!selectedOrder) return;
+
+    const qty = Number(editingItemData.quantity);
+    const price = Number(editingItemData.unit_price);
+
+    if (isNaN(qty) || qty <= 0) {
+      ToastNotification.error('Số lượng phải lớn hơn 0');
+      return;
+    }
+
+    if (isNaN(price) || price <= 0) {
+      ToastNotification.error('Đơn giá phải lớn hơn 0');
+      return;
+    }
+
+    // Cập nhật item trong selectedOrder
+    const updatedItems = [...(selectedOrder.items || [])];
+    updatedItems[idx] = {
+      ...updatedItems[idx],
+      quantity: qty,
+      unit_price: price
+    };
+
+    // Chuẩn bị payload để gửi API
+    const payload = {
+      order_type: selectedOrder.order_type || 'ToWarehouse',
+      target_warehouse: selectedOrder.target_warehouse || '',
+      supplier_id: null,
+      items: updatedItems.map(item => ({
+        sku: item.sku || '',
+        name: item.product_name || item.name || '',
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      })),
+      perishable: selectedOrder.perishable || false,
+      notes: selectedOrder.notes || null
+    };
+
+    setSubmitting(true);
+    try {
+      const result = await updateStoreOrder(selectedOrder.store_order_id, payload);
+      if (result.err === 0) {
+        ToastNotification.success('Cập nhật sản phẩm thành công!');
+        setEditingItemIndex(null);
+        setEditingItemData({});
+        // Reload danh sách và cập nhật chi tiết
+        const updatedList = await fetchOrders(false);
+        const updatedDetail = updatedList.find(
+          (o) => o.store_order_id === selectedOrder.store_order_id
+        );
+        if (updatedDetail) {
+          setSelectedOrder(updatedDetail);
+        }
+      } else {
+        ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể cập nhật sản phẩm'));
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      ToastNotification.error('Lỗi khi cập nhật sản phẩm: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteItem = async (idx) => {
+    if (!selectedOrder) return;
+
+    if (selectedOrder.items && selectedOrder.items.length <= 1) {
+      ToastNotification.error('Không thể xóa sản phẩm cuối cùng. Hãy hủy đơn hàng thay vì xóa.');
+      return;
+    }
+
+    // Xác nhận trước khi xóa
+    const itemName = selectedOrder.items[idx]?.product_name || selectedOrder.items[idx]?.name || 'sản phẩm này';
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa "${itemName}" khỏi đơn hàng?`)) {
+      return;
+    }
+
+    // Cập nhật items (loại bỏ item ở index idx)
+    const updatedItems = selectedOrder.items.filter((_, i) => i !== idx);
+
+    // Chuẩn bị payload
+    const payload = {
+      order_type: selectedOrder.order_type || 'ToWarehouse',
+      target_warehouse: selectedOrder.target_warehouse || '',
+      supplier_id: null,
+      items: updatedItems.map(item => ({
+        sku: item.sku || '',
+        name: item.product_name || item.name || '',
+        quantity: item.quantity,
+        unit_price: item.unit_price
+      })),
+      perishable: selectedOrder.perishable || false,
+      notes: selectedOrder.notes || null
+    };
+
+    setSubmitting(true);
+    try {
+      const result = await updateStoreOrder(selectedOrder.store_order_id, payload);
+      if (result.err === 0) {
+        ToastNotification.success('Xóa sản phẩm thành công!');
+        // Reload danh sách và cập nhật chi tiết
+        const updatedList = await fetchOrders(false);
+        const updatedDetail = updatedList.find(
+          (o) => o.store_order_id === selectedOrder.store_order_id
+        );
+        if (updatedDetail) {
+          setSelectedOrder(updatedDetail);
+        }
+      } else {
+        ToastNotification.error('Lỗi: ' + (result.msg || 'Không thể xóa sản phẩm'));
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      ToastNotification.error('Lỗi khi xóa sản phẩm: ' + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
       <Box sx={{ mb: 2 }}>
@@ -603,7 +918,11 @@ const PurchaseOrders = () => {
       {/* Order Detail Modal */}
       <Dialog
         open={openModal}
-        onClose={() => setOpenModal(false)}
+        onClose={() => {
+          setOpenModal(false);
+          setEditingItemIndex(null);
+          setEditingItemData({});
+        }}
         maxWidth="md"
         fullWidth
         fullScreen={isMobile}
@@ -697,6 +1016,9 @@ const PurchaseOrders = () => {
                       <TableCell align="right" sx={{ fontWeight: 700 }}>SL nhận thực tế</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Đơn giá</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Thành tiền</TableCell>
+                      {selectedOrder?.status?.toLowerCase() === 'pending' && (
+                        <TableCell align="center" sx={{ fontWeight: 700 }}>Thao tác</TableCell>
+                      )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -706,38 +1028,116 @@ const PurchaseOrders = () => {
                           <TableCell>{idx + 1}</TableCell>
                           <TableCell>{item.sku || 'N/A'}</TableCell>
                           <TableCell>{item.product_name || item.name || 'N/A'}</TableCell>
-                          <TableCell align="right">{item.quantity || 0}</TableCell>
+                          <TableCell align="right">
+                            {editingItemIndex === idx ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={editingItemData.quantity}
+                                onChange={(e) => setEditingItemData({ ...editingItemData, quantity: e.target.value })}
+                                sx={{ width: 80 }}
+                                inputProps={{ min: 1 }}
+                              />
+                            ) : (
+                              item.quantity || 0
+                            )}
+                          </TableCell>
                           <TableCell align="right">
                             {item.received_quantity !== null && item.received_quantity !== undefined
                               ? Number(item.received_quantity).toLocaleString('vi-VN')
                               : ''}
                           </TableCell>
                           <TableCell align="right">
-                            {Number(item.unit_price || 0).toLocaleString('vi-VN')} đ
+                            {editingItemIndex === idx ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={editingItemData.unit_price}
+                                onChange={(e) => setEditingItemData({ ...editingItemData, unit_price: e.target.value })}
+                                sx={{ width: 100 }}
+                                inputProps={{ min: 0 }}
+                              />
+                            ) : (
+                              `${Number(item.unit_price || 0).toLocaleString('vi-VN')} đ`
+                            )}
                           </TableCell>
                           <TableCell align="right">
-                            {Number(
-                              item.subtotal ||
-                              (item.received_quantity ?? item.quantity ?? 0) * (item.unit_price || 0)
-                            ).toLocaleString('vi-VN')} đ
+                            {editingItemIndex === idx
+                              ? `${(Number(editingItemData.quantity || 0) * Number(editingItemData.unit_price || 0)).toLocaleString('vi-VN')} đ`
+                              : `${Number(
+                                  item.subtotal ||
+                                  (item.received_quantity ?? item.quantity ?? 0) * (item.unit_price || 0)
+                                ).toLocaleString('vi-VN')} đ`
+                            }
                           </TableCell>
+                          {selectedOrder?.status?.toLowerCase() === 'pending' && (
+                            <TableCell align="center">
+                              {editingItemIndex === idx ? (
+                                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                  <Tooltip title="Lưu">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => handleSaveEditItem(idx)}
+                                      disabled={submitting}
+                                    >
+                                      <SaveIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Hủy">
+                                    <IconButton
+                                      size="small"
+                                      onClick={handleCancelEditItem}
+                                      disabled={submitting}
+                                    >
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                  <Tooltip title="Sửa sản phẩm">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => handleStartEditItem(idx, item)}
+                                      disabled={submitting || editingItemIndex !== null}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Xóa sản phẩm">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleDeleteItem(idx)}
+                                      disabled={submitting || editingItemIndex !== null}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        <TableCell colSpan={selectedOrder?.status?.toLowerCase() === 'pending' ? 8 : 7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                           Không có sản phẩm
                         </TableCell>
                       </TableRow>
                     )}
                     {selectedOrder.items && selectedOrder.items.length > 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>
+                        <TableCell colSpan={selectedOrder?.status?.toLowerCase() === 'pending' ? 6 : 5} align="right" sx={{ fontWeight: 700 }}>
                           Tổng cộng:
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
                           {Number(selectedOrder.total_amount || 0).toLocaleString('vi-VN')} đ
                         </TableCell>
+                        {selectedOrder?.status?.toLowerCase() === 'pending' && <TableCell />}
                       </TableRow>
                     )}
                   </TableBody>
@@ -747,6 +1147,18 @@ const PurchaseOrders = () => {
           )}
         </DialogContent>
         <DialogActions>
+          {selectedOrder?.status?.toLowerCase() === 'pending' && (
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={handleOpenCancelOrder}
+              disabled={updatingStatus}
+              startIcon={<DeleteIcon />}
+              sx={{ mr: 'auto' }}
+            >
+              Hủy đơn hàng
+            </Button>
+          )}
           {selectedOrder?.status?.toLowerCase() === 'shipped' && (
             <PrimaryButton
               onClick={handleOpenConfirmReceived}
@@ -761,9 +1173,200 @@ const PurchaseOrders = () => {
               Đã nhận hàng
             </PrimaryButton>
           )}
-          <SecondaryButton onClick={() => setOpenModal(false)} disabled={updatingStatus}>
+          <SecondaryButton onClick={() => {
+            setOpenModal(false);
+            setEditingItemIndex(null);
+            setEditingItemData({});
+          }} disabled={updatingStatus}>
             Đóng
           </SecondaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Order Modal */}
+      <Dialog
+        open={openEditOrderModal}
+        onClose={() => !submitting && setOpenEditOrderModal(false)}
+        maxWidth="lg"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          <Box>
+            <Typography variant="h6" fontWeight={700}>
+              Chỉnh sửa đơn hàng #{selectedOrder?.store_order_id || 'N/A'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Bạn có thể chỉnh sửa thông tin đơn hàng khi chưa được warehouse xác nhận
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
+              <TextField
+                label="Kho nhận"
+                size="small"
+                value={editTarget}
+                onChange={(e) => setEditTarget(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 280, md: 320 } }}
+              />
+              <TextField
+                select
+                size="small"
+                label="Hàng tươi sống?"
+                value={editPerishable ? 'Yes' : 'No'}
+                onChange={(e) => setEditPerishable(e.target.value === 'Yes')}
+                sx={{ width: { xs: '100%', sm: 180 } }}
+              >
+                <MenuItem value="No">No</MenuItem>
+                <MenuItem value="Yes">Yes</MenuItem>
+              </TextField>
+              {editPerishable && (
+                <TextField
+                  label="Nhà cung cấp tươi sống"
+                  size="small"
+                  value={editSupplier}
+                  onChange={(e) => setEditSupplier(e.target.value)}
+                  sx={{ width: { xs: '100%', sm: 240, md: 260 } }}
+                />
+              )}
+            </Stack>
+          </Paper>
+
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Chi tiết sản phẩm</Typography>
+          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: { xs: '50vh', md: '60vh' }, overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 600 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>SKU</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 150, sm: 200 } }}>Tên hàng</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng</TableCell>
+                  <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá</TableCell>
+                  <TableCell width={64}></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {editLines.map((l, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        value={l.sku}
+                        onChange={(e) => updateEditLine(idx, 'sku', e.target.value)}
+                        sx={{ width: { xs: 100, sm: 120 } }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={l.name}
+                        onChange={(e) => updateEditLine(idx, 'name', e.target.value)}
+                        sx={{ minWidth: { xs: 150, sm: 200 } }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.qty}
+                        onChange={(e) => updateEditLine(idx, 'qty', e.target.value)}
+                        sx={{ width: { xs: 80, sm: 120 } }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.price}
+                        onChange={(e) => updateEditLine(idx, 'price', e.target.value)}
+                        sx={{ width: { xs: 100, sm: 160 } }}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <ActionButton
+                        icon={<Icon name="Delete" />}
+                        action="delete"
+                        size="small"
+                        onClick={() => removeEditLine(idx)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <PrimaryButton startIcon={<Icon name="Add" />} onClick={addEditLine} size="small">Thêm dòng</PrimaryButton>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>
+                    Tổng tiền:
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
+                    {editLines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0).toLocaleString('vi-VN')} đ
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+        <DialogActions>
+          <SecondaryButton onClick={() => setOpenEditOrderModal(false)} disabled={submitting}>
+            Hủy chỉnh sửa
+          </SecondaryButton>
+          <PrimaryButton 
+            onClick={handleSaveEditOrder} 
+            disabled={submitting || !editLines.length || editLines.every(l => !l.sku && !l.name)} 
+            loading={submitting}
+          >
+            Lưu thay đổi
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirm Cancel Order Dialog */}
+      <Dialog
+        open={confirmCancelDialog}
+        onClose={() => !updatingStatus && setConfirmCancelDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600} color="error">
+            ⚠️ Xác nhận hủy đơn hàng
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Bạn có chắc chắn muốn hủy đơn hàng <strong>#{selectedOrder?.store_order_id}</strong>?
+          </Typography>
+          <Typography variant="body2" color="warning.main" sx={{ mb: 2, fontStyle: 'italic' }}>
+            Lưu ý: Đơn hàng chỉ có thể hủy khi chưa được warehouse xác nhận (trạng thái: Đang chờ duyệt).
+          </Typography>
+          <TextField
+            label="Lý do hủy đơn"
+            placeholder="Ví dụ: Đặt nhầm sản phẩm, không cần nữa..."
+            multiline
+            rows={3}
+            fullWidth
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            helperText="Nên ghi rõ lý do để dễ tra cứu sau này"
+          />
+        </DialogContent>
+        <DialogActions>
+          <SecondaryButton onClick={() => setConfirmCancelDialog(false)} disabled={updatingStatus}>
+            Không, quay lại
+          </SecondaryButton>
+          <ActionButton
+            action="delete"
+            onClick={handleConfirmCancelOrder}
+            disabled={updatingStatus}
+            loading={updatingStatus}
+          >
+            Xác nhận hủy đơn
+          </ActionButton>
         </DialogActions>
       </Dialog>
 

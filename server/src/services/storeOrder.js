@@ -255,6 +255,86 @@ export const getStoreOrders = (storeId, filters = {}) => new Promise(async (reso
     }
 });
 
+// Get store order detail by ID
+export const getStoreOrderDetail = (orderId) => new Promise(async (resolve, reject) => {
+    try {
+        const order = await db.StoreOrder.findOne({
+            where: { store_order_id: orderId },
+            include: [
+                {
+                    model: db.User,
+                    as: 'creator',
+                    attributes: ['user_id', 'username', 'full_name']
+                },
+                {
+                    model: db.Store,
+                    as: 'store',
+                    attributes: ['store_id', 'name', 'address', 'phone']
+                }
+            ]
+        });
+
+        if (!order) {
+            return resolve({
+                err: 1,
+                msg: 'Order not found'
+            });
+        }
+
+        // Get order items
+        const items = await db.StoreOrderItem.findAll({
+            where: { store_order_id: orderId },
+            include: [
+                {
+                    model: db.Product,
+                    as: 'product',
+                    attributes: ['product_id', 'name', 'sku']
+                }
+            ]
+        });
+
+        // Format response
+        const orderData = {
+            store_order_id: order.store_order_id,
+            order_code: order.order_code,
+            store_id: order.store_id,
+            store_name: order.store?.name || 'N/A',
+            status: order.status,
+            order_type: order.order_type,
+            target_warehouse: order.target_warehouse,
+            supplier_id: order.supplier_id,
+            perishable: order.perishable,
+            notes: order.notes,
+            store_receive_note: order.store_receive_note,
+            created_at: order.created_at,
+            updated_at: order.updated_at,
+            created_by: order.created_by,
+            created_by_name: order.creator?.full_name || order.creator?.username || 'N/A',
+            items: items.map(item => ({
+                store_order_item_id: item.store_order_item_id,
+                product_id: item.product_id,
+                product_name: item.product?.name || item.product_name,
+                name: item.product?.name || item.product_name,
+                sku: item.product?.sku || item.sku,
+                quantity: Number(item.quantity),
+                unit_price: Number(item.unit_price || 0),
+                subtotal: Number(item.subtotal || 0),
+                unit_name: item.unit_name,
+                conversion_to_base: Number(item.conversion_to_base || 1)
+            }))
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: orderData
+        });
+    } catch (error) {
+        console.error('Error getting store order detail:', error);
+        reject(error);
+    }
+});
+
 // Update store order status (for store to mark as delivered)
 export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes, receivedItems }) => new Promise(async (resolve, reject) => {
     try {

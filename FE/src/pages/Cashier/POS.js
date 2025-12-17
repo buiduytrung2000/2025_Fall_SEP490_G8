@@ -884,10 +884,10 @@ const POS = () => {
         // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
         if (selectedCustomer) {
             try {
-                const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                if (customerRes && customerRes.err === 0 && customerRes.data) {
-                    ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
-                }
+            const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+            if (customerRes && customerRes.err === 0 && customerRes.data) {
+                ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+            }
             } catch (e) {
                 console.error('Error reloading customer after QR payment:', e);
             }
@@ -1003,8 +1003,8 @@ const POS = () => {
                 // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
                 if (selectedCustomer) {
                     try {
-                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                        if (customerRes && customerRes.err === 0 && customerRes.data) {
+                    const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                    if (customerRes && customerRes.err === 0 && customerRes.data) {
                             // Có thể dùng dữ liệu mới nếu cần hiển thị ở nơi khác
                             console.log('Updated customer loyalty:', customerRes.data.loyalty_point);
                         }
@@ -1073,10 +1073,10 @@ const POS = () => {
                                 </Button>
                             </>
                         ) : canCheckInNow ? (
-                            <Button
-                                variant="contained"
-                                color="success"
-                                size="small"
+                            <Button 
+                                variant="contained" 
+                                color="success" 
+                                size="small" 
                                 startIcon={<LoginIcon />}
                                 onClick={() => {
                                     setOpeningCashInput('');
@@ -1497,16 +1497,16 @@ const POS = () => {
                 {/* Cart Items - Scrollable */}
                 <Box
                     sx={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        overflowX: 'hidden',
-                        p: 1.5,
-                        minHeight: 0,
-                        '&::-webkit-scrollbar': {
-                            display: 'none'
-                        },
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none'
+                    flex: 1,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    p: 1.5,
+                    minHeight: 0,
+                    '&::-webkit-scrollbar': {
+                        display: 'none'
+                    },
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
                     }}
                 >
                     {cart.length > 0 && (
@@ -1544,7 +1544,7 @@ const POS = () => {
                                 size="small"
                                 color="error"
                                 onClick={() => handleRemoveFromCart(item.id)}
-                                sx={{
+                                sx={{ 
                                     position: 'absolute',
                                     top: 4,
                                     right: 4,
@@ -1564,10 +1564,10 @@ const POS = () => {
                                 {/* Tên sản phẩm */}
                                 <Box sx={{ flex: 4, pr: 1 }}>
                                     <Typography variant="body2" fontWeight="bold" noWrap title={item.name}>
-                                        {item.name}
-                                    </Typography>
+                                    {item.name}
+                                </Typography>
                                 </Box>
-
+                                
                                 {/* Số lượng + nút +/- */}
                                 <Box sx={{ flex: 2, display: 'flex', justifyContent: 'center' }}>
                                     <Stack direction="row" spacing={0.5} alignItems="center">
@@ -1598,12 +1598,12 @@ const POS = () => {
                                         </Button>
                                     </Stack>
                                 </Box>
-
+                                    
                                 {/* Đơn giá */}
                                 <Box sx={{ flex: 2, textAlign: 'right' }}>
                                     <Typography variant="body2" color="text.secondary">
-                                        {formatCurrency(item.price)}
-                                    </Typography>
+                                            {formatCurrency(item.price)}
+                                        </Typography>
                                 </Box>
 
                                 {/* Thành tiền */}
@@ -1614,8 +1614,8 @@ const POS = () => {
                                         color="primary"
                                         sx={{ fontSize: '1rem' }}
                                     >
-                                        {formatCurrency(item.price * item.qty)}
-                                    </Typography>
+                                            {formatCurrency(item.price * item.qty)}
+                                        </Typography>
                                 </Box>
                             </Box>
                         </Box>
