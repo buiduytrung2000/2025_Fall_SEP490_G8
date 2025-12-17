@@ -29,12 +29,12 @@ import {
   InputLabel,
   Select
 } from '@mui/material';
-import { Refresh, Add } from '@mui/icons-material';
+import { Refresh, Add, Visibility } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
 import { createWarehouseOrder } from '../../api/warehouseOrderApi';
-import { getStoreInventory } from '../../api/inventoryApi';
+import { getStoreInventory, updateInventoryStock } from '../../api/inventoryApi';
 import { createStoreOrder } from '../../api/storeOrderApi';
 import { getAllPricingRules } from '../../api/productApi';
 
@@ -59,11 +59,14 @@ const InventoryManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [query, setQuery] = useState('');
-  const [productTypeFilter, setProductTypeFilter] = useState('all'); // all | perishable | non-perishable
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [openCreateOrderModal, setOpenCreateOrderModal] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState(null);
+  const [detailMinStock, setDetailMinStock] = useState('');
+  const [detailSaving, setDetailSaving] = useState(false);
   
   // Khôi phục dữ liệu đơn nhập từ localStorage khi component mount (chỉ đọc một lần)
   const getInitialOrderData = (() => {
@@ -192,14 +195,6 @@ const InventoryManagement = () => {
       ? [...data]
       : data.filter((i) => (i.name || '').toLowerCase().includes(query.toLowerCase()) || (i.sku || '').toLowerCase().includes(query.toLowerCase()));
 
-    // filter by product type
-    const filterByType = list.filter((item) => {
-      const isPerishable = !!(item.is_perishable || item.product?.is_perishable);
-      if (productTypeFilter === 'perishable') return isPerishable;
-      if (productTypeFilter === 'non-perishable') return !isPerishable;
-      return true;
-    });
-
     // sort by remaining ratio: stock / target (target = reorder_point || min*2 || 10)
     const ratio = (row) => {
       const stock = Number(row.stock || 0);
@@ -209,7 +204,7 @@ const InventoryManagement = () => {
       if (target <= 0) return 1; // avoid zero; treat as full
       return stock / target;
     };
-    return filterByType.sort((a, b) => {
+    return list.sort((a, b) => {
       const ra = ratio(a);
       const rb = ratio(b);
       if (ra !== rb) return ra - rb; // smaller ratio first (more urgent)
@@ -219,7 +214,7 @@ const InventoryManagement = () => {
       if (sa !== sb) return sa - sb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [data, query, productTypeFilter]);
+  }, [data, query]);
 
   const allVisibleIds = useMemo(() => filtered.map(rowId), [filtered]);
   const selectedCountInView = useMemo(() => allVisibleIds.filter(id => selected.has(id)).length, [allVisibleIds, selected]);
@@ -241,6 +236,24 @@ const InventoryManagement = () => {
     const target = reorder || (min * 2) || 10; // fallback 10
     const qty = Math.max(target - stock, 1);
     return qty;
+  };
+
+  const clearSelectionForLine = (line) => {
+    const sku = (line.sku || '').trim();
+    const name = (line.name || '').trim();
+    if (!sku && !name) return;
+    const invRow = data.find(
+      (r) =>
+        (r.sku && r.sku === sku) ||
+        (r.name && r.name === name)
+    );
+    if (!invRow) return;
+    const invId = rowId(invRow);
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.delete(invId);
+      return next;
+    });
   };
 
   const toggleOne = (id, checked) => {
@@ -364,23 +377,6 @@ const InventoryManagement = () => {
       },
     },
     {
-      id: 'product_type',
-      header: 'Loại hàng',
-      size: 85,
-      Cell: ({ row }) => {
-        const original = row.original;
-        const isPerishable = !!(original.is_perishable || original.product?.is_perishable);
-        return (
-              <Chip
-                size="small"
-                color={isPerishable ? 'warning' : 'default'}
-                label={isPerishable ? 'Tươi sống' : 'Thường'}
-              />
-        );
-      },
-      enableColumnFilter: false,
-    },
-    {
       accessorKey: 'category',
       header: 'Danh mục',
       size: 100,
@@ -470,6 +466,32 @@ const InventoryManagement = () => {
       },
       enableColumnFilter: false,
     },
+    {
+      id: 'actions',
+      header: 'Thao tác',
+      size: 60,
+      Cell: ({ row }) => {
+        const original = row.original;
+        return (
+          <Tooltip title="Xem chi tiết">
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => {
+                setDetailItem(original);
+                const min = original.min_stock_level || original.minStock || 0;
+                setDetailMinStock(String(min));
+                setDetailOpen(true);
+              }}
+            >
+              <Visibility fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        );
+      },
+      enableColumnFilter: false,
+      enableSorting: false,
+    },
   ], [selected, toggleOne, allInViewSelected, someInViewSelected, toggleAllInView, activePricingRules]);
 
   // Order management functions
@@ -479,8 +501,18 @@ const InventoryManagement = () => {
       return [...filtered, emptyLine()];
     });
   };
-  const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
+  const removeLine = (idx) => {
+    let removedLine = null;
+    setLines(prev => {
+      removedLine = prev[idx] || null;
+      return prev.filter((_, i) => i !== idx);
+    });
+    if (removedLine) {
+      clearSelectionForLine(removedLine);
+    }
+  };
   const updateLine = (idx, key, val) => {
+    let removedLineForQtyZero = null;
     setLines(prev => {
       // If updating quantity and it becomes <= 0, remove this line
       if (key === 'qty') {
@@ -496,22 +528,8 @@ const InventoryManagement = () => {
         }
         // Chỉ xóa khi người dùng nhập đúng 0
         if (qtyNum === 0) {
+          removedLineForQtyZero = prev[idx] || null;
           return prev.filter((_, i) => i !== idx);
-        }
-
-        // Không cho nhập quá tồn kho hiện tại
-        const currentLine = prev[idx];
-        const sku = (currentLine?.sku || '').trim();
-        const name = (currentLine?.name || '').trim();
-        const invRow = data.find(
-          (r) =>
-            (r.sku && r.sku === sku) ||
-            (r.name && r.name === name)
-        );
-        const stock = Number(invRow?.stock ?? 0);
-        if (stock >= 0 && qtyNum > stock) {
-          ToastNotification.warning(`Số lượng không được vượt quá tồn kho hiện tại (${stock})`);
-          return prev.map((l, i) => i === idx ? { ...l, qty: stock } : l);
         }
       }
       const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
@@ -573,6 +591,9 @@ const InventoryManagement = () => {
       }
       return updated;
     });
+    if (removedLineForQtyZero) {
+      clearSelectionForLine(removedLineForQtyZero);
+    }
   };
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
@@ -769,6 +790,7 @@ const InventoryManagement = () => {
         ToastNotification.success('Tạo đơn hàng thành công!');
         // Reset đơn nhập
         setLines([]);
+        setSelected(new Set());
         setPerishable(false);
         setStorageType('stored');
         setTarget('Main Warehouse');
@@ -788,6 +810,50 @@ const InventoryManagement = () => {
       ToastNotification.error('Lỗi khi tạo đơn hàng: ' + error.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSaveMinStock = async () => {
+    if (!detailItem) return;
+    // Chuẩn hoá inventory_id sang số để tránh gửi sai lên server (gây Missing inventory_id)
+    const inventoryIdNum = Number(detailItem.inventory_id);
+    const parsedMin = parseInt(detailMinStock, 10);
+    if (isNaN(parsedMin) || parsedMin < 0) {
+      ToastNotification.error('Tồn tối thiểu phải là số nguyên không âm');
+      return;
+    }
+    
+    // Kiểm tra nếu inventory_id không hợp lệ (null/undefined/NaN/<=0)
+    if (!Number.isInteger(inventoryIdNum) || inventoryIdNum <= 0) {
+      ToastNotification.error('Không thể cập nhật: Sản phẩm chưa được đồng bộ tồn kho tại cửa hàng này');
+      return;
+    }
+    
+    setDetailSaving(true);
+    try {
+      const currentStock = Number(detailItem.stock || 0);
+      const currentReorder = Number(detailItem.reorder_point || detailItem.reorderPoint || 0);
+      const res = await updateInventoryStock(inventoryIdNum, currentStock, parsedMin, currentReorder);
+      if (res && res.err === 0) {
+        ToastNotification.success('Cập nhật tồn tối thiểu thành công');
+        // Cập nhật lại data tại chỗ
+        setData(prev =>
+          prev.map(it =>
+            (Number(it.inventory_id) === inventoryIdNum)
+              ? { ...it, min_stock_level: parsedMin }
+              : it
+          )
+        );
+        setDetailOpen(false);
+        setDetailItem(null);
+      } else {
+        ToastNotification.error(res?.msg || 'Không thể cập nhật tồn tối thiểu');
+      }
+    } catch (error) {
+      console.error('Error updating min_stock_level:', error);
+      ToastNotification.error('Lỗi khi cập nhật tồn tối thiểu: ' + error.message);
+    } finally {
+      setDetailSaving(false);
     }
   };
 
@@ -842,28 +908,13 @@ const InventoryManagement = () => {
       </Box>
 
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Tìm theo tên hoặc mã SKU..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="product-type-filter-label">Loại hàng</InputLabel>
-            <Select
-              labelId="product-type-filter-label"
-              value={productTypeFilter}
-              label="Loại hàng"
-              onChange={(e) => setProductTypeFilter(e.target.value)}
-            >
-              <MenuItem value="all">Tất cả</MenuItem>
-              <MenuItem value="perishable">Tươi sống</MenuItem>
-              <MenuItem value="non-perishable">Hàng thường</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="Tìm theo tên hoặc mã SKU..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </Paper>
 
       <MaterialReactTable
@@ -904,10 +955,104 @@ const InventoryManagement = () => {
         }}
       />
 
+      {/* Inventory Detail & Min Stock Edit Dialog */}
+      <Dialog
+        open={detailOpen && !!detailItem}
+        onClose={() => !detailSaving && setDetailOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Chỉnh sửa tồn kho tối thiểu</DialogTitle>
+        <DialogContent dividers>
+          {detailItem && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Thông tin sản phẩm
+              </Typography>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Mã SKU"
+                  value={detailItem.sku || ''}
+                  size="small"
+                  fullWidth
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiInputBase-input': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                />
+                <TextField
+                  label="Danh mục"
+                  value={detailItem.category || detailItem.category_name || ''}
+                  size="small"
+                  fullWidth
+                  InputProps={{ readOnly: true }}
+                  sx={{
+                    '& .MuiInputBase-input': {
+                      backgroundColor: 'action.hover',
+                    }
+                  }}
+                />
+              </Stack>
+              <TextField
+                label="Tên hàng"
+                value={detailItem.name || ''}
+                size="small"
+                fullWidth
+                InputProps={{ readOnly: true }}
+                sx={{
+                  '& .MuiInputBase-input': {
+                    backgroundColor: 'action.hover',
+                  }
+                }}
+              />
+              <TextField
+                label="Tồn kho hiện tại"
+                value={Number(detailItem.stock || 0)}
+                size="small"
+                fullWidth
+                InputProps={{ readOnly: true }}
+                sx={{
+                  '& .MuiInputBase-input': {
+                    backgroundColor: 'action.hover',
+                  }
+                }}
+              />
+              <Typography variant="body2" color="primary" fontWeight={600} sx={{ mt: 1, mb: 0.5 }}>
+                Cài đặt tồn kho
+              </Typography>
+              <TextField
+                label="Tồn tối thiểu"
+                size="small"
+                type="number"
+                fullWidth
+                value={detailMinStock}
+                onChange={(e) => setDetailMinStock(e.target.value)}
+                inputProps={{ min: 0 }}
+                helperText="Nhập số lượng tối thiểu cần duy trì tại cửa hàng"
+                focused
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <SecondaryButton onClick={() => setDetailOpen(false)} disabled={detailSaving}>
+            Đóng
+          </SecondaryButton>
+          <PrimaryButton onClick={handleSaveMinStock} disabled={detailSaving}>
+            Lưu
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
       {/* Create Order Modal */}
       <Dialog
         open={openCreateOrderModal}
-        onClose={() => setOpenCreateOrderModal(false)}
+        onClose={() => {
+          setOpenCreateOrderModal(false);
+          setSelected(new Set());
+        }}
         maxWidth="lg"
         fullWidth
         fullScreen={isMobile}
@@ -1088,7 +1233,10 @@ const InventoryManagement = () => {
           </TableContainer>
         </DialogContent>
         <DialogActions>
-          <SecondaryButton onClick={() => setOpenCreateOrderModal(false)} disabled={submitting}>
+          <SecondaryButton onClick={() => {
+            setOpenCreateOrderModal(false);
+            setSelected(new Set());
+          }} disabled={submitting}>
             Hủy
           </SecondaryButton>
           <PrimaryButton onClick={handleCreateOrder} disabled={submitting || !lines.length} loading={submitting}>

@@ -364,3 +364,38 @@ export const getInventoryOverview = async (req, res) => {
     }
 };
 
+// Get recent branch orders
+export const getRecentBranchOrders = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const { limit } = req.query;
+        const response = await dashboardService.getRecentBranchOrders(limit);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get branch orders summary
+export const getBranchOrdersSummary = async (req, res) => {
+    try {
+        if (req.user?.role !== 'CEO') {
+            return res.status(403).json({ err: 1, msg: 'Access denied. CEO role required.' });
+        }
+
+        const response = await dashboardService.getBranchOrdersSummary();
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+

@@ -15,3 +15,4 @@ ADD CONSTRAINT fk_customer_voucher_store
 CREATE INDEX idx_customer_voucher_store ON CustomerVoucher(store_id);
 
 
+

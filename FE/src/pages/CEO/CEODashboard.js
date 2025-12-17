@@ -210,7 +210,9 @@ export default function CEODashboard() {
   };
 
   const formatNumber = (value) => {
-    return new Intl.NumberFormat("vi-VN").format(value);
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "0";
+    return new Intl.NumberFormat("vi-VN").format(num);
   };
 
   const revenueChartData = revenueData
@@ -444,7 +446,7 @@ export default function CEODashboard() {
       {/* Revenue Trend & Mix */}
       <Grid container spacing={3} mb={3}>
         <Grid item xs={12} md={8} lg={8}>
-          <Card sx={{ height: "100%" }}>
+          <Card sx={{ height: "100%", minWidth:"600px"}}>
             <CardContent>
               <Box
                 sx={{
@@ -693,27 +695,35 @@ export default function CEODashboard() {
                     <TableCell>SKU</TableCell>
                     <TableCell align="right">Tồn kho</TableCell>
                     <TableCell align="right">Mức tối thiểu</TableCell>
-                    <TableCell>Vị trí</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {lowStock.map((item) => (
-                    <TableRow key={item.product_id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell>{item.sku}</TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={formatNumber(item.stock)}
-                          size="small"
-                          color="error"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatNumber(item.min_stock_level)}
-                      </TableCell>
-                      <TableCell>{item.location_detail}</TableCell>
-                    </TableRow>
-                  ))}
+                  {lowStock.map((item) => {
+                    const safeStock = Number.isFinite(Number(item.stock))
+                      ? Number(item.stock)
+                      : 0;
+                    const safeMin =
+                      Number.isFinite(Number(item.min_stock_level)) &&
+                      item.min_stock_level !== null
+                        ? Number(item.min_stock_level)
+                        : 0;
+                    return (
+                      <TableRow key={item.product_id}>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell>{item.sku}</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={formatNumber(safeStock)}
+                            size="small"
+                            color="error"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {formatNumber(safeMin)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
