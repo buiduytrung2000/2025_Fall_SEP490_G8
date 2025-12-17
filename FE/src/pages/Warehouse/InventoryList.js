@@ -107,7 +107,6 @@ const InventoryList = () => {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [storeFilter, setStoreFilter] = useState('');
 
   // =============================
   // Selection & Create Order
@@ -124,7 +123,6 @@ const InventoryList = () => {
   // =============================
   const [stockCountDialog, setStockCountDialog] = useState(false);
   const [stockCountItems, setStockCountItems] = useState([]);
-  const [stockCountNotes, setStockCountNotes] = useState('');
   const [processingStockCount, setProcessingStockCount] = useState(false);
 
   const handleSelectProduct = (item) => {
@@ -171,17 +169,46 @@ const InventoryList = () => {
       stock_in_packages: item.stock_in_packages || null,
       // Giá trị gốc nhập trong modal (theo đơn vị lớn nếu có)
       actual_input: item.stock_in_packages || null,
+      // Ghi chú riêng cho từng sản phẩm
+      note: ''
     }));
 
     setStockCountItems(items);
-    setStockCountNotes('');
     setStockCountDialog(true);
   };
 
   const handleCloseStockCount = () => {
     setStockCountDialog(false);
     setStockCountItems([]);
-    setStockCountNotes('');
+  };
+
+  const handleStockNoteChange = (index, value) => {
+    const next = [...stockCountItems];
+    next[index].note = value;
+    setStockCountItems(next);
+  };
+
+  const handleRemoveStockCountItem = (index) => {
+    const removedItem = stockCountItems[index];
+    const next = stockCountItems.filter((_, i) => i !== index);
+    setStockCountItems(next);
+
+    // Bỏ chọn sản phẩm tương ứng trong danh sách tồn kho
+    if (removedItem) {
+      setSelectedProducts(prevSelected => {
+        const updated = prevSelected.filter(p => {
+          const invId = p.warehouse_inventory_id || p.inventory_id;
+          return invId !== removedItem.inventory_id;
+        });
+        setSelectAll(updated.length > 0 && updated.length === inventory.length);
+        return updated;
+      });
+    }
+
+    // Nếu không còn sản phẩm nào thì đóng dialog
+    if (next.length === 0) {
+      setStockCountDialog(false);
+    }
   };
 
   const handleStockCountChange = (index, field, value) => {
@@ -212,6 +239,12 @@ const InventoryList = () => {
   };
 
   const handleSubmitStockCount = async () => {
+    // Xác nhận lại trước khi kiểm kê
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm(`Bạn có chắc muốn xác nhận kiểm kê cho ${stockCountItems.length} sản phẩm?`);
+      if (!ok) return;
+    }
+
     // Validate all items have actual stock entered (theo input)
     for (const item of stockCountItems) {
       const actualInput = item.actual_input === '' || item.actual_input === null || item.actual_input === undefined
@@ -222,6 +255,13 @@ const InventoryList = () => {
         ToastNotification.error(`Vui lòng nhập số lượng thực tế cho: ${item.product_name}`);
         return;
       }
+
+      // Bắt buộc phải có chênh lệch (không được giữ nguyên bằng 0)
+      const diff = Number(item.actual_stock) - Number(item.system_stock);
+      if (diff === 0) {
+        ToastNotification.error(`Vui lòng nhập chênh lệch cho: ${item.product_name}`);
+        return;
+      }
     }
 
     setProcessingStockCount(true);
@@ -230,8 +270,8 @@ const InventoryList = () => {
       let failCount = 0;
       const errors = [];
 
-      // Prepare reports for items with shortage (thiếu hàng)
-      const shortageReports = [];
+      // Prepare reports for items có chênh lệch (thiếu / thừa)
+      const stockCountReports = [];
 
       for (const item of stockCountItems) {
         const actualStock = Number(item.actual_stock); // đã quy về đơn vị cơ sở ở handleStockCountChange
@@ -243,7 +283,8 @@ const InventoryList = () => {
           continue;
         }
 
-        const reason = `Kiểm kê tồn kho${stockCountNotes ? ': ' + stockCountNotes : ''}`;
+        const baseReason = 'Kiểm kê tồn kho';
+        const reason = item.note ? `${baseReason}: ${item.note}` : baseReason;
         const response = await adjustWarehouseStock(item.inventory_id, {
           adjustment,
           reason
@@ -252,30 +293,28 @@ const InventoryList = () => {
         if (response.err === 0) {
           successCount++;
 
-          // If shortage (thiếu hàng), create report with reason "Mất hàng"
-          if (adjustment < 0) {
-            shortageReports.push({
-              warehouse_inventory_id: item.inventory_id,
-              product_id: item.product_id,
-              system_stock: item.system_stock,
-              actual_stock: actualStock,
-              reason: 'Mất hàng',
-              notes: stockCountNotes || null
-            });
-          }
+          // Tạo báo cáo kiểm kê cho mọi trường hợp có chênh lệch (thiếu / thừa)
+          stockCountReports.push({
+            warehouse_inventory_id: item.inventory_id,
+            product_id: item.product_id,
+            system_stock: item.system_stock,
+            actual_stock: actualStock,
+            reason: adjustment < 0 ? 'Mất hàng' : 'Thừa hàng',
+            notes: item.note || null
+          });
         } else {
           failCount++;
           errors.push(`${item.product_name}: ${response.msg || 'Lỗi không xác định'}`);
         }
       }
 
-      // Create batch reports for shortage items
-      if (shortageReports.length > 0) {
+      // Create batch reports cho các sản phẩm có chênh lệch (thiếu / thừa)
+      if (stockCountReports.length > 0) {
         try {
-          const reportResponse = await createBatchStockCountReports(shortageReports);
+          const reportResponse = await createBatchStockCountReports(stockCountReports);
           if (reportResponse.err === 0) {
             ToastNotification.success(
-              `Đã tạo ${shortageReports.length} báo cáo kiểm kê cho các sản phẩm bị thiếu hàng`
+              `Đã tạo ${stockCountReports.length} báo cáo kiểm kê tồn kho`
             );
           } else {
             ToastNotification.warning(
@@ -339,6 +378,7 @@ const InventoryList = () => {
       const hasPackageUnit = Boolean(item.package_conversion && item.package_unit_label);
 
       groupedBySupplier[supplierId].items.push({
+        inventory_id: item.warehouse_inventory_id || item.inventory_id,
         product_id: item.product?.product_id,
         product_name: item.product?.name || '',
         sku: item.product?.sku || '',
@@ -404,6 +444,7 @@ const InventoryList = () => {
 
   const handleRemoveOrderItem = (supplierIndex, itemIndex) => {
     const next = [...orderItems];
+    const removedItem = next[supplierIndex].items[itemIndex];
     next[supplierIndex].items = next[supplierIndex].items.filter((_, i) => i !== itemIndex);
 
     // Remove supplier group if no items left
@@ -412,6 +453,23 @@ const InventoryList = () => {
     }
 
     setOrderItems(next);
+
+    // Bỏ chọn sản phẩm tương ứng trong danh sách tồn kho
+    if (removedItem) {
+      setSelectedProducts(prevSelected => {
+        const updated = prevSelected.filter(p => {
+          const invId = p.warehouse_inventory_id || p.inventory_id;
+          if (removedItem.inventory_id) {
+            return invId !== removedItem.inventory_id;
+          }
+          // Fallback so sánh theo product_id nếu không có inventory_id
+          return p.product?.product_id !== removedItem.product_id;
+        });
+
+        setSelectAll(updated.length > 0 && updated.length === inventory.length);
+        return updated;
+      });
+    }
   };
 
   const handleSubmitOrder = async () => {
@@ -501,7 +559,6 @@ const InventoryList = () => {
         page: page + 1,
         limit: rowsPerPage,
         status: statusFilter,
-        storeId: storeFilter,
         search: debouncedSearch
       });
 
@@ -521,7 +578,7 @@ const InventoryList = () => {
   useEffect(() => {
     loadInventory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, statusFilter, storeFilter, debouncedSearch]);
+  }, [page, rowsPerPage, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -554,24 +611,19 @@ const InventoryList = () => {
           </Typography>
         </Box>
         <Stack direction="row" spacing={2}>
-          {selectedProducts.length > 0 && (
-            <>
-              <PrimaryButton
-                startIcon={<Icon name="Inventory2" />}
-                onClick={handleOpenStockCount}
-                variant="outlined"
-              >
-                Kiểm kê tồn kho ({selectedProducts.length})
-              </PrimaryButton>
-              <PrimaryButton
-                startIcon={<Icon name="ShoppingCart" />}
-                onClick={handleOpenCreateOrder}
-              >
-                Tạo Phiếu Nhập Hàng ({selectedProducts.length})
-              </PrimaryButton>
-            </>
-          )}
-
+          <PrimaryButton
+            startIcon={<Icon name="Inventory2" />}
+            onClick={handleOpenStockCount}
+            variant="outlined"
+          >
+            Kiểm kê tồn kho{selectedProducts.length > 0 ? ` (${selectedProducts.length})` : ''}
+          </PrimaryButton>
+          <PrimaryButton
+            startIcon={<Icon name="ShoppingCart" />}
+            onClick={handleOpenCreateOrder}
+          >
+            Tạo Phiếu Nhập Hàng{selectedProducts.length > 0 ? ` (${selectedProducts.length})` : ''}
+          </PrimaryButton>
         </Stack>
       </Stack>
 
@@ -616,24 +668,6 @@ const InventoryList = () => {
               <MenuItem value="critical">Gần hết</MenuItem>
               <MenuItem value="out_of_stock">Hết hàng</MenuItem>
             </TextField>
-
-            <TextField
-              select
-              size="small"
-              label="Chi nhánh"
-              value={storeFilter}
-              onChange={(e) => {
-                setStoreFilter(e.target.value);
-                setPage(0);
-              }}
-              sx={{ minWidth: 180 }}
-            >
-              <MenuItem value="">Tất cả</MenuItem>
-              <MenuItem value="1">Store Central</MenuItem>
-              <MenuItem value="2">Store North</MenuItem>
-              <MenuItem value="3">Store South</MenuItem>
-            </TextField>
-
           </Stack>
         </Stack>
       </Paper>
@@ -984,17 +1018,6 @@ const InventoryList = () => {
           </Stack>
         </DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            multiline
-            rows={2}
-            label="Ghi chú kiểm kê"
-            value={stockCountNotes}
-            onChange={(e) => setStockCountNotes(e.target.value)}
-            sx={{ mb: 3, mt: 1 }}
-            placeholder="Nhập ghi chú (tùy chọn)"
-          />
-
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
@@ -1003,12 +1026,22 @@ const InventoryList = () => {
                   <TableCell align="right" sx={{ fontWeight: 700 }}>Tồn kho hệ thống</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>Số lượng thực tế</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>Chênh lệch</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Ghi chú</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700 }}>Xóa</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {stockCountItems.map((item, index) => {
                   const difference = item.actual_stock - item.system_stock;
                   const diffColor = difference > 0 ? 'success.main' : difference < 0 ? 'error.main' : 'text.secondary';
+                  const hasPackageUnit =
+                    item.package_conversion && item.package_conversion > 0 && item.package_unit_label;
+                  const displayDifference = hasPackageUnit
+                    ? difference / item.package_conversion
+                    : difference;
+                  const displayUnitLabel = hasPackageUnit
+                    ? item.package_unit_label
+                    : item.base_unit_label;
 
                   return (
                     <TableRow key={item.inventory_id}>
@@ -1017,12 +1050,13 @@ const InventoryList = () => {
                         <Typography variant="caption" color="text.secondary">{item.sku}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2">
-                          {formatQty(item.system_stock)} {item.base_unit_label}
-                        </Typography>
-                        {item.stock_in_packages && item.package_unit_label && (
-                          <Typography variant="caption" color="text.secondary">
-                            ≈ {formatQty(item.stock_in_packages)} {item.package_unit_label}
+                        {item.package_conversion && item.package_unit_label && item.stock_in_packages != null ? (
+                          <Typography variant="body2">
+                            {formatQty(item.stock_in_packages)} {item.package_unit_label}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2">
+                            {formatQty(item.system_stock)} {item.base_unit_label}
                           </Typography>
                         )}
                       </TableCell>
@@ -1053,8 +1087,27 @@ const InventoryList = () => {
                           fontWeight={600}
                           color={diffColor}
                         >
-                          {difference > 0 ? '+' : ''}{formatQty(difference)} {item.base_unit_label}
+                          {difference > 0 ? '+' : ''}{formatQty(displayDifference)} {displayUnitLabel}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          multiline
+                          rows={1}
+                          placeholder="Ghi chú cho sản phẩm này (tùy chọn)"
+                          value={item.note || ''}
+                          onChange={(e) => handleStockNoteChange(index, e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <ActionButton
+                          icon={<Icon name="Delete" />}
+                          action="delete"
+                          size="small"
+                          onClick={() => handleRemoveStockCountItem(index)}
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -1062,33 +1115,6 @@ const InventoryList = () => {
               </TableBody>
             </Table>
           </TableContainer>
-
-          {stockCountItems.length > 0 && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="body2" color="text.secondary">
-                  Tổng chênh lệch:
-                </Typography>
-                <Typography
-                  variant="h6"
-                  fontWeight={700}
-                  color={
-                    stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) > 0
-                      ? 'success.main'
-                      : stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0) < 0
-                        ? 'error.main'
-                        : 'text.secondary'
-                  }
-                >
-                  {(() => {
-                    const totalDiff = stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0);
-                    return totalDiff > 0 ? '+' : '';
-                  })()}
-                  {formatQty(stockCountItems.reduce((sum, item) => sum + (item.actual_stock - item.system_stock), 0))}
-                </Typography>
-              </Stack>
-            </Box>
-          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <SecondaryButton onClick={handleCloseStockCount} disabled={processingStockCount}>

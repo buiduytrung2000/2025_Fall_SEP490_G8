@@ -175,7 +175,7 @@ const StockCountReports = () => {
                 <Typography variant="h4" fontWeight={700} color="error.main">
                   {statistics.shortageCount}
                 </Typography>
-               
+
               </CardContent>
             </Card>
           </Grid>
@@ -188,11 +188,11 @@ const StockCountReports = () => {
                 <Typography variant="h4" fontWeight={700} color="warning.main">
                   {statistics.excessCount}
                 </Typography>
-              
+
               </CardContent>
             </Card>
           </Grid>
-         
+
         </Grid>
       )}
 
@@ -301,7 +301,7 @@ const StockCountReports = () => {
                 reports.map((report, index) => {
                   const difference = report.difference || 0;
                   const diffColor = difference > 0 ? 'success.main' : difference < 0 ? 'error.main' : 'text.secondary';
-                  
+
                   return (
                     <TableRow key={report.report_id} hover>
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
@@ -354,13 +354,8 @@ const StockCountReports = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {report.reason || '—'}
+                          {report.notes || '—'}
                         </Typography>
-                        {report.notes && (
-                          <Typography variant="caption" color="text.secondary">
-                            {report.notes}
-                          </Typography>
-                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
