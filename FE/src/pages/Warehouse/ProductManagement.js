@@ -362,16 +362,36 @@ const ProductManagement = () => {
 
         // Validate required fields
         if (!editData.sku || !editData.name) {
-            setError('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
+            ToastNotification.error('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
             return;
         }
         if (editData.min_stock_level === '' || editData.reorder_point === '') {
-            setError('Vui lòng nhập Tồn tối thiểu và Điểm đặt hàng');
+            ToastNotification.error('Vui lòng nhập Tồn tối thiểu và Điểm đặt hàng');
             return;
         }
         if (Number(editData.min_stock_level) < 0 || Number(editData.reorder_point) < 0) {
-            setError('Tồn tối thiểu và Điểm đặt hàng phải lớn hơn hoặc bằng 0');
+            ToastNotification.error('Tồn tối thiểu và Điểm đặt hàng phải lớn hơn hoặc bằng 0');
             return;
+        }
+        
+        // Validate đơn vị và hệ số quy đổi khi thêm mới
+        if (!isEditMode) {
+            if (!editData.base_unit_id) {
+                ToastNotification.error('Vui lòng chọn Đơn vị lẻ');
+                return;
+            }
+            if (!editData.package_unit_id) {
+                ToastNotification.error('Vui lòng chọn Đơn vị lớn');
+                return;
+            }
+            if (!editData.conversion_factor || editData.conversion_factor === '') {
+                ToastNotification.error('Vui lòng nhập Hệ số quy đổi');
+                return;
+            }
+            if (Number(editData.conversion_factor) <= 0) {
+                ToastNotification.error('Hệ số quy đổi phải lớn hơn 0');
+                return;
+            }
         }
 
         try {
@@ -399,7 +419,7 @@ const ProductManagement = () => {
                     await loadData();
                     setShowEditDialog(false);
                 } else {
-                    setError(result.msg || 'Không thể cập nhật sản phẩm');
+                    ToastNotification.error(result.msg || 'Không thể cập nhật sản phẩm');
                 }
             } else {
                 result = await createProduct(productData);
@@ -408,11 +428,11 @@ const ProductManagement = () => {
                     await loadData();
                     setShowEditDialog(false);
                 } else {
-                    setError(result.msg || 'Không thể thêm sản phẩm');
+                    ToastNotification.error(result.msg || 'Không thể thêm sản phẩm');
                 }
             }
         } catch (err) {
-            setError('Lỗi khi lưu sản phẩm: ' + err.message);
+            ToastNotification.error('Lỗi khi lưu sản phẩm: ' + err.message);
         }
     };
 
@@ -1473,13 +1493,6 @@ const ProductManagement = () => {
                 </Typography>
             </Box>
 
-            {/* Thông báo lỗi/thành công */}
-            {error && (
-                <Alert variant="danger" dismissible onClose={() => setError(null)} style={{ marginBottom: '20px' }}>
-                    {error}
-                </Alert>
-            )}
-
             {/* Bộ lọc */}
             <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <TextField
@@ -1611,11 +1624,6 @@ const ProductManagement = () => {
                 <form onSubmit={handleSaveProduct}>
                     <DialogTitle>{isEditMode ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}</DialogTitle>
                     <DialogContent dividers>
-                        {error && (
-                            <Alert variant="danger" style={{ marginBottom: '15px' }}>
-                                {error}
-                            </Alert>
-                        )}
                         <TextField
                             label="Mã SKU"
                             name="sku"
@@ -1701,13 +1709,14 @@ const ProductManagement = () => {
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Đơn vị lẻ</InputLabel>
+                        <FormControl fullWidth margin="normal" required={!isEditMode}>
+                            <InputLabel>Đơn vị lẻ{!isEditMode && ' *'}</InputLabel>
                             <Select
                                 name="base_unit_id"
                                 value={editData.base_unit_id || ''}
                                 onChange={handleEditField}
                                 label="Đơn vị lẻ"
+                                required={!isEditMode}
                             >
                                 <MenuItem value="">
                                     <em>Không chọn</em>
@@ -1719,13 +1728,14 @@ const ProductManagement = () => {
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth margin="normal">
-                            <InputLabel>Đơn vị lớn</InputLabel>
+                        <FormControl fullWidth margin="normal" required={!isEditMode}>
+                            <InputLabel>Đơn vị lớn{!isEditMode && ' *'}</InputLabel>
                             <Select
                                 name="package_unit_id"
                                 value={editData.package_unit_id || ''}
                                 onChange={handleEditField}
                                 label="Đơn vị lớn"
+                                required={!isEditMode}
                             >
                                 <MenuItem value="">
                                     <em>Không chọn</em>
@@ -1741,7 +1751,7 @@ const ProductManagement = () => {
                         </FormControl>
                         {editData.package_unit_id && (
                             <TextField
-                                label="Hệ số quy đổi"
+                                label={`Hệ số quy đổi${!isEditMode ? ' *' : ''}`}
                                 name="conversion_factor"
                                 type="number"
                                 inputProps={{ min: 0, step: 0.01 }}
@@ -1749,8 +1759,14 @@ const ProductManagement = () => {
                                 onChange={handleEditField}
                                 fullWidth
                                 margin="normal"
+                                required={!isEditMode}
                                 helperText="Số đơn vị lẻ trong 1 đơn vị lớn (ví dụ: 12 nếu 1 thùng = 12 chai)"
                             />
+                        )}
+                        {!isEditMode && !editData.package_unit_id && (
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 2, mt: -1, display: 'block' }}>
+                                Vui lòng chọn Đơn vị lớn để nhập Hệ số quy đổi
+                            </Typography>
                         )}
                         <TextField
                             label="Mô tả"

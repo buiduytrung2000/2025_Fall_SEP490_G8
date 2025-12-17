@@ -10,11 +10,7 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
         if (category_id) where.category_id = category_id
         if (supplier_id) where.supplier_id = supplier_id
 
-        // By default, only show active products unless explicitly requested
-        if (!include_inactive) {
-            where.is_active = true
-        }
-
+        // Lấy tất cả sản phẩm (bao gồm cả inactive) để kiểm tra tồn kho warehouse
         const response = await db.Product.findAll({
             where,
             attributes: {
@@ -65,14 +61,14 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
 
         // Attach inventory thresholds (min_stock_level, reorder_point) per product
         // Note: one WarehouseInventory per product (warehouse level)
+        let invMap = {}
         if (filteredData?.length) {
             const productIds = filteredData.map(p => p.product_id)
             const inventories = await db.WarehouseInventory.findAll({
                 where: { product_id: productIds },
-                attributes: ['product_id', 'min_stock_level', 'reorder_point'],
+                attributes: ['product_id', 'stock', 'min_stock_level', 'reorder_point'],
                 raw: true
             })
-            const invMap = {}
             inventories.forEach(inv => {
                 invMap[inv.product_id] = inv
             })
@@ -83,6 +79,20 @@ export const getAll = (query) => new Promise(async (resolve, reject) => {
                     prod.dataValues.reorder_point = inv.reorder_point
                 }
                 return prod
+            })
+        }
+        
+        // Filter: chỉ hiển thị sản phẩm active HOẶC sản phẩm inactive nhưng có tồn kho warehouse > 0
+        // (để store có thể order sản phẩm inactive nếu warehouse còn hàng)
+        if (!include_inactive) {
+            filteredData = filteredData.filter(prod => {
+                // Nếu sản phẩm active, hiển thị
+                if (prod.is_active) return true
+                // Nếu sản phẩm inactive nhưng có tồn kho warehouse > 0, vẫn hiển thị để cho phép order
+                const warehouseStock = invMap[prod.product_id]?.stock || 0
+                if (!prod.is_active && warehouseStock > 0) return true
+                // Các trường hợp khác không hiển thị
+                return false
             })
         }
 
@@ -448,13 +458,15 @@ export const toggleStatus = (product_id) => new Promise(async (resolve, reject) 
 // GET PRODUCTS BY STORE
 export const getByStore = (store_id, include_inactive = false) => new Promise(async (resolve, reject) => {
     try {
+        // Lấy tất cả inventory của store này (bao gồm cả sản phẩm inactive)
+        // Sau đó filter: nếu sản phẩm inactive nhưng có tồn kho > 0 thì vẫn hiển thị
         const inventories = await db.Inventory.findAll({
             where: { store_id },
             include: [
                 {
                     model: db.Product,
                     as: 'product',
-                    where: include_inactive ? {} : { is_active: true },
+                    // Không filter theo is_active ở đây, sẽ filter sau dựa trên tồn kho
                     include: [
                         {
                             model: db.Category,
@@ -465,6 +477,20 @@ export const getByStore = (store_id, include_inactive = false) => new Promise(as
                 }
             ],
             nest: true
+        })
+        
+        // Filter: chỉ hiển thị sản phẩm active HOẶC sản phẩm inactive nhưng có tồn kho > 0
+        const filteredInventories = inventories.filter(inv => {
+            const product = inv.product || {}
+            const stock = inv.stock || 0
+            // Nếu include_inactive = true, hiển thị tất cả
+            if (include_inactive) return true
+            // Nếu sản phẩm active, hiển thị
+            if (product.is_active) return true
+            // Nếu sản phẩm inactive nhưng có tồn kho > 0, vẫn hiển thị để cho phép bán nốt
+            if (!product.is_active && stock > 0) return true
+            // Các trường hợp khác không hiển thị
+            return false
         })
 
         const now = new Date()
@@ -489,7 +515,7 @@ export const getByStore = (store_id, include_inactive = false) => new Promise(as
             }
         })
 
-        const data = inventories.map(inv => {
+        const data = filteredInventories.map(inv => {
             // Convert Sequelize instance to plain object to avoid circular references
             const invPlain = inv.get ? inv.get({ plain: true }) : JSON.parse(JSON.stringify(inv))
             const product = invPlain.product || {}
@@ -761,11 +787,31 @@ export const getByBarcode = (barcode, storeId) => new Promise(async (resolve, re
             }
         }
 
-        // Kiểm tra sản phẩm có is_active = true không
-        if (!productUnit.product || !productUnit.product.is_active) {
+        // Kiểm tra sản phẩm có tồn tại không
+        if (!productUnit.product) {
             resolve({
                 err: 1,
-                msg: 'Sản phẩm đã bị vô hiệu hóa',
+                msg: 'Sản phẩm không tồn tại',
+                data: null
+            })
+            return
+        }
+        
+        // Kiểm tra tồn kho trong store
+        const inventory = await db.Inventory.findOne({
+            where: {
+                product_id: productUnit.product.product_id,
+                store_id: storeId
+            }
+        })
+        
+        const stockInStore = inventory ? inventory.stock : 0
+        
+        // Nếu sản phẩm inactive và không có tồn kho trong store → từ chối
+        if (!productUnit.product.is_active && stockInStore <= 0) {
+            resolve({
+                err: 1,
+                msg: 'Sản phẩm đã bị vô hiệu hóa và không còn tồn kho',
                 data: null
             })
             return
@@ -796,15 +842,8 @@ export const getByBarcode = (barcode, storeId) => new Promise(async (resolve, re
             }
         }
 
-        // Bước 4: Lấy tồn kho theo store (tính theo đơn vị cơ sở)
-        const inventory = await db.Inventory.findOne({
-            where: {
-                product_id: product.product_id,
-                store_id: storeId
-            }
-        })
-
-        const baseQuantity = inventory ? inventory.stock : 0
+        // Bước 4: Sử dụng tồn kho đã lấy ở trên (tính theo đơn vị cơ sở)
+        const baseQuantity = stockInStore
         // Chuyển đổi tồn kho sang đơn vị được quét (chia cho conversion_to_base)
         const availableQuantity = productUnit.conversion_to_base > 0
             ? Math.floor(baseQuantity / productUnit.conversion_to_base)
