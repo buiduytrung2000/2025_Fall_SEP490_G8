@@ -116,6 +116,10 @@ const OrderShipment = () => {
   const [nextStatus, setNextStatus] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(''); // ngày giao dự kiến do kho chọn
   const [inventoryAuditReasons, setInventoryAuditReasons] = useState({}); // Lý do kiểm kê tồn kho cho từng sản phẩm chênh lệch
+  const [confirmEditDialog, setConfirmEditDialog] = useState(false);
+  const [confirmSaveDialog, setConfirmSaveDialog] = useState(false);
+  const [pendingEditItem, setPendingEditItem] = useState(null);
+  const [pendingSaveItemId, setPendingSaveItemId] = useState(null);
 
   const loadOrderDetail = async () => {
     setLoading(true);
@@ -211,15 +215,25 @@ const OrderShipment = () => {
       ToastNotification.warning('Chỉ cho phép chỉnh sửa số lượng khi đơn đang ở trạng thái đã xác nhận (trước khi xuất kho)');
       return;
     }
-    setEditingItemId(item.order_item_id);
+    // Hiển thị dialog xác nhận trước khi chỉnh sửa
+    setPendingEditItem(item);
+    setConfirmEditDialog(true);
+  };
+
+  const handleConfirmEdit = () => {
+    if (!pendingEditItem) return;
+    
+    setEditingItemId(pendingEditItem.order_item_id);
     // LUÔN cho phép chỉnh sửa / nhập theo đơn vị lớn (thùng), KHÔNG quy đổi về đơn vị nhỏ
     // Ưu tiên dùng `package_quantity` (SL thực tế giao theo thùng), nếu chưa có thì dùng `quantity` (SL đặt theo thùng)
     const editQty =
-      item.package_quantity !== null && item.package_quantity !== undefined
-        ? item.package_quantity
-        : item.quantity;
+      pendingEditItem.package_quantity !== null && pendingEditItem.package_quantity !== undefined
+        ? pendingEditItem.package_quantity
+        : pendingEditItem.quantity;
 
     setEditingQuantity(editQty);
+    setConfirmEditDialog(false);
+    setPendingEditItem(null);
   };
 
   const handleCancelEdit = () => {
@@ -227,18 +241,30 @@ const OrderShipment = () => {
     setEditingQuantity('');
   };
 
-  const handleSaveQuantity = async (itemId) => {
+  const handleSaveQuantity = (itemId) => {
+    // Hiển thị dialog xác nhận trước khi lưu
+    setPendingSaveItemId(itemId);
+    setConfirmSaveDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pendingSaveItemId) return;
+
     const qty = parseFloat(editingQuantity);
 
     if (isNaN(qty) || qty < 0) {
       ToastNotification.error('Số lượng không hợp lệ');
+      setConfirmSaveDialog(false);
+      setPendingSaveItemId(null);
       return;
     }
 
     // Tìm item để lấy thông tin
-    const currentItem = order.orderItems?.find(it => it.order_item_id === itemId);
+    const currentItem = order.orderItems?.find(it => it.order_item_id === pendingSaveItemId);
     if (!currentItem) {
       ToastNotification.error('Không tìm thấy sản phẩm');
+      setConfirmSaveDialog(false);
+      setPendingSaveItemId(null);
       return;
     }
 
@@ -247,6 +273,8 @@ const OrderShipment = () => {
       // Không cho phép số lượng thực tế lớn hơn số lượng đặt
       if (qty > currentItem.quantity) {
         ToastNotification.error(`Số lượng thực tế không được lớn hơn số lượng đặt (${currentItem.quantity})`);
+        setConfirmSaveDialog(false);
+        setPendingSaveItemId(null);
         return;
       }
 
@@ -271,13 +299,15 @@ const OrderShipment = () => {
       // Nếu số lượng hiện tại là 1, không cho giảm về 0
       if (currentDisplayQty === 1 && qty < 1) {
         ToastNotification.error('Số lượng thực tế không được nhỏ hơn 1');
+        setConfirmSaveDialog(false);
+        setPendingSaveItemId(null);
         return;
       }
     }
 
     setUpdating(true);
     try {
-      const response = await updateOrderItemQuantity(itemId, qty);
+      const response = await updateOrderItemQuantity(pendingSaveItemId, qty);
       if (response.err === 0) {
         ToastNotification.success('Cập nhật số lượng thực tế thành công!');
         // Sau khi backend xử lý quy đổi & tồn kho, reload lại chi tiết đơn hàng
@@ -290,6 +320,8 @@ const OrderShipment = () => {
       ToastNotification.error('Lỗi kết nối: ' + error.message);
     } finally {
       setUpdating(false);
+      setConfirmSaveDialog(false);
+      setPendingSaveItemId(null);
     }
   };
 
@@ -442,9 +474,16 @@ const OrderShipment = () => {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       {/* Header */}
-      <Box sx={{ bgcolor: '#1976d2', color: 'white', px: 4, py: 3 }}>
+      <Box sx={{ px: { xs: 1, md: 3 }, py: 2, bgcolor: 'white' }}>
         <Stack direction="row" alignItems="center" spacing={2}>
-          <ShippingIcon sx={{ fontSize: 40 }} />
+          <SecondaryButton
+            startIcon={<BackIcon />}
+            onClick={() => navigate('/warehouse/branch-orders')}
+            sx={{ mr: 1 }}
+          >
+            Quay lại
+          </SecondaryButton>
+          <ShippingIcon sx={{ fontSize: 40, color: 'primary.main' }} />
           <Box>
             <Typography variant="h4" fontWeight={700}>
               Chi tiết đơn hàng
@@ -454,7 +493,7 @@ const OrderShipment = () => {
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ px: 4, py: 3 }}>
+      <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
         <Grid container spacing={3}>
           {/* Left Column */}
           <Grid item xs={12} lg={8}>
@@ -1097,6 +1136,122 @@ const OrderShipment = () => {
           </PrimaryButton>
         </DialogActions>
       </Dialog>
+
+      {/* Confirm Edit Dialog */}
+      <Dialog
+        open={confirmEditDialog}
+        onClose={() => !updating && setConfirmEditDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Xác nhận chỉnh sửa số lượng
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Bạn có chắc muốn chỉnh sửa số lượng thực tế giao cho sản phẩm này?
+          </Alert>
+          {pendingEditItem && (
+            <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Sản phẩm:
+              </Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {pendingEditItem.product?.name || pendingEditItem.product_name || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Số lượng đặt: <strong>{pendingEditItem.quantity}</strong>
+              </Typography>
+              {pendingEditItem.package_quantity !== null && pendingEditItem.package_quantity !== undefined && (
+                <Typography variant="body2" color="text.secondary">
+                  Số lượng thực tế hiện tại: <strong>{pendingEditItem.package_quantity}</strong>
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <SecondaryButton onClick={() => setConfirmEditDialog(false)} disabled={updating}>
+            Hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleConfirmEdit}
+            disabled={updating}
+            startIcon={<EditIcon />}
+          >
+            Xác nhận chỉnh sửa
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirm Save Dialog */}
+      <Dialog
+        open={confirmSaveDialog}
+        onClose={() => !updating && setConfirmSaveDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Xác nhận lưu số lượng
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Bạn có chắc muốn lưu số lượng thực tế giao đã chỉnh sửa? Hành động này sẽ cập nhật tồn kho.
+          </Alert>
+          {pendingSaveItemId && (() => {
+            const currentItem = order.orderItems?.find(it => it.order_item_id === pendingSaveItemId);
+            if (!currentItem) return null;
+            
+            const oldQty = currentItem.package_quantity !== null && currentItem.package_quantity !== undefined
+              ? currentItem.package_quantity
+              : currentItem.quantity;
+            const newQty = parseFloat(editingQuantity);
+
+            return (
+              <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Sản phẩm:
+                </Typography>
+                <Typography variant="body1" fontWeight={600}>
+                  {currentItem.product?.name || currentItem.product_name || 'N/A'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Số lượng đặt: <strong>{currentItem.quantity}</strong>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Số lượng thực tế hiện tại: <strong>{oldQty}</strong>
+                </Typography>
+                <Typography variant="body2" color="primary.main" fontWeight={600} sx={{ mt: 1 }}>
+                  Số lượng thực tế mới: <strong>{newQty}</strong>
+                </Typography>
+                {newQty !== oldQty && (
+                  <Typography variant="body2" color={newQty > oldQty ? 'success.main' : 'error.main'} sx={{ mt: 0.5 }}>
+                    {newQty > oldQty ? '↑ Tăng' : '↓ Giảm'} {Math.abs(newQty - oldQty)} đơn vị
+                  </Typography>
+                )}
+              </Box>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <SecondaryButton onClick={() => setConfirmSaveDialog(false)} disabled={updating}>
+            Hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleConfirmSave}
+            disabled={updating}
+            loading={updating}
+            startIcon={<SaveIcon />}
+            sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
+          >
+            Xác nhận lưu
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
@@ -1109,7 +1264,11 @@ export default OrderShipment;
 const printShipmentTicket = async (order) => {
   if (!order) throw new Error('Missing order data to print');
 
-  const formatCurrency = (n) => Number(n || 0).toLocaleString('vi-VN') + ' đ';
+  const formatCurrency = (n) => {
+    const num = Number(n);
+    if (isNaN(num) || !isFinite(num)) return '0 đ';
+    return num.toLocaleString('vi-VN') + ' đ';
+  };
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
@@ -1130,16 +1289,22 @@ const printShipmentTicket = async (order) => {
   const itemsHTML = (order.orderItems || []).map((item, idx) => {
     const name = item.product?.name || item.product_name || 'N/A';
     const sku = item.product?.sku || item.product_sku || '';
-    const qtyOrdered = item.quantity || 0;
+    const qtyOrdered = Number(item.quantity) || 0;
     // SL Thực tế giao: luôn dùng đúng số thùng (package_quantity) nếu có, không quy đổi
     const qtyDelivered =
       item.package_quantity !== null && item.package_quantity !== undefined
-        ? item.package_quantity
+        ? Number(item.package_quantity) || 0
         : qtyOrdered;
-    const unitPrice = item.unit_price || 0;
-    const subtotal = item.subtotal !== null && item.subtotal !== undefined
-      ? item.subtotal
-      : qtyDelivered * unitPrice;
+    const unitPrice = Number(item.unit_price) || 0;
+    // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
+    let subtotal = 0;
+    if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
+      subtotal = Number(item.subtotal);
+    } else {
+      subtotal = Number(qtyDelivered) * Number(unitPrice);
+      // Đảm bảo không phải NaN
+      if (isNaN(subtotal)) subtotal = 0;
+    }
 
     return `
       <tr>
@@ -1156,16 +1321,27 @@ const printShipmentTicket = async (order) => {
     `;
   }).join('');
 
+  // Tính tổng tiền: đảm bảo tất cả giá trị đều là số hợp lệ
   const totalAmount = (order.orderItems || []).reduce((sum, item) => {
     const qtyDelivered =
       item.package_quantity !== null && item.package_quantity !== undefined
-        ? item.package_quantity
-        : item.quantity || 0;
-    const unitPrice = item.unit_price || 0;
-    const subtotal = item.subtotal !== null && item.subtotal !== undefined
-      ? item.subtotal
-      : qtyDelivered * unitPrice;
-    return sum + subtotal;
+        ? Number(item.package_quantity) || 0
+        : Number(item.quantity) || 0;
+    const unitPrice = Number(item.unit_price) || 0;
+    
+    // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
+    let subtotal = 0;
+    if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
+      subtotal = Number(item.subtotal);
+    } else {
+      subtotal = Number(qtyDelivered) * Number(unitPrice);
+      // Đảm bảo không phải NaN
+      if (isNaN(subtotal)) subtotal = 0;
+    }
+    
+    // Đảm bảo subtotal là số hợp lệ trước khi cộng
+    const validSubtotal = isNaN(subtotal) ? 0 : subtotal;
+    return sum + validSubtotal;
   }, 0);
 
   const html = `
@@ -1261,7 +1437,11 @@ const printShipmentTicket = async (order) => {
 const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
   if (!order || !discrepancyItems || discrepancyItems.length === 0) return;
 
-  const formatCurrency = (n) => Number(n || 0).toLocaleString('vi-VN') + ' đ';
+  const formatCurrency = (n) => {
+    const num = Number(n);
+    if (isNaN(num) || !isFinite(num)) return '0 đ';
+    return num.toLocaleString('vi-VN') + ' đ';
+  };
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
@@ -1288,10 +1468,20 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
         item.package_quantity !== null && item.package_quantity !== undefined
           ? Number(item.package_quantity)
           : qtyOrdered;
-      const receivedQty = Number(item.received_quantity || 0);
+      const receivedQty = Number(item.received_quantity) || 0;
       const diff = receivedQty - shippedQty;
-      const unitPrice = Number(item.unit_price || 0);
-      const subtotal = Number(item.subtotal || receivedQty * unitPrice);
+      const unitPrice = Number(item.unit_price) || 0;
+      
+      // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
+      let subtotal = 0;
+      if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
+        subtotal = Number(item.subtotal);
+      } else {
+        subtotal = Number(receivedQty) * Number(unitPrice);
+        // Đảm bảo không phải NaN
+        if (isNaN(subtotal)) subtotal = 0;
+      }
+      
       const reason = reasonsMap?.[item.order_item_id] || '';
 
       return `
@@ -1316,10 +1506,22 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
     .join('');
 
   const totalAmount = discrepancyItems.reduce((sum, item) => {
-    const receivedQty = Number(item.received_quantity || 0);
-    const unitPrice = Number(item.unit_price || 0);
-    const subtotal = Number(item.subtotal || receivedQty * unitPrice);
-    return sum + subtotal;
+    const receivedQty = Number(item.received_quantity) || 0;
+    const unitPrice = Number(item.unit_price) || 0;
+    
+    // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
+    let subtotal = 0;
+    if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
+      subtotal = Number(item.subtotal);
+    } else {
+      subtotal = Number(receivedQty) * Number(unitPrice);
+      // Đảm bảo không phải NaN
+      if (isNaN(subtotal)) subtotal = 0;
+    }
+    
+    // Đảm bảo subtotal là số hợp lệ trước khi cộng
+    const validSubtotal = isNaN(subtotal) ? 0 : subtotal;
+    return sum + validSubtotal;
   }, 0);
 
   const html = `
