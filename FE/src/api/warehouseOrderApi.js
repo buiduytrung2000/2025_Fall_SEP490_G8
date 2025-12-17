@@ -219,7 +219,20 @@ export async function createBatchWarehouseOrders(payload) {
             headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
-        return await res.json();
+        
+        const data = await res.json();
+        
+        // Nếu status không phải 2xx, trả về lỗi với thông tin chi tiết
+        if (!res.ok) {
+            return {
+                err: res.status,
+                msg: data.message || data.msg || `HTTP ${res.status}: ${res.statusText}`,
+                errors: data.errors || data.error || null,
+                data: data
+            };
+        }
+        
+        return data;
     } catch (error) {
         return { err: -1, msg: 'Network error: ' + error.message };
     }
