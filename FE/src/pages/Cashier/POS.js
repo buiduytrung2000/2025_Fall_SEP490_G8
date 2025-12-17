@@ -422,13 +422,17 @@ const POS = () => {
                     stock: p.available_quantity
                 };
 
-                handleAddToCart(productForCart);
+                // Clear searchTerm ngay lập tức để tránh useEffect chạy lại
+                setSearchTerm('');
                 // Lưu mã đã scan thành công để block input tiếp theo từ máy quét
                 completedScanCodeRef.current = code;
                 // Đánh dấu thời điểm scan thành công để block input tiếp theo từ máy quét
                 scanCompleteTimeRef.current = Date.now();
                 // Reset lastScannedCodeRef ngay sau khi thêm thành công để cho phép scan mã mới
                 lastScannedCodeRef.current = '';
+                
+                // Thêm vào giỏ hàng sau khi đã clear searchTerm (skip clear vì đã clear rồi)
+                handleAddToCart(productForCart, true);
             } catch (error) {
                 console.error('Error when scanning barcode:', error);
                 lastScannedCodeRef.current = ''; // Reset nếu có lỗi
@@ -550,7 +554,7 @@ const POS = () => {
     };
 
     // Thêm sản phẩm vào giỏ
-    const handleAddToCart = (product) => {
+    const handleAddToCart = (product, skipClearSearch = false) => {
         setCart(currentCart => {
             const itemInCart = currentCart.find(item => item.id === product.id);
             if (itemInCart) {
@@ -565,8 +569,10 @@ const POS = () => {
                 return [...currentCart, { ...product, qty: 1 }];
             }
         });
-        // Xóa ô tìm kiếm và reset ref sau khi thêm vào giỏ hàng thành công
-        setSearchTerm('');
+        // Xóa ô tìm kiếm và reset ref sau khi thêm vào giỏ hàng thành công (trừ khi đã clear rồi)
+        if (!skipClearSearch) {
+            setSearchTerm('');
+        }
         lastScannedCodeRef.current = ''; // Reset để cho phép scan mã mới
     };
 

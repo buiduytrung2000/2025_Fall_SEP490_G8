@@ -204,11 +204,20 @@ export const createOrder = (orderData, defaultSupplierId = null) => new Promise(
                 });
             }
 
-            // Verify product exists
+            // Verify product exists and is active
             const product = await db.Product.findByPk(product_id);
             if (!product) {
                 await transaction.rollback();
                 return resolve({ err: 1, msg: `Product with ID ${product_id} not found` });
+            }
+            
+            // Warehouse không thể nhập sản phẩm đã bị tắt (inactive)
+            if (!product.is_active) {
+                await transaction.rollback();
+                return resolve({ 
+                    err: 1, 
+                    msg: `Không thể nhập sản phẩm "${product.name}" vì sản phẩm đã bị tắt. Vui lòng kích hoạt sản phẩm trước khi nhập hàng.` 
+                });
             }
 
             const subtotal = quantity * unit_price;
