@@ -153,6 +153,28 @@ export const getStoreOrders = async (req, res) => {
     }
 };
 
+// Get store order detail by ID
+export const getStoreOrderDetail = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        if (!orderId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing order ID'
+            });
+        }
+
+        const response = await storeOrderService.getStoreOrderDetail(parseInt(orderId));
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at store order controller: ' + error.message
+        });
+    }
+};
+
 // Update store order status (for store to mark as delivered)
 export const updateStoreOrderStatus = async (req, res) => {
     try {

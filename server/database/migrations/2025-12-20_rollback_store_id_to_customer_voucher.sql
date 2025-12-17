@@ -15,3 +15,4 @@ ALTER TABLE CustomerVoucher
 DROP COLUMN IF EXISTS store_id;
 
 
+

@@ -61,7 +61,7 @@ function VoucherManagement() {
             }
         } catch (error) {
             console.error('Error reading store_id from localStorage user:', error);
-        }
+            }
         // Fallback: lấy từ localStorage store_id riêng
         try {
             const storeIdStr = localStorage.getItem('store_id');
@@ -320,66 +320,66 @@ function VoucherManagement() {
         <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
             <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>Quản lý Mã Khuyến Mãi</Typography>
 
-            <Paper sx={{ p: 2 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                    <Typography variant="h6" fontWeight={600}>Danh sách mã khuyến mãi</Typography>
-                    <PrimaryButton
-                        startIcon={<Icon name="Add" />}
-                        onClick={() => handleShowTemplateModal()}
-                    >
-                        Tạo mới
-                    </PrimaryButton>
-                </Stack>
-                <MaterialReactTable
-                    columns={templateColumns}
-                    data={templates}
-                    enableStickyHeader
-                    enableColumnActions={false}
-                    enableColumnFilters={false}
-                    enableSorting={true}
-                    enableTopToolbar={false}
-                    enableBottomToolbar={true}
-                    enablePagination={true}
-                    enableRowActions={true}
-                    positionActionsColumn="last"
-                    layoutMode="grid"
-                    initialState={{ 
-                        density: 'compact',
-                        pagination: { pageSize: 10, pageIndex: 0 }
-                    }}
-                    renderRowActions={({ row }) => (
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <ActionButton
-                                icon={<Icon name="Edit" />}
-                                action="edit"
-                                onClick={() => handleShowTemplateModal(row.original)}
-                            />
-                            <ActionButton
-                                icon={<Icon name="Delete" />}
-                                action="delete"
-                                onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
-                            />
-                        </Box>
-                    )}
-                    muiTableContainerProps={{
-                        sx: { maxHeight: { xs: '70vh', md: '600px' } }
-                    }}
-                    muiTablePaperProps={{
-                        elevation: 0,
-                        sx: { boxShadow: 'none' }
-                    }}
-                    muiTableHeadCellProps={{
-                        sx: {
-                            fontWeight: 700,
-                            fontSize: { xs: '0.75rem', sm: '0.875rem' }
-                        }
-                    }}
-                    muiTableBodyCellProps={{
-                        sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
-                    }}
-                    localization={MRT_Localization_VI}
-                />
-            </Paper>
+                <Paper sx={{ p: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                        <Typography variant="h6" fontWeight={600}>Danh sách mã khuyến mãi</Typography>
+                        <PrimaryButton
+                            startIcon={<Icon name="Add" />}
+                            onClick={() => handleShowTemplateModal()}
+                        >
+                            Tạo mới
+                        </PrimaryButton>
+                    </Stack>
+                    <MaterialReactTable
+                        columns={templateColumns}
+                        data={templates}
+                        enableStickyHeader
+                        enableColumnActions={false}
+                        enableColumnFilters={false}
+                        enableSorting={true}
+                        enableTopToolbar={false}
+                        enableBottomToolbar={true}
+                        enablePagination={true}
+                        enableRowActions={true}
+                        positionActionsColumn="last"
+                        layoutMode="grid"
+                        initialState={{ 
+                            density: 'compact',
+                            pagination: { pageSize: 10, pageIndex: 0 }
+                        }}
+                        renderRowActions={({ row }) => (
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <ActionButton
+                                    icon={<Icon name="Edit" />}
+                                    action="edit"
+                                    onClick={() => handleShowTemplateModal(row.original)}
+                                />
+                                <ActionButton
+                                    icon={<Icon name="Delete" />}
+                                    action="delete"
+                                    onClick={() => handleDeleteTemplate(row.original.voucher_template_id)}
+                                />
+                            </Box>
+                        )}
+                        muiTableContainerProps={{
+                            sx: { maxHeight: { xs: '70vh', md: '600px' } }
+                        }}
+                        muiTablePaperProps={{
+                            elevation: 0,
+                            sx: { boxShadow: 'none' }
+                        }}
+                        muiTableHeadCellProps={{
+                            sx: {
+                                fontWeight: 700,
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                            }
+                        }}
+                        muiTableBodyCellProps={{
+                            sx: { whiteSpace: 'normal', wordBreak: 'break-word' }
+                        }}
+                        localization={MRT_Localization_VI}
+                    />
+                </Paper>
 
             {/* Template Modal */}
             <Dialog open={showTemplateModal} onClose={handleCloseTemplateModal} maxWidth="md" fullWidth>

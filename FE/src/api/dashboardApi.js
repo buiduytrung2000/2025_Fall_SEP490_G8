@@ -162,3 +162,20 @@ export async function getInventoryOverview() {
     return res.json();
 }
 
+export async function getRecentBranchOrders(limit = 8) {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/ceo/branch-orders${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
+export async function getBranchOrdersSummary() {
+    const res = await fetch(`${API_BASE}/dashboard/ceo/branch-orders-summary`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+

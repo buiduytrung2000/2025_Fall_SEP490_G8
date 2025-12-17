@@ -59,5 +59,11 @@ router.get('/ceo/purchase-orders', dashboardController.getRecentPurchaseOrders);
 // Get inventory overview
 router.get('/ceo/inventory-overview', dashboardController.getInventoryOverview);
 
+// Get recent branch orders
+router.get('/ceo/branch-orders', dashboardController.getRecentBranchOrders);
+
+// Get branch orders summary
+router.get('/ceo/branch-orders-summary', dashboardController.getBranchOrdersSummary);
+
 export default router;
 

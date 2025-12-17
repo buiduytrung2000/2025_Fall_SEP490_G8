@@ -250,7 +250,7 @@ export default function CEORevenueBoard() {
           </Box>
 
           <Grid container spacing={2} mt={1}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={6}>
               <Box sx={summaryBoxSx}>
                 <Typography variant="caption" color="text.secondary">
                   Tổng doanh thu
@@ -258,28 +258,12 @@ export default function CEORevenueBoard() {
                 <Typography variant="h6">{formatCurrency(totalRevenue)}</Typography>
               </Box>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={6}>
               <Box sx={summaryBoxSx}>
                 <Typography variant="caption" color="text.secondary">
                   Tổng sản phẩm bán
                 </Typography>
                 <Typography variant="h6">{formatNumber(totalQuantity)}</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={summaryBoxSx}>
-                <Typography variant="caption" color="text.secondary">
-                  Số SKU
-                </Typography>
-                <Typography variant="h6">{formatNumber(productCount)}</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={summaryBoxSx}>
-                <Typography variant="caption" color="text.secondary">
-                  Chi nhánh
-                </Typography>
-                <Typography variant="h6">{formatNumber(storeCount)}</Typography>
               </Box>
             </Grid>
           </Grid>

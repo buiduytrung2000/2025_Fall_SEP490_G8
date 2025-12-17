@@ -110,3 +110,68 @@ export async function updateStoreOrderStatus(orderId, status, notes = '', receiv
     }
 }
 
+// Update store order (edit order details when status is pending)
+export async function updateStoreOrder(orderId, orderData) {
+    try {
+        const res = await fetch(`${API_BASE}/store-order/${orderId}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(orderData)
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error updating store order:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Cancel store order
+export async function cancelStoreOrder(orderId, cancelReason = '') {
+    try {
+        const res = await fetch(`${API_BASE}/store-order/${orderId}/cancel`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ cancel_reason: cancelReason })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error cancelling store order:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+// Get store order detail by ID
+export async function getStoreOrderDetail(orderId) {
+    try {
+        const res = await fetch(`${API_BASE}/store-order/${orderId}`, {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({ err: 1, msg: 'Request failed' }));
+            return errorData;
+        }
+        
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching store order detail:', error);
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+

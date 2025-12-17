@@ -45,6 +45,11 @@ import {
   Tab,
   IconButton,
   Button,
+  DialogContentText,
+  MenuItem,
+  TextField,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import {
   ChevronLeft,
@@ -83,6 +88,29 @@ const isPastDate = (dateKey) => {
   const targetDate = new Date(dateKey);
   targetDate.setHours(0, 0, 0, 0);
   return targetDate < today;
+};
+
+// Kiểm tra ca trong cùng ngày hôm nay nhưng đã qua thời gian làm việc (quá khứ trong ngày)
+const isPastShiftToday = (dateKey, shiftTemplate) => {
+  if (!shiftTemplate) return false;
+
+  const today = new Date();
+  const todayKey = toLocalDateKey(today);
+  if (dateKey !== todayKey) return false;
+
+  const nowHH = String(today.getHours()).padStart(2, '0');
+  const nowMM = String(today.getMinutes()).padStart(2, '0');
+  const nowTime = `${nowHH}:${nowMM}`;
+
+  const startTime = shiftTemplate.start_time?.slice(0, 5) || '00:00';
+  const endTime = shiftTemplate.end_time?.slice(0, 5) || startTime;
+
+  // Nếu ca không qua đêm (end > start) -> coi là đã qua khi giờ hiện tại > giờ kết thúc
+  // Nếu ca qua đêm (end <= start, ví dụ 22:00 - 06:00) -> coi là đã qua khi giờ hiện tại > giờ bắt đầu
+  if (endTime > startTime) {
+    return nowTime > endTime;
+  }
+  return nowTime > startTime;
 };
 const getWeekNumber = (date) => {
   const d = new Date(
@@ -151,6 +179,11 @@ const ScheduleManagement = () => {
   const [shiftRequestCount, setShiftRequestCount] = useState(0);
   const [savingMonthTemplate, setSavingMonthTemplate] = useState(false);
   const [applyingMonthTemplate, setApplyingMonthTemplate] = useState(false);
+  const [massAddOpen, setMassAddOpen] = useState(false);
+  const [massAddTemplateId, setMassAddTemplateId] = useState("");
+  const [massAddEmployeeId, setMassAddEmployeeId] = useState("");
+  const [massAddFromToday, setMassAddFromToday] = useState(true);
+  const [massAddLoading, setMassAddLoading] = useState(false);
   const { user } = useAuth();
 
   const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate]);
@@ -354,69 +387,109 @@ const ScheduleManagement = () => {
                 </Tooltip>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {!isPastDate(dayKey) ? (
-                  <>
-                    <Tooltip title="Đổi nhân viên này" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleOpenModal(
-                            dayKey,
-                            templateId,
-                            shiftList,
-                            item.schedule_id,
-                            item.user_id
-                          )
+                {(() => {
+                  const tpl = shiftTemplatesData.find(
+                    (t) => t.shift_template_id === templateId || t.id === templateId
+                  );
+                  const isPastDay = isPastDate(dayKey);
+                  const isPastShift = isPastDay || isPastShiftToday(dayKey, tpl);
+
+                  if (isPastShift) {
+                    return (
+                      <Tooltip title="Không thể sửa lịch của ca đã qua" arrow>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>
+                          Đã qua
+                        </Typography>
+                      </Tooltip>
+                    );
+                  }
+
+                  if (attendance.status === 'checked_in' || attendance.status === 'checked_out') {
+                    return (
+                      <Tooltip
+                        title={
+                          attendance.status === 'checked_in'
+                            ? "Không thể đổi/xóa khi nhân viên đang làm việc"
+                            : "Không thể đổi/xóa khi nhân viên đã kết ca"
                         }
-                        sx={{
-                          color: "primary.main",
-                          padding: "4px",
-                          "&:hover": {
-                            bgcolor: "primary.light",
-                            color: "white",
-                          },
-                          transition: "all 0.2s ease",
-                          "& .MuiSvgIcon-root": {
-                            fontSize: "1rem",
-                          },
-                        }}
+                        arrow
                       >
-                        <SwapHoriz />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Xóa nhân viên khỏi ca" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const tpl = shiftTemplatesData.find((t) => t.shift_template_id === templateId || t.id === templateId);
-                          const shiftLabel = tpl ? `${tpl.name} (${tpl.start_time?.slice(0,5)} - ${tpl.end_time?.slice(0,5)})` : '';
-                          const d = new Date(dayKey);
-                          const dayLabel = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-                          const employeeName = staffMap[String(item.user_id)] || `#${item.user_id}`;
-                          openConfirmDelete(dayKey, templateId, item.schedule_id, { employeeName, shiftLabel, dayLabel });
-                        }}
-                        sx={{
-                          color: "error.main",
-                          padding: "4px",
-                          "&:hover": {
-                            bgcolor: "error.light",
-                            color: "white",
-                          },
-                          transition: "all 0.2s ease",
-                          "& .MuiSvgIcon-root": { fontSize: "1rem" },
-                        }}
-                      >
-                        <DeleteOutline />
-                      </IconButton>
-                    </Tooltip>
-                  </>
-                ) : (
-                  <Tooltip title="Không thể sửa lịch của ngày đã qua" arrow>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>
-                      Đã qua
-                    </Typography>
-                  </Tooltip>
-                )}
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontSize: "0.65rem", fontStyle: "italic" }}
+                        >
+                          {attendance.status === 'checked_in' ? "Đang làm" : "Đã kết ca"}
+                        </Typography>
+                      </Tooltip>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <Tooltip title="Đổi nhân viên này" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            handleOpenModal(
+                              dayKey,
+                              templateId,
+                              shiftList,
+                              item.schedule_id,
+                              item.user_id
+                            )
+                          }
+                          sx={{
+                            color: "primary.main",
+                            padding: "4px",
+                            "&:hover": {
+                              bgcolor: "primary.light",
+                              color: "white",
+                            },
+                            transition: "all 0.2s ease",
+                            "& .MuiSvgIcon-root": {
+                              fontSize: "1rem",
+                            },
+                          }}
+                        >
+                          <SwapHoriz />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Xóa nhân viên khỏi ca" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const shiftLabel = tpl
+                              ? `${tpl.name} (${tpl.start_time?.slice(0, 5)} - ${tpl.end_time?.slice(0, 5)})`
+                              : "";
+                            const d = new Date(dayKey);
+                            const dayLabel = `${String(d.getDate()).padStart(2, "0")}/${String(
+                              d.getMonth() + 1
+                            ).padStart(2, "0")}/${d.getFullYear()}`;
+                            const employeeName = staffMap[String(item.user_id)] || `#${item.user_id}`;
+                            openConfirmDelete(dayKey, templateId, item.schedule_id, {
+                              employeeName,
+                              shiftLabel,
+                              dayLabel,
+                            });
+                          }}
+                          sx={{
+                            color: "error.main",
+                            padding: "4px",
+                            "&:hover": {
+                              bgcolor: "error.light",
+                              color: "white",
+                            },
+                            transition: "all 0.2s ease",
+                            "& .MuiSvgIcon-root": { fontSize: "1rem" },
+                          }}
+                        >
+                          <DeleteOutline />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  );
+                })()}
               </Box>
             </Box>
           );
@@ -668,6 +741,103 @@ const ScheduleManagement = () => {
       setApplyingMonthTemplate(false);
     }
   }, [storeId, currentDate, startOfWeek, endOfWeek]);
+
+  // Thêm 1 nhân viên vào tất cả ca trong tháng (ví dụ toàn bộ ca sáng)
+  const handleMassAddSubmit = async () => {
+    if (!storeId || !massAddTemplateId || !massAddEmployeeId) {
+      ToastNotification.error("Vui lòng chọn ca làm việc và nhân viên");
+      return;
+    }
+
+    try {
+      setMassAddLoading(true);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth(); // 0-based
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      let createdCount = 0;
+
+      for (
+        let d = new Date(firstDay);
+        d <= lastDay;
+        d.setDate(d.getDate() + 1)
+      ) {
+        const workDateKey = toLocalDateKey(d);
+
+        // Bỏ qua ngày quá khứ nếu chọn "từ hôm nay trở đi"
+        if (massAddFromToday) {
+          const dayCopy = new Date(d);
+          dayCopy.setHours(0, 0, 0, 0);
+          if (dayCopy < today) continue;
+        }
+
+        const dayShifts = schedule[workDateKey] || {};
+        const listForShift = dayShifts[massAddTemplateId] || [];
+
+        // Nếu đã có nhân viên này trong ca đó thì bỏ qua
+        const alreadyAssigned = listForShift.some(
+          (item) => String(item.user_id) === String(massAddEmployeeId)
+        );
+        if (alreadyAssigned) continue;
+
+        // Tạo lịch mới
+        const res = await createSchedule({
+          store_id: storeId,
+          user_id: massAddEmployeeId,
+          shift_template_id: massAddTemplateId,
+          work_date: workDateKey,
+          status: "confirmed",
+        });
+
+        if (res?.err === 0) {
+          createdCount += 1;
+        }
+      }
+
+      if (createdCount === 0) {
+        ToastNotification.info(
+          "Không có ca mới nào được tạo (có thể nhân viên đã có lịch cho tất cả các ca được chọn)"
+        );
+      } else {
+        ToastNotification.success(
+          `Đã thêm nhân viên vào ${createdCount} ca làm việc trong tháng`
+        );
+      }
+
+      // Reload dữ liệu tuần hiện tại để cập nhật UI
+      const startReload = toLocalDateKey(startOfWeek);
+      const endReload = toLocalDateKey(endOfWeek);
+      const reloadRes = await apiGetSchedules(storeId, startReload, endReload);
+      const rowsReload = reloadRes?.data || [];
+      const grid = {};
+      rowsReload.forEach((r) => {
+        const dateKey = r.work_date;
+        if (!grid[dateKey]) grid[dateKey] = {};
+        if (!grid[dateKey][r.shift_template_id])
+          grid[dateKey][r.shift_template_id] = [];
+        grid[dateKey][r.shift_template_id].push({
+          schedule_id: r.schedule_id,
+          user_id: r.user_id,
+          status: r.status,
+          attendance_status: r.attendance_status || "not_checked_in",
+        });
+      });
+      setSchedule(grid);
+
+      setMassAddOpen(false);
+      setMassAddTemplateId("");
+      setMassAddEmployeeId("");
+      setMassAddFromToday(true);
+    } catch (error) {
+      ToastNotification.error("Không thể thêm nhân viên cho cả tháng");
+    } finally {
+      setMassAddLoading(false);
+    }
+  };
 
   const handleOpenModal = async (
     dayKey,
@@ -1046,6 +1216,14 @@ const ScheduleManagement = () => {
               >
                 Áp dụng mẫu tháng
               </PrimaryButton>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setMassAddOpen(true)}
+                disabled={!storeId || !shiftTemplatesData.length || !staffList.length}
+              >
+                Thêm nhân viên cho cả tháng
+              </Button>
             </Stack>
           </Box>
 
@@ -1171,13 +1349,13 @@ const ScheduleManagement = () => {
                                   false
                                 )}
                               </Box>
-                              <Tooltip title={isPastDate(dayKey) ? "Không thể thêm nhân viên cho ngày đã qua" : "Thêm nhân viên cho ca này"} arrow>
+                              <Tooltip title={(isPastDate(dayKey) || isPastShiftToday(dayKey, tpl)) ? "Không thể thêm nhân viên cho ca đã qua" : "Thêm nhân viên cho ca này"} arrow>
                                 <span>
                                   <Button
                                     variant="contained"
                                     color="primary"
                                     size="small"
-                                    disabled={isPastDate(dayKey)}
+                                    disabled={isPastDate(dayKey) || isPastShiftToday(dayKey, tpl)}
                                     sx={{
                                       borderRadius: 1.5,
                                       minWidth: { xs: 60, sm: 70, md: 80 },
@@ -1205,7 +1383,7 @@ const ScheduleManagement = () => {
                                     }}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (!isPastDate(dayKey)) {
+                                      if (!isPastDate(dayKey) && !isPastShiftToday(dayKey, tpl)) {
                                         handleOpenModal(dayKey, templateId, shiftList);
                                       }
                                     }}
@@ -1250,7 +1428,80 @@ const ScheduleManagement = () => {
         />
       )}
 
-     
+      {/* Mass add employee to all shifts in month */}
+      <Dialog
+        open={massAddOpen}
+        onClose={() => !massAddLoading && setMassAddOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Thêm nhân viên cho cả tháng</DialogTitle>
+        <DialogContent dividers>
+          <DialogContentText sx={{ mb: 2 }}>
+            Chọn <strong>ca làm việc</strong> (ví dụ: Ca Sáng) và <strong>nhân viên</strong> muốn thêm cho toàn bộ các ngày trong tháng hiện tại.
+            Hệ thống sẽ chỉ tạo ca mới cho những ngày chưa có nhân viên này trong ca đó.
+          </DialogContentText>
+          <Stack spacing={2}>
+            <TextField
+              select
+              label="Ca làm việc"
+              size="small"
+              value={massAddTemplateId}
+              onChange={(e) => setMassAddTemplateId(e.target.value)}
+              fullWidth
+            >
+              {shiftTemplatesData.map((tpl) => (
+                <MenuItem
+                  key={tpl.shift_template_id || tpl.id}
+                  value={tpl.shift_template_id || tpl.id}
+                >
+                  {formatShiftName(tpl)}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Nhân viên"
+              size="small"
+              value={massAddEmployeeId}
+              onChange={(e) => setMassAddEmployeeId(e.target.value)}
+              fullWidth
+            >
+              {staffList.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={massAddFromToday}
+                  onChange={(e) => setMassAddFromToday(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Chỉ áp dụng từ hôm nay trở đi (không thay đổi các ngày đã qua)"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <SecondaryButton
+            onClick={() => setMassAddOpen(false)}
+            disabled={massAddLoading}
+          >
+            Hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleMassAddSubmit}
+            disabled={massAddLoading}
+            loading={massAddLoading}
+          >
+            Xác nhận
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
       <Dialog
         open={showDetailModal}
         onClose={() => setShowDetailModal(false)}
@@ -1367,58 +1618,68 @@ const ScheduleManagement = () => {
                                 sx={{ height: 24 }}
                               />
                             </Tooltip>
-                            {!isPastDate(selectedShiftDetail.dayKey) ? (
+                            {!isPastDate(selectedShiftDetail.dayKey) && !isPastShiftToday(selectedShiftDetail.dayKey, selectedShiftDetail.shiftTemplate) ? (
                               <>
-                                <Tooltip title="Đổi nhân viên này" arrow>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => {
-                                      handleOpenModal(
-                                        selectedShiftDetail.dayKey,
-                                        selectedShiftDetail.templateId,
-                                        selectedShiftDetail.shiftList,
-                                        item.schedule_id,
-                                        item.user_id
-                                      );
-                                    }}
-                                    sx={{
-                                      color: "primary.main",
-                                      "&:hover": {
-                                        bgcolor: "primary.light",
-                                        color: "white",
-                                      },
-                                    }}
-                                  >
-                                    <SwapHoriz />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Xóa nhân viên khỏi ca" arrow>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => openConfirmDelete(
-                                      selectedShiftDetail.dayKey,
-                                      selectedShiftDetail.templateId,
-                                      item.schedule_id,
-                                      {
-                                        employeeName: staffMap[String(item.user_id)] || `#${item.user_id}`,
-                                        shiftLabel: selectedShiftDetail.shiftName,
-                                        dayLabel: `${selectedShiftDetail.dayName}, ${selectedShiftDetail.date}`
-                                      }
-                                    )}
-                                    sx={{
-                                      color: "error.main",
-                                      "&:hover": {
-                                        bgcolor: "error.light",
-                                        color: "white",
-                                      },
-                                    }}
-                                  >
-                                    <DeleteOutline />
-                                  </IconButton>
-                                </Tooltip>
+                                {attendance.status === 'checked_in' || attendance.status === 'checked_out' ? (
+                                  <Tooltip title={attendance.status === 'checked_in' ? "Không thể đổi/xóa khi nhân viên đang làm việc" : "Không thể đổi/xóa khi nhân viên đã kết ca"} arrow>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem", fontStyle: "italic" }}>
+                                      {attendance.status === 'checked_in' ? "Đang làm việc" : "Đã kết ca"}
+                                    </Typography>
+                                  </Tooltip>
+                                ) : (
+                                  <>
+                                    <Tooltip title="Đổi nhân viên này" arrow>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                          handleOpenModal(
+                                            selectedShiftDetail.dayKey,
+                                            selectedShiftDetail.templateId,
+                                            selectedShiftDetail.shiftList,
+                                            item.schedule_id,
+                                            item.user_id
+                                          );
+                                        }}
+                                        sx={{
+                                          color: "primary.main",
+                                          "&:hover": {
+                                            bgcolor: "primary.light",
+                                            color: "white",
+                                          },
+                                        }}
+                                      >
+                                        <SwapHoriz />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Xóa nhân viên khỏi ca" arrow>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => openConfirmDelete(
+                                          selectedShiftDetail.dayKey,
+                                          selectedShiftDetail.templateId,
+                                          item.schedule_id,
+                                          {
+                                            employeeName: staffMap[String(item.user_id)] || `#${item.user_id}`,
+                                            shiftLabel: selectedShiftDetail.shiftName,
+                                            dayLabel: `${selectedShiftDetail.dayName}, ${selectedShiftDetail.date}`
+                                          }
+                                        )}
+                                        sx={{
+                                          color: "error.main",
+                                          "&:hover": {
+                                            bgcolor: "error.light",
+                                            color: "white",
+                                          },
+                                        }}
+                                      >
+                                        <DeleteOutline />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </>
+                                )}
                               </>
                             ) : (
-                              <Tooltip title="Không thể sửa lịch của ngày đã qua" arrow>
+                              <Tooltip title="Không thể sửa lịch của ca đã qua" arrow>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem", fontStyle: "italic" }}>
                                   Đã qua
                                 </Typography>
@@ -1463,9 +1724,17 @@ const ScheduleManagement = () => {
             variant="contained"
             color="primary"
             startIcon={<AddCircleOutline />}
-            disabled={selectedShiftDetail && isPastDate(selectedShiftDetail.dayKey)}
+            disabled={
+              selectedShiftDetail &&
+              (isPastDate(selectedShiftDetail.dayKey) ||
+                isPastShiftToday(selectedShiftDetail.dayKey, selectedShiftDetail.shiftTemplate))
+            }
             onClick={() => {
-              if (selectedShiftDetail && !isPastDate(selectedShiftDetail.dayKey)) {
+              if (
+                selectedShiftDetail &&
+                !isPastDate(selectedShiftDetail.dayKey) &&
+                !isPastShiftToday(selectedShiftDetail.dayKey, selectedShiftDetail.shiftTemplate)
+              ) {
                 handleOpenModal(
                   selectedShiftDetail.dayKey,
                   selectedShiftDetail.templateId,
