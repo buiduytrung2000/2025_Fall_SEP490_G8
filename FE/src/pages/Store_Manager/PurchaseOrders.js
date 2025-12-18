@@ -281,6 +281,31 @@ const PurchaseOrders = () => {
       enableColumnFilter: false,
     },
     {
+      accessorKey: 'total_received_quantity',
+      header: 'Thực tế tổng kho đã giao',
+      size: 180,
+      Cell: ({ row }) => {
+        const items = row.original.items || [];
+        const totalReceived = items.reduce((sum, item) => {
+          const receivedQty = Number(item.received_quantity ?? 0);
+          return sum + (isNaN(receivedQty) ? 0 : receivedQty);
+        }, 0);
+        // Hiển thị số lượng đã nhận, nếu = 0 hoặc null thì hiển thị "—"
+        if (totalReceived > 0) {
+          return totalReceived.toLocaleString('vi-VN');
+        }
+        return '—';
+      },
+      enableColumnFilter: false,
+      enableSorting: true,
+      muiTableHeadCellProps: {
+        align: 'right',
+      },
+      muiTableBodyCellProps: {
+        align: 'right',
+      },
+    },
+    {
       accessorKey: 'total_amount',
       header: 'Tổng tiền',
       size: 120,

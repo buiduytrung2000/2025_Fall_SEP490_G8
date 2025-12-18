@@ -292,6 +292,108 @@ export const getLowStockProducts = (storeId, limit = 5) => new Promise(async (re
     }
 });
 
+// Get monthly revenue statistics for store
+export const getMonthlyRevenue = (storeId, year = null, month = null) => new Promise(async (resolve, reject) => {
+    try {
+        const now = new Date();
+        const targetYear = Number(year) || now.getFullYear();
+        const targetMonth = Number(month) || now.getMonth() + 1;
+
+        const startDate = new Date(targetYear, targetMonth - 1, 1);
+        const endDate = new Date(targetYear, targetMonth, 1);
+
+        const stats = await db.Transaction.findOne({
+            where: {
+                store_id: storeId,
+                status: 'completed',
+                created_at: {
+                    [Op.gte]: startDate,
+                    [Op.lt]: endDate
+                }
+            },
+            attributes: [
+                [Sequelize.fn('COUNT', Sequelize.col('transaction_id')), 'orderCount'],
+                [Sequelize.fn('SUM', Sequelize.col('total_amount')), 'totalRevenue']
+            ],
+            raw: true
+        });
+
+        const result = {
+            year: targetYear,
+            month: targetMonth,
+            revenue: parseFloat(stats?.totalRevenue || 0),
+            orders: parseInt(stats?.orderCount || 0)
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: result
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get monthly purchase cost (from StoreOrder) for store
+export const getMonthlyPurchaseCost = (storeId, year = null, month = null) => new Promise(async (resolve, reject) => {
+    try {
+        const now = new Date();
+        const targetYear = Number(year) || now.getFullYear();
+        const targetMonth = Number(month) || now.getMonth() + 1;
+
+        const startDate = new Date(targetYear, targetMonth - 1, 1);
+        const endDate = new Date(targetYear, targetMonth, 1);
+
+        // Calculate total cost from completed StoreOrders
+        // Use subtotal from StoreOrderItem (which stores the purchase price at time of order)
+        // Include 'delivered' status (when store receives the order)
+        // Also check if we should use total_amount from StoreOrder as fallback
+        const query = `
+            SELECT 
+                COALESCE(SUM(soi.subtotal), 0) as totalCost,
+                COUNT(DISTINCT so.store_order_id) as orderCount,
+                COALESCE(SUM(so.total_amount), 0) as totalAmountFallback
+            FROM StoreOrder so
+            INNER JOIN StoreOrderItem soi ON so.store_order_id = soi.store_order_id
+            WHERE so.store_id = :storeId
+                AND so.status = 'delivered'
+                AND so.created_at >= :startDate
+                AND so.created_at < :endDate
+        `;
+
+        const [result] = await db.sequelize.query(query, {
+            replacements: {
+                storeId,
+                startDate,
+                endDate
+            },
+            type: Sequelize.QueryTypes.SELECT
+        });
+
+        // Use subtotal sum if available, otherwise fallback to total_amount
+        const cost = parseFloat(result?.totalCost || 0) > 0 
+            ? parseFloat(result?.totalCost || 0)
+            : parseFloat(result?.totalAmountFallback || 0);
+
+        const data = {
+            year: targetYear,
+            month: targetMonth,
+            cost: cost,
+            orders: parseInt(result?.orderCount || 0)
+        };
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data
+        });
+    } catch (error) {
+        console.error('Error in getMonthlyPurchaseCost:', error);
+        reject(error);
+    }
+});
+
 // =====================================================
 // DASHBOARD SERVICES FOR CEO (COMPANY-WIDE)
 // =====================================================

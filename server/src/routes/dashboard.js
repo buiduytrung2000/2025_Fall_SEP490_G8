@@ -25,6 +25,12 @@ router.get('/employee-stats', dashboardController.getEmployeeStats);
 // Get low stock products
 router.get('/low-stock', dashboardController.getLowStockProducts);
 
+// Get monthly revenue statistics
+router.get('/monthly-revenue', dashboardController.getMonthlyRevenue);
+
+// Get monthly purchase cost
+router.get('/monthly-purchase-cost', dashboardController.getMonthlyPurchaseCost);
+
 // =====================================================
 // CEO DASHBOARD ROUTES
 // =====================================================

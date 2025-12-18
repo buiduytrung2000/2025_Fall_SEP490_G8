@@ -170,6 +170,62 @@ export const getLowStockProducts = async (req, res) => {
     }
 };
 
+// Get monthly revenue statistics
+export const getMonthlyRevenue = async (req, res) => {
+    try {
+        let storeId = req.query.store_id;
+        const { year, month } = req.query;
+
+        if (req.user?.role === 'Store_Manager' && !storeId) {
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
+            if (!info?.store_id) {
+                return res.status(403).json({ err: 1, msg: 'Manager has no store assigned' });
+            }
+            storeId = info.store_id;
+        }
+
+        if (!storeId) {
+            return res.status(400).json({ err: 1, msg: 'store_id is required' });
+        }
+
+        const response = await dashboardService.getMonthlyRevenue(storeId, year, month);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
+// Get monthly purchase cost
+export const getMonthlyPurchaseCost = async (req, res) => {
+    try {
+        let storeId = req.query.store_id;
+        const { year, month } = req.query;
+
+        if (req.user?.role === 'Store_Manager' && !storeId) {
+            const info = await employeeService.getStoreInfoByUserId(req.user?.user_id || req.user?.id);
+            if (!info?.store_id) {
+                return res.status(403).json({ err: 1, msg: 'Manager has no store assigned' });
+            }
+            storeId = info.store_id;
+        }
+
+        if (!storeId) {
+            return res.status(400).json({ err: 1, msg: 'store_id is required' });
+        }
+
+        const response = await dashboardService.getMonthlyPurchaseCost(storeId, year, month);
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at dashboard controller: ' + error.message
+        });
+    }
+};
+
 // =====================================================
 // DASHBOARD CONTROLLERS FOR CEO
 // =====================================================

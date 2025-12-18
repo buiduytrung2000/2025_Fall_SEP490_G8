@@ -16,7 +16,12 @@ import {
   useMediaQuery,
   useTheme,
   Skeleton,
-  Paper
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Grid
 } from "@mui/material";
 import { Bar } from "react-chartjs-2";
 import { 
@@ -38,7 +43,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { getTodayKPIs, getRevenueLast7Days, getTopSellingProducts, getTodaySchedules, getEmployeeStats } from '../../api/dashboardApi';
+import { getTodayKPIs, getRevenueLast7Days, getTopSellingProducts, getTodaySchedules, getEmployeeStats, getMonthlyRevenue, getMonthlyPurchaseCost } from '../../api/dashboardApi';
 import { ToastNotification } from '../../components/common';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -118,6 +123,11 @@ const ManagerDashboard = () => {
   const [todaySchedules, setTodaySchedules] = useState([]);
   const [employeeStats, setEmployeeStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(null);
+  const [monthlyPurchaseCost, setMonthlyPurchaseCost] = useState(null);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -179,6 +189,39 @@ const ManagerDashboard = () => {
 
     loadDashboardData();
   }, []);
+
+  // Load monthly statistics when year/month changes
+  useEffect(() => {
+    const loadMonthlyStats = async () => {
+      setLoadingMonthly(true);
+      try {
+        const [revenueRes, costRes] = await Promise.all([
+          getMonthlyRevenue(null, selectedYear, selectedMonth),
+          getMonthlyPurchaseCost(null, selectedYear, selectedMonth)
+        ]);
+
+        if (revenueRes.err === 0) {
+          setMonthlyRevenue(revenueRes.data);
+        } else {
+          console.error('Monthly revenue error:', revenueRes);
+          setMonthlyRevenue({ revenue: 0, orders: 0 });
+        }
+
+        if (costRes.err === 0) {
+          setMonthlyPurchaseCost(costRes.data);
+        } else {
+          console.error('Monthly purchase cost error:', costRes);
+          setMonthlyPurchaseCost({ cost: 0, orders: 0 });
+        }
+      } catch (error) {
+        console.error('Error loading monthly stats:', error);
+      } finally {
+        setLoadingMonthly(false);
+      }
+    };
+
+    loadMonthlyStats();
+  }, [selectedYear, selectedMonth]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
@@ -285,17 +328,45 @@ const ManagerDashboard = () => {
             Thống kê và phân tích hoạt động kinh doanh
           </Typography>
         </Box>
-        <Chip 
-          icon={<Assessment />} 
-          label="Hôm nay" 
-          color="primary" 
-          size={isMobile ? 'small' : 'medium'}
-          sx={{ 
-            height: { xs: 32, sm: 36 },
-            fontSize: { xs: '0.75rem', sm: '0.875rem' },
-            fontWeight: 600
-          }}
-        />
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Năm</InputLabel>
+            <Select
+              value={selectedYear}
+              label="Năm"
+              onChange={(e) => setSelectedYear(e.target.value)}
+            >
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - i;
+                return <MenuItem key={year} value={year}>{year}</MenuItem>;
+              })}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Tháng</InputLabel>
+            <Select
+              value={selectedMonth}
+              label="Tháng"
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {Array.from({ length: 12 }, (_, i) => {
+                const month = i + 1;
+                return <MenuItem key={month} value={month}>Tháng {month}</MenuItem>;
+              })}
+            </Select>
+          </FormControl>
+          <Chip 
+            icon={<Assessment />} 
+            label="Hôm nay" 
+            color="primary" 
+            size={isMobile ? 'small' : 'medium'}
+            sx={{ 
+              height: { xs: 32, sm: 36 },
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              fontWeight: 600
+            }}
+          />
+        </Box>
       </Box>
 
       {/* STAT CARDS */}
@@ -308,6 +379,85 @@ const ManagerDashboard = () => {
         {stats.map((stat, i) => (
           <StatCard key={i} {...stat} loading={loading} />
         ))}
+      </Box>
+
+      {/* MONTHLY STATISTICS */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" fontWeight={600} sx={{ mb: 2, color: '#1a202c' }}>
+          Thống kê theo tháng ({selectedMonth}/{selectedYear})
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={6}>
+            <Card 
+              elevation={0}
+              sx={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                borderRadius: 3,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                height: '100%'
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.95, mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+                      Doanh thu tháng này
+                    </Typography>
+                    {loadingMonthly ? (
+                      <Skeleton variant="text" width={120} height={40} sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
+                    ) : (
+                      <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.75rem', sm: '2rem' }, lineHeight: 1.2 }}>
+                        {formatCurrency(monthlyRevenue?.revenue || 0)}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ opacity: 0.8, mt: 1, display: 'block' }}>
+                      {monthlyRevenue?.orders || 0} đơn hàng
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.25)', width: 56, height: 56 }}>
+                    <AttachMoney />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={6}>
+            <Card 
+              elevation={0}
+              sx={{
+                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                color: 'white',
+                borderRadius: 3,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                height: '100%'
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.95, mb: 1.5, fontSize: '0.875rem', fontWeight: 500 }}>
+                      Chi phí nhập hàng tháng này
+                    </Typography>
+                    {loadingMonthly ? (
+                      <Skeleton variant="text" width={120} height={40} sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
+                    ) : (
+                      <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: '1.75rem', sm: '2rem' }, lineHeight: 1.2 }}>
+                        {formatCurrency(monthlyPurchaseCost?.cost || 0)}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ opacity: 0.8, mt: 1, display: 'block' }}>
+                      {monthlyPurchaseCost?.orders || 0} đơn nhập
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.25)', width: 56, height: 56 }}>
+                    <ShoppingCart />
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Box>
 
       {/* CHARTS & TOP PRODUCTS SECTION - Equal width 50/50 */}

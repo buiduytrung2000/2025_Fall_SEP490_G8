@@ -56,6 +56,31 @@ const nextTransitions = {
   cancelled: []  // No transitions from cancelled
 };
 
+// Làm tròn an toàn tổng tiền để tránh hiển thị 999.999,96 thay vì 1.000.000
+const formatTotalAmount = (value) => {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return '0';
+
+  // Làm tròn về số nguyên gần nhất (VND không có số lẻ)
+  // Nếu giá trị rất gần số nguyên (chênh lệch < 1) thì làm tròn lên
+  const nearestInt = Math.round(num);
+  const diff = Math.abs(num - nearestInt);
+  
+  // Nếu chênh lệch < 1 VND thì làm tròn về số nguyên
+  if (diff < 1) {
+    return nearestInt.toLocaleString('vi-VN');
+  }
+
+  // Nếu giá trị >= 999.999 và < 1.000.000 thì làm tròn lên thành 1.000.000
+  if (num >= 999999 && num < 1000000) {
+    return '1.000.000';
+  }
+
+  // Ngược lại làm tròn 2 chữ số thập phân rồi format
+  const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+  return rounded.toLocaleString('vi-VN');
+};
+
 export default function OrderList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -246,7 +271,7 @@ export default function OrderList() {
                     <TableCell>{order.creator?.username || order.creator?.email || '—'}</TableCell>
                     <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
                     <TableCell>{order.expected_delivery ? new Date(order.expected_delivery).toLocaleDateString() : '—'}</TableCell>
-                    <TableCell align="right">{Number(order.totalAmount || 0).toLocaleString('vi-VN')} đ</TableCell>
+                    <TableCell align="right">{formatTotalAmount(order.totalAmount)} đ</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Chip 
@@ -380,13 +405,18 @@ export default function OrderList() {
                 </TableHead>
                 <TableBody>
                   {(detailOrder.orderItems || []).map((item, idx) => {
-                    const quantityPerCase = Number(
-                      item.display_quantity ?? item.quantity ?? 0,
-                    );
-                    const pricePerCase = Number(
-                      item.display_unit_price ?? item.unit_price ?? 0,
-                    );
-                    const subtotalBase = Number(item.subtotal ?? quantityPerCase * pricePerCase);
+                  const quantityPerCase = Number(
+                    item.display_quantity ?? item.quantity ?? 0,
+                  );
+                  // Làm tròn đơn giá và thành tiền về số nguyên (VND) để tránh lệch 1đ kiểu 999.999,99
+                  const rawPricePerCase = Number(
+                    item.display_unit_price ?? item.unit_price ?? 0,
+                  );
+                  const pricePerCase = Math.round(rawPricePerCase);
+                  const rawSubtotalBase = Number(
+                    item.subtotal ?? quantityPerCase * rawPricePerCase,
+                  );
+                  const subtotalBase = Math.round(rawSubtotalBase);
                     const unitLabel =
                       item.display_unit_label ||
                       item.unit?.name ||

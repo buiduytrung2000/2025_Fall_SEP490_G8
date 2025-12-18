@@ -51,6 +51,30 @@ export async function getEmployeeStats(storeId = null) {
     return res.json();
 }
 
+export async function getMonthlyRevenue(storeId = null, year = null, month = null) {
+    const params = new URLSearchParams();
+    if (storeId) params.append('store_id', storeId);
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/monthly-revenue${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
+export async function getMonthlyPurchaseCost(storeId = null, year = null, month = null) {
+    const params = new URLSearchParams();
+    if (storeId) params.append('store_id', storeId);
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/monthly-purchase-cost${query}`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
+    });
+    return res.json();
+}
+
 export async function getLowStockProducts(storeId = null, limit = 5) {
     const params = new URLSearchParams();
     if (storeId) params.append('store_id', storeId);

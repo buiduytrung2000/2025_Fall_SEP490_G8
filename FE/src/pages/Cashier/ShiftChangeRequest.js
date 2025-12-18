@@ -153,15 +153,16 @@ const ShiftChangeRequest = () => {
                 getMyShiftChangeRequests(),
             ]);
 
-            if (schedulesRes) {
-                const arr = Array.isArray(schedulesRes)
-                    ? schedulesRes
+            if (schedulesRes?.err === 0) {
+                const arr = Array.isArray(schedulesRes.data)
+                    ? schedulesRes.data
                     : schedulesRes.data?.rows || schedulesRes.data?.list || schedulesRes.data || schedulesRes.schedules || schedulesRes.items || [];
                 console.log('[ShiftChangeRequest] getMySchedules raw:', schedulesRes);
                 console.log('[ShiftChangeRequest] parsed mySchedules length:', Array.isArray(arr) ? arr.length : 0);
                 setMySchedules(Array.isArray(arr) ? arr : []);
             } else {
-                console.warn('[ShiftChangeRequest] getMySchedules returned empty/falsey');
+                console.warn('[ShiftChangeRequest] getMySchedules error:', schedulesRes);
+                setMySchedules([]);
             }
 
             let templates = [];
@@ -600,7 +601,7 @@ const renderShiftOption = (shift, shiftTemplates) => {
 };
 
     // Ưu tiên hiển thị các ca chưa điểm danh lên trước
-    // Chỉ cho phép đổi ca từ ngày mai trở đi (không cho đổi ca hôm nay)
+    // Hiển thị tất cả ca từ hôm nay trở đi (cho phép đổi ca từ ngày mai trở đi)
     const sortedMySchedules = useMemo(() => {
         const priority = (status) => {
             // Chưa điểm danh hoặc không có trạng thái -> ưu tiên cao nhất
@@ -610,26 +611,39 @@ const renderShiftOption = (shift, shiftTemplates) => {
 
         const todayStr = new Date().toISOString().split('T')[0];
 
+        // Xử lý dữ liệu từ Sequelize instance hoặc plain object
         const baseList = [...mySchedules]
+            .map((s) => {
+                // Handle Sequelize instance
+                const scheduleData = s.get ? s.get({ plain: true }) : s;
+                return {
+                    ...scheduleData,
+                    work_date: scheduleData.work_date || scheduleData.workDate,
+                    shift_template_id: scheduleData.shift_template_id || scheduleData.shiftTemplateId || scheduleData.shiftTemplate?.shift_template_id,
+                    attendance_status: scheduleData.attendance_status || scheduleData.attendanceStatus,
+                    schedule_id: scheduleData.schedule_id || scheduleData.id
+                };
+            })
             .filter((s) => {
-                const d = (s.work_date || s.workDate || '').slice(0, 10);
-                // Chỉ lấy ca có ngày > hôm nay
-                return d && d > todayStr;
+                const d = (s.work_date || '').slice(0, 10);
+                // Hiển thị tất cả ca từ hôm nay trở đi (bao gồm cả hôm nay)
+                return d && d >= todayStr;
             })
             .sort((a, b) => {
                 const pa = priority(a.attendance_status);
                 const pb = priority(b.attendance_status);
                 if (pa !== pb) return pa - pb;
                 // fallback theo ngày và ca để ổn định
-                const da = a.work_date || a.workDate || '';
-                const db = b.work_date || b.workDate || '';
+                const da = a.work_date || '';
+                const db = b.work_date || '';
                 if (da !== db) return da.localeCompare(db);
                 return (a.shift_template_id || 0) - (b.shift_template_id || 0);
             });
+        
         // Nếu có chọn ngày filter, chỉ hiển thị ca đúng ngày đó
         if (filterDate) {
             return baseList.filter((s) => {
-                const d = (s.work_date || s.workDate || '').slice(0, 10);
+                const d = (s.work_date || '').slice(0, 10);
                 return d === filterDate;
             });
         }
@@ -648,7 +662,11 @@ const renderShiftOption = (shift, shiftTemplates) => {
             accessorKey: 'work_date',
             header: 'Ngày',
             size: 120,
-            Cell: ({ cell }) => formatDate(cell.getValue()),
+            Cell: ({ row }) => {
+                const schedule = row.original;
+                const workDate = schedule.work_date || schedule.workDate;
+                return formatDate(workDate);
+            },
         },
         {
             accessorKey: 'shift_template_id',
@@ -656,12 +674,13 @@ const renderShiftOption = (shift, shiftTemplates) => {
             size: 150,
             Cell: ({ row }) => {
                 const schedule = row.original;
+                const shiftTemplateId = schedule.shift_template_id || schedule.shiftTemplateId || schedule.shiftTemplate?.shift_template_id;
                 const template = shiftTemplates.find(
                     (t) =>
-                        t.shift_template_id === schedule.shift_template_id ||
-                        t.id === schedule.shift_template_id
+                        t.shift_template_id === shiftTemplateId ||
+                        t.id === shiftTemplateId
                 );
-                return template?.name || 'N/A';
+                return template?.name || schedule.shiftTemplate?.name || 'N/A';
             },
         },
         {
@@ -670,11 +689,12 @@ const renderShiftOption = (shift, shiftTemplates) => {
             size: 150,
             Cell: ({ row }) => {
                 const schedule = row.original;
+                const shiftTemplateId = schedule.shift_template_id || schedule.shiftTemplateId || schedule.shiftTemplate?.shift_template_id;
                 const template = shiftTemplates.find(
                     (t) =>
-                        t.shift_template_id === schedule.shift_template_id ||
-                        t.id === schedule.shift_template_id
-                );
+                        t.shift_template_id === shiftTemplateId ||
+                        t.id === shiftTemplateId
+                ) || schedule.shiftTemplate;
                 return template
                     ? `${formatTime(template.start_time)} - ${formatTime(template.end_time)}`
                     : 'N/A';
@@ -686,7 +706,7 @@ const renderShiftOption = (shift, shiftTemplates) => {
             size: 180,
             Cell: ({ row }) => {
                 const schedule = row.original;
-                const status = schedule.attendance_status;
+                const status = schedule.attendance_status || schedule.attendanceStatus;
                 if (status) {
                     const label =
                         status === 'checked_in' ? 'Đã check-in (Đang làm việc)' :
@@ -788,7 +808,13 @@ const renderShiftOption = (shift, shiftTemplates) => {
                                     }}
                                     renderRowActions={({ row }) => {
                                         const schedule = row.original;
-                                        const canSwap = schedule.attendance_status !== 'absent' && schedule.attendance_status !== 'checked_out';
+                                        const status = schedule.attendance_status || schedule.attendanceStatus;
+                                        const workDate = schedule.work_date || schedule.workDate || '';
+                                        const todayStr = new Date().toISOString().split('T')[0];
+                                        
+                                        // Chỉ cho phép đổi ca từ ngày mai trở đi
+                                        const isFutureDate = workDate && workDate > todayStr;
+                                        const canSwap = isFutureDate && status !== 'absent' && status !== 'checked_out';
                                         
                                         return (
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -802,7 +828,7 @@ const renderShiftOption = (shift, shiftTemplates) => {
                                                     </SecondaryButton>
                                                 ) : (
                                                     <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', alignSelf: 'center' }}>
-                                                        Không thể đổi
+                                                        {!isFutureDate ? 'Không thể đổi ca hôm nay' : 'Không thể đổi'}
                                                     </Typography>
                                                 )}
                                             </Box>
@@ -1139,7 +1165,66 @@ const renderShiftOption = (shift, shiftTemplates) => {
                                                     </MenuItem>
                                                 ) : (
                                                     allPossibleShifts
-                                                        .filter((shift) => getWeekStart(shift.work_date || shift.workDate) === selectedWeek)
+                                                        .filter((shift) => {
+                                                            const workDate = (shift.work_date || shift.workDate || '').slice(0, 10);
+                                                            if (!workDate) return false;
+
+                                                            const todayStr = new Date().toISOString().split('T')[0];
+                                                            // Không cho chọn các ca của ngày hôm nay
+                                                            if (workDate === todayStr) return false;
+
+                                                            // Không cho chọn đúng chính ca đang muốn đổi (cùng schedule_id)
+                                                            const scheduleId = shift.schedule_id || shift.id;
+                                                            if (
+                                                                scheduleId &&
+                                                                formData.from_schedule_id &&
+                                                                String(scheduleId) === String(formData.from_schedule_id)
+                                                            ) {
+                                                                return false;
+                                                            }
+
+                                                            // Không cho chọn ca có cùng ngày + cùng khung giờ với ca đang muốn đổi
+                                                            if (selectedSchedule) {
+                                                                const fromData = selectedSchedule.get
+                                                                    ? selectedSchedule.get({ plain: true })
+                                                                    : selectedSchedule;
+                                                                const fromDate = (fromData.work_date || fromData.workDate || '').slice(0, 10);
+                                                                const fromShiftId =
+                                                                    fromData.shift_template_id ||
+                                                                    fromData.shiftTemplateId ||
+                                                                    fromData.shiftTemplate?.shift_template_id;
+
+                                                                const shiftTemplateId =
+                                                                    shift.shift_template_id ||
+                                                                    shift.shiftTemplateId ||
+                                                                    shift.shiftTemplate?.shift_template_id;
+
+                                                                if (workDate === fromDate && fromShiftId && shiftTemplateId && Number(fromShiftId) === Number(shiftTemplateId)) {
+                                                                    return false;
+                                                                }
+
+                                                                // Nếu nhân viên đã có ít nhất 1 ca khác (không phải ca đang đổi) trong cùng ngày đó
+                                                                // thì không cho nhận thêm bất kỳ ca nào khác trong ngày
+                                                                const hasOtherScheduleSameDay = mySchedules.some((s) => {
+                                                                    const data = s.get ? s.get({ plain: true }) : s;
+                                                                    const d = (data.work_date || data.workDate || '').slice(0, 10);
+                                                                    const sid = data.schedule_id || data.id;
+                                                                    if (!d || d !== workDate) return false;
+                                                                    // Bỏ qua chính ca đang muốn đổi
+                                                                    if (formData.from_schedule_id && String(sid) === String(formData.from_schedule_id)) {
+                                                                        return false;
+                                                                    }
+                                                                    return true;
+                                                                });
+
+                                                                if (hasOtherScheduleSameDay) {
+                                                                    return false;
+                                                                }
+                                                            }
+
+                                                            // Chỉ giữ các ca thuộc tuần đang chọn
+                                                            return getWeekStart(workDate) === selectedWeek;
+                                                        })
                                                         .map((shift, index) => {
                                                             const key = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}-${index}`;
                                                             const value = shift.schedule_id || `empty-${shift.work_date}-${shift.shift_template_id}`;
