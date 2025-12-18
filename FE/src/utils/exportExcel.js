@@ -26,20 +26,35 @@ export const exportPaymentHistoryToExcel = (transactions, filters = {}) => {
             return;
         }
 
+        // Check if any transaction has cashier info (for Store Manager view)
+        const hasCashierInfo = transactions.some(tx => tx.cashier?.username || tx.cashier?.name);
+
         // Prepare data for Excel
-        const data = transactions.map((transaction, index) => ({
-            'STT': index + 1,
-            'Mã GD': `#${transaction.transaction_id}`,
-            'Thời gian': formatDateTime(transaction.created_at),
-            'Khách hàng': transaction.customer?.name || 'Khách vãng lai',
-            'Số điện thoại': transaction.customer?.phone || '',
-            'Số lượng SP': transaction.items?.length || 0,
-            'Tổng tiền': formatCurrency(transaction.total_amount),
-            'Phương thức': transaction.payment?.method === 'cash' ? 'Tiền mặt' : 'QR Banking',
-            'Trạng thái': 'Hoàn thành',
-            'Tiền khách đưa': transaction.payment?.cash_received ? formatCurrency(transaction.payment.cash_received) : '',
-            'Tiền trả lại': transaction.payment?.change_amount ? formatCurrency(transaction.payment.change_amount) : ''
-        }));
+        const data = transactions.map((transaction, index) => {
+            const paymentMethod = transaction.payment?.method || '';
+            
+            // Build row data with correct column order
+            const rowData = {
+                'STT': index + 1,
+                'Mã GD': `#${transaction.transaction_id}`,
+                'Thời gian': formatDateTime(transaction.created_at)
+            };
+
+            // Add cashier column if cashier info exists (after "Thời gian")
+            if (hasCashierInfo) {
+                rowData['Thu ngân'] = transaction.cashier?.username || transaction.cashier?.name || 'Không xác định';
+            }
+
+            // Add remaining columns
+            rowData['Khách hàng'] = transaction.customer?.name || 'Khách vãng lai';
+            rowData['Số điện thoại'] = transaction.customer?.phone || '';
+            rowData['Số lượng SP'] = transaction.items?.length || 0;
+            rowData['Tổng tiền'] = formatCurrency(transaction.total_amount || 0);
+            rowData['Phương thức'] = paymentMethod === 'cash' ? 'Tiền mặt' : (paymentMethod === 'qr' || paymentMethod === 'bank_transfer' ? 'QR Banking' : paymentMethod || '');
+            rowData['Trạng thái'] = 'Hoàn thành';
+
+            return rowData;
+        });
 
         // Create workbook and worksheet
         const ws = XLSX.utils.json_to_sheet(data);
@@ -51,15 +66,23 @@ export const exportPaymentHistoryToExcel = (transactions, filters = {}) => {
             { wch: 5 },   // STT
             { wch: 10 },  // Mã GD
             { wch: 20 },  // Thời gian
+        ];
+
+        // Add cashier column width if needed (after "Thời gian")
+        if (hasCashierInfo) {
+            colWidths.push({ wch: 15 }); // Thu ngân
+        }
+
+        // Add remaining column widths
+        colWidths.push(
             { wch: 20 },  // Khách hàng
             { wch: 15 },  // Số điện thoại
             { wch: 12 },  // Số lượng SP
             { wch: 15 },  // Tổng tiền
             { wch: 15 },  // Phương thức
-            { wch: 12 },  // Trạng thái
-            { wch: 15 },  // Tiền khách đưa
-            { wch: 15 }   // Tiền trả lại
-        ];
+            { wch: 12 }   // Trạng thái
+        );
+
         ws['!cols'] = colWidths;
 
         // Generate filename with date
