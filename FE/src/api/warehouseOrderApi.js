@@ -168,6 +168,24 @@ export async function updateOrderItemQuantity(orderItemId, actual_quantity) {
 }
 
 /**
+ * Update discrepancy reason for order item
+ * @param {number} orderItemId - Order item ID
+ * @param {string} discrepancy_reason - Reason for discrepancy
+ */
+export async function updateOrderItemDiscrepancyReason(orderItemId, discrepancy_reason) {
+    try {
+        const res = await fetch(`${API_BASE}/warehouse-order/order-item/${orderItemId}/discrepancy-reason`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ discrepancy_reason })
+        });
+        return await res.json();
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message };
+    }
+}
+
+/**
  * Create warehouse order (Store Manager -> Warehouse)
  * payload: { items: [{ inventory_id, quantity }], note?, store_id? }
  */

@@ -326,3 +326,33 @@ export const updateOrderItemQuantity = async (req, res) => {
         });
     }
 };
+
+/**
+ * Update order item discrepancy reason
+ * PATCH /api/v1/warehouse-order/order-item/:orderItemId/discrepancy-reason
+ */
+export const updateOrderItemDiscrepancyReason = async (req, res) => {
+    try {
+        const { orderItemId } = req.params;
+        const { discrepancy_reason } = req.body;
+
+        if (!orderItemId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required input: order item ID'
+            });
+        }
+
+        const response = await warehouseOrderService.updateOrderItemDiscrepancyReasonService({
+            orderItemId,
+            discrepancy_reason: discrepancy_reason || null
+        });
+
+        return res.status(200).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Fail at warehouse order controller: ' + error.message
+        });
+    }
+};

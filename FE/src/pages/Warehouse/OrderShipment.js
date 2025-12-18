@@ -38,7 +38,8 @@ import {
   getWarehouseOrderDetail,
   updateWarehouseOrderStatus,
   updateOrderItemQuantity,
-  updateExpectedDelivery
+  updateExpectedDelivery,
+  updateOrderItemDiscrepancyReason
 } from '../../api/warehouseOrderApi';
 
 const statusColors = {
@@ -120,6 +121,8 @@ const OrderShipment = () => {
   const [confirmSaveDialog, setConfirmSaveDialog] = useState(false);
   const [pendingEditItem, setPendingEditItem] = useState(null);
   const [pendingSaveItemId, setPendingSaveItemId] = useState(null);
+  const [savingReasons, setSavingReasons] = useState({}); // Track which reasons are being saved
+  const saveReasonTimeouts = React.useRef({}); // Store timeout refs for debounce
 
   const loadOrderDetail = async () => {
     setLoading(true);
@@ -138,8 +141,104 @@ const OrderShipment = () => {
           return;
         }
 
+        // Xử lý tự động set số lượng thực tế giao = tồn kho nếu số lượng đặt > tồn kho
+        if (orderData.orderItems && orderData.orderItems.length > 0) {
+          const itemsToUpdate = [];
+
+          for (const item of orderData.orderItems) {
+            // Lấy tồn kho từ warehouse (ưu tiên) hoặc store
+            const warehouseStock = item.inventory?.warehouse?.base_quantity ?? 0;
+            const storeStock = item.inventory?.store?.base_quantity ?? 0;
+            const stockAvailable = warehouseStock || storeStock;
+
+            // Lấy thông tin package conversion
+            const packageConversion = item.inventory?.warehouse?.package_conversion;
+            const stockConversionFactor = packageConversion && packageConversion > 1 ? packageConversion : null;
+
+            // Tính tồn kho theo đơn vị lớn (thùng)
+            let stockInPackages = null;
+            if (stockConversionFactor && stockAvailable > 0) {
+              stockInPackages = Math.floor(stockAvailable / stockConversionFactor);
+            } else if (item.inventory?.warehouse?.package_quantity !== null && item.inventory?.warehouse?.package_quantity !== undefined) {
+              stockInPackages = Math.floor(item.inventory.warehouse.package_quantity);
+            }
+
+            // Số lượng đặt (theo thùng)
+            const orderedQty = item.quantity || 0;
+
+            // Kiểm tra nếu số lượng đặt > tồn kho
+            let shouldUpdate = false;
+            let targetQty = orderedQty;
+
+            if (stockInPackages !== null && stockInPackages !== undefined) {
+              // So sánh theo đơn vị thùng
+              if (orderedQty > stockInPackages) {
+                shouldUpdate = true;
+                targetQty = Math.max(0, stockInPackages); // Đảm bảo không âm
+              }
+            } else if (stockAvailable > 0) {
+              // Nếu không có package conversion, so sánh theo base unit
+              const requiredStock = orderedQty * (stockConversionFactor || 1);
+              if (requiredStock > stockAvailable) {
+                shouldUpdate = true;
+                // Tính lại số lượng thực tế theo base unit rồi quy đổi về thùng
+                if (stockConversionFactor && stockConversionFactor > 1) {
+                  targetQty = Math.floor(stockAvailable / stockConversionFactor);
+                } else {
+                  targetQty = stockAvailable;
+                }
+                targetQty = Math.max(0, targetQty);
+              }
+            }
+
+            // Chỉ cập nhật nếu:
+            // 1. Chưa có package_quantity (chưa được set trước đó)
+            // 2. Hoặc package_quantity hiện tại > tồn kho
+            if (shouldUpdate && (normalizedStatus === 'pending' || normalizedStatus === 'confirmed')) {
+              const currentPackageQty = item.package_quantity !== null && item.package_quantity !== undefined
+                ? item.package_quantity
+                : null;
+
+              if (currentPackageQty === null || currentPackageQty > targetQty) {
+                itemsToUpdate.push({
+                  order_item_id: item.order_item_id,
+                  quantity: targetQty
+                });
+              }
+            }
+          }
+
+          // Tự động cập nhật số lượng thực tế giao cho các item cần thiết
+          if (itemsToUpdate.length > 0) {
+            try {
+              await Promise.all(
+                itemsToUpdate.map(item => updateOrderItemQuantity(item.order_item_id, item.quantity))
+              );
+              // Reload lại để lấy dữ liệu mới nhất
+              const reloadResponse = await getWarehouseOrderDetail(id);
+              if (reloadResponse.err === 0) {
+                orderData.orderItems = reloadResponse.data.orderItems;
+              }
+            } catch (error) {
+              console.error('Lỗi khi tự động cập nhật số lượng:', error);
+              // Tiếp tục với dữ liệu gốc nếu có lỗi
+            }
+          }
+        }
+
         // Cho phép xử lý cả đơn đang chờ xác nhận (pending) ngay tại màn hình này
         setOrder({ ...orderData, status: normalizedStatus });
+
+        // Load lý do chênh lệch từ database
+        if (orderData.orderItems && orderData.orderItems.length > 0) {
+          const reasonsMap = {};
+          orderData.orderItems.forEach((item) => {
+            if (item.discrepancy_reason || item.audit_reason) {
+              reasonsMap[item.order_item_id] = item.discrepancy_reason || item.audit_reason || '';
+            }
+          });
+          setInventoryAuditReasons(reasonsMap);
+        }
 
         // Khởi tạo ngày giao dự kiến cho input (nếu đã có trên đơn)
         if (orderData.expected_delivery) {
@@ -222,7 +321,7 @@ const OrderShipment = () => {
 
   const handleConfirmEdit = () => {
     if (!pendingEditItem) return;
-    
+
     setEditingItemId(pendingEditItem.order_item_id);
     // LUÔN cho phép chỉnh sửa / nhập theo đơn vị lớn (thùng), KHÔNG quy đổi về đơn vị nhỏ
     // Ưu tiên dùng `package_quantity` (SL thực tế giao theo thùng), nếu chưa có thì dùng `quantity` (SL đặt theo thùng)
@@ -270,6 +369,45 @@ const OrderShipment = () => {
 
     // Validation khi trạng thái là "confirmed"
     if (order.status === 'confirmed') {
+      // Lấy tồn kho từ warehouse (ưu tiên) hoặc store
+      const warehouseStock = currentItem.inventory?.warehouse?.base_quantity ?? 0;
+      const storeStock = currentItem.inventory?.store?.base_quantity ?? 0;
+      const stockAvailable = warehouseStock || storeStock;
+
+      // Lấy thông tin package conversion
+      const packageConversion = currentItem.inventory?.warehouse?.package_conversion;
+      const stockConversionFactor = packageConversion && packageConversion > 1 ? packageConversion : null;
+
+      // Tính tồn kho theo đơn vị lớn (thùng)
+      let stockInPackages = null;
+      if (stockConversionFactor && stockAvailable > 0) {
+        stockInPackages = Math.floor(stockAvailable / stockConversionFactor);
+      } else if (currentItem.inventory?.warehouse?.package_quantity !== null && currentItem.inventory?.warehouse?.package_quantity !== undefined) {
+        stockInPackages = Math.floor(currentItem.inventory.warehouse.package_quantity);
+      }
+
+      // Không cho phép số lượng thực tế lớn hơn tồn kho
+      if (stockInPackages !== null && stockInPackages !== undefined) {
+        if (qty > stockInPackages) {
+          ToastNotification.error(`Số lượng thực tế không được lớn hơn tồn kho (${stockInPackages})`);
+          setConfirmSaveDialog(false);
+          setPendingSaveItemId(null);
+          return;
+        }
+      } else if (stockAvailable > 0) {
+        // Nếu không có package conversion, kiểm tra theo base unit
+        const requiredStock = qty * (stockConversionFactor || 1);
+        if (requiredStock > stockAvailable) {
+          const maxQty = stockConversionFactor && stockConversionFactor > 1
+            ? Math.floor(stockAvailable / stockConversionFactor)
+            : stockAvailable;
+          ToastNotification.error(`Số lượng thực tế không được lớn hơn tồn kho (${maxQty})`);
+          setConfirmSaveDialog(false);
+          setPendingSaveItemId(null);
+          return;
+        }
+      }
+
       // Không cho phép số lượng thực tế lớn hơn số lượng đặt
       if (qty > currentItem.quantity) {
         ToastNotification.error(`Số lượng thực tế không được lớn hơn số lượng đặt (${currentItem.quantity})`);
@@ -324,6 +462,60 @@ const OrderShipment = () => {
       setPendingSaveItemId(null);
     }
   };
+
+  // =====================================================
+  // EVENT HANDLERS - Discrepancy Reason Auto Save
+  // =====================================================
+
+  const handleDiscrepancyReasonChange = (orderItemId, value) => {
+    // Cập nhật state ngay lập tức để UI phản hồi
+    setInventoryAuditReasons((prev) => ({
+      ...prev,
+      [orderItemId]: value
+    }));
+
+    // Clear timeout cũ nếu có
+    if (saveReasonTimeouts.current[orderItemId]) {
+      clearTimeout(saveReasonTimeouts.current[orderItemId]);
+    }
+
+    // Set trạng thái đang lưu
+    setSavingReasons((prev) => ({
+      ...prev,
+      [orderItemId]: true
+    }));
+
+    // Tạo timeout mới để tự động lưu sau 1.5 giây không gõ
+    saveReasonTimeouts.current[orderItemId] = setTimeout(async () => {
+      try {
+        const response = await updateOrderItemDiscrepancyReason(orderItemId, value || '');
+        if (response.err === 0) {
+          // Lưu thành công - có thể hiển thị thông báo nhỏ hoặc không
+          // ToastNotification.success('Đã lưu lý do chênh lệch');
+        } else {
+          ToastNotification.error(response.msg || 'Không thể lưu lý do chênh lệch');
+        }
+      } catch (error) {
+        ToastNotification.error('Lỗi kết nối: ' + error.message);
+      } finally {
+        setSavingReasons((prev) => {
+          const newState = { ...prev };
+          delete newState[orderItemId];
+          return newState;
+        });
+        delete saveReasonTimeouts.current[orderItemId];
+      }
+    }, 1500); // Đợi 1.5 giây sau khi người dùng ngừng gõ
+  };
+
+  // Cleanup timeouts khi component unmount
+  useEffect(() => {
+    return () => {
+      Object.values(saveReasonTimeouts.current).forEach((timeout) => {
+        if (timeout) clearTimeout(timeout);
+      });
+    };
+  }, []);
 
   // =====================================================
   // EVENT HANDLERS - Status Update
@@ -661,7 +853,7 @@ const OrderShipment = () => {
                             <TableCell align="right" sx={{ fontWeight: 700 }}>SL Thực tế giao</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 700 }}>SL Nhận thực tế</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 700 }}>Chênh lệch</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Lý do kiểm kê</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Lý do chênh lệch</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -691,18 +883,27 @@ const OrderShipment = () => {
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
-                                  <TextField
-                                    size="small"
-                                    fullWidth
-                                    placeholder="Nhập lý do chênh lệch..."
-                                    value={reason}
-                                    onChange={(e) =>
-                                      setInventoryAuditReasons((prev) => ({
-                                        ...prev,
-                                        [item.order_item_id]: e.target.value
-                                      }))
-                                    }
-                                  />
+                                  <Box sx={{ position: 'relative' }}>
+                                    <TextField
+                                      size="small"
+                                      fullWidth
+                                      placeholder="Nhập lý do chênh lệch..."
+                                      value={reason}
+                                      onChange={(e) => handleDiscrepancyReasonChange(item.order_item_id, e.target.value)}
+                                      helperText={savingReasons[item.order_item_id] ? 'Đang lưu...' : 'Tự động lưu'}
+                                    />
+                                    {savingReasons[item.order_item_id] && (
+                                      <CircularProgress
+                                        size={16}
+                                        sx={{
+                                          position: 'absolute',
+                                          right: 8,
+                                          top: '50%',
+                                          transform: 'translateY(-50%)'
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
                                 </TableCell>
                               </TableRow>
                             );
@@ -868,13 +1069,33 @@ const OrderShipment = () => {
                                       }
                                       return 0;
                                     })(),
-                                    max: order.status === 'confirmed'
-                                      ? item.quantity // Giới hạn bằng số lượng đặt
-                                      : stockInPackages !== null && stockInPackages !== undefined
-                                        ? Math.floor(stockInPackages)
-                                        : stockAvailable > 0
-                                          ? Math.floor(stockAvailable)
-                                          : undefined
+                                    max: (() => {
+                                      // Tính max dựa trên min(số lượng đặt, tồn kho)
+                                      let maxByStock = null;
+
+                                      if (stockInPackages !== null && stockInPackages !== undefined) {
+                                        maxByStock = Math.floor(stockInPackages);
+                                      } else if (stockAvailable > 0) {
+                                        if (stockConversionFactor && stockConversionFactor > 1) {
+                                          maxByStock = Math.floor(stockAvailable / stockConversionFactor);
+                                        } else {
+                                          maxByStock = Math.floor(stockAvailable);
+                                        }
+                                      }
+
+                                      if (order.status === 'confirmed') {
+                                        // Giới hạn theo min(số lượng đặt, tồn kho)
+                                        if (maxByStock !== null && maxByStock !== undefined) {
+                                          return Math.min(item.quantity, maxByStock);
+                                        }
+                                        return item.quantity; // Fallback: giới hạn bằng số lượng đặt
+                                      }
+
+                                      // Các trạng thái khác: giới hạn theo tồn kho
+                                      return maxByStock !== null && maxByStock !== undefined
+                                        ? maxByStock
+                                        : undefined;
+                                    })()
                                   }
                                 }}
                               />
@@ -1205,7 +1426,7 @@ const OrderShipment = () => {
           {pendingSaveItemId && (() => {
             const currentItem = order.orderItems?.find(it => it.order_item_id === pendingSaveItemId);
             if (!currentItem) return null;
-            
+
             const oldQty = currentItem.package_quantity !== null && currentItem.package_quantity !== undefined
               ? currentItem.package_quantity
               : currentItem.quantity;
@@ -1328,7 +1549,7 @@ const printShipmentTicket = async (order) => {
         ? Number(item.package_quantity) || 0
         : Number(item.quantity) || 0;
     const unitPrice = Number(item.unit_price) || 0;
-    
+
     // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
     let subtotal = 0;
     if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
@@ -1338,7 +1559,7 @@ const printShipmentTicket = async (order) => {
       // Đảm bảo không phải NaN
       if (isNaN(subtotal)) subtotal = 0;
     }
-    
+
     // Đảm bảo subtotal là số hợp lệ trước khi cộng
     const validSubtotal = isNaN(subtotal) ? 0 : subtotal;
     return sum + validSubtotal;
@@ -1471,17 +1692,11 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
       const receivedQty = Number(item.received_quantity) || 0;
       const diff = receivedQty - shippedQty;
       const unitPrice = Number(item.unit_price) || 0;
-      
-      // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
-      let subtotal = 0;
-      if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
-        subtotal = Number(item.subtotal);
-      } else {
-        subtotal = Number(receivedQty) * Number(unitPrice);
-        // Đảm bảo không phải NaN
-        if (isNaN(subtotal)) subtotal = 0;
-      }
-      
+
+      // Tính số tiền hàng bị chênh lệch = số lượng chênh lệch * đơn giá
+      const discrepancyAmount = Number(diff) * Number(unitPrice);
+      const validDiscrepancyAmount = isNaN(discrepancyAmount) ? 0 : discrepancyAmount;
+
       const reason = reasonsMap?.[item.order_item_id] || '';
 
       return `
@@ -1498,30 +1713,29 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
             ${diff > 0 ? '+' : ''}${diff}
           </td>
           <td style="text-align:right;padding:6px;">${formatCurrency(unitPrice)}</td>
-          <td style="text-align:right;padding:6px;font-weight:700;">${formatCurrency(subtotal)}</td>
+          <td style="text-align:right;padding:6px;font-weight:700;color:${validDiscrepancyAmount < 0 ? '#d32f2f' : validDiscrepancyAmount > 0 ? '#2e7d32' : 'inherit'};">
+            ${formatCurrency(validDiscrepancyAmount)}
+          </td>
           <td style="padding:6px;">${reason || ''}</td>
         </tr>
       `;
     })
     .join('');
 
-  const totalAmount = discrepancyItems.reduce((sum, item) => {
+  // Tính tổng số tiền hàng bị chênh lệch
+  const totalDiscrepancyAmount = discrepancyItems.reduce((sum, item) => {
+    const shippedQty =
+      item.package_quantity !== null && item.package_quantity !== undefined
+        ? Number(item.package_quantity)
+        : Number(item.quantity || 0);
     const receivedQty = Number(item.received_quantity) || 0;
+    const diff = receivedQty - shippedQty;
     const unitPrice = Number(item.unit_price) || 0;
-    
-    // Tính subtotal: ưu tiên dùng subtotal từ DB, nếu không có thì tính lại
-    let subtotal = 0;
-    if (item.subtotal !== null && item.subtotal !== undefined && !isNaN(Number(item.subtotal))) {
-      subtotal = Number(item.subtotal);
-    } else {
-      subtotal = Number(receivedQty) * Number(unitPrice);
-      // Đảm bảo không phải NaN
-      if (isNaN(subtotal)) subtotal = 0;
-    }
-    
-    // Đảm bảo subtotal là số hợp lệ trước khi cộng
-    const validSubtotal = isNaN(subtotal) ? 0 : subtotal;
-    return sum + validSubtotal;
+
+    // Tính số tiền chênh lệch = số lượng chênh lệch * đơn giá
+    const discrepancyAmount = Number(diff) * Number(unitPrice);
+    const validDiscrepancyAmount = isNaN(discrepancyAmount) ? 0 : discrepancyAmount;
+    return sum + validDiscrepancyAmount;
   }, 0);
 
   const html = `
@@ -1584,7 +1798,7 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
               <th style="width:10%;text-align:right;">SL Nhận thực tế</th>
               <th style="width:8%;text-align:right;">Chênh lệch</th>
               <th style="width:12%;text-align:right;">Đơn giá</th>
-              <th style="width:12%;text-align:right;">Thành tiền</th>
+              <th style="width:12%;text-align:right;">Số tiền hàng bị chênh lệch</th>
               <th style="width:20%;">Lý do kiểm kê</th>
             </tr>
           </thead>
@@ -1594,7 +1808,7 @@ const printInventoryAuditReport = (order, discrepancyItems, reasonsMap) => {
         </table>
 
         <div class="summary">
-          Tổng cộng theo SL nhận: ${formatCurrency(totalAmount)}
+          Tổng số tiền hàng bị chênh lệch: ${formatCurrency(totalDiscrepancyAmount)}
         </div>
 
         <div style="margin-top:24px; display:flex; justify-content:space-between;">

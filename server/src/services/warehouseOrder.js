@@ -1181,6 +1181,35 @@ export const updateOrderItemQuantityService = async ({ orderItemId, actual_quant
     }
 };
 
+/**
+ * Update order item discrepancy reason
+ * PATCH /api/v1/warehouse-order/order-item/:orderItemId/discrepancy-reason
+ */
+export const updateOrderItemDiscrepancyReasonService = async ({ orderItemId, discrepancy_reason }) => {
+    try {
+        // orderItemId is actually store_order_item_id from frontend mapping
+        const orderItem = await db.StoreOrderItem.findByPk(orderItemId);
+
+        if (!orderItem) {
+            return { err: 1, msg: 'Order item not found' };
+        }
+
+        // Cập nhật lý do chênh lệch
+        await orderItem.update({
+            discrepancy_reason: discrepancy_reason || null,
+            updated_at: new Date()
+        });
+
+        return {
+            err: 0,
+            msg: 'Cập nhật lý do chênh lệch thành công',
+            data: orderItem
+        };
+    } catch (error) {
+        throw error;
+    }
+};
+
 // =====================================================
 // HELPER FUNCTIONS - Inventory Management
 // =====================================================
