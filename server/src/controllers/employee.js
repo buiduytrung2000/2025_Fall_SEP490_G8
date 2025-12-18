@@ -305,16 +305,9 @@ export const getAllStores = async (req, res) => {
     }
 };
 
-// CEO: Create new store
+// Create new store
 export const createStore = async (req, res) => {
     try {
-        if (req.user?.role !== 'CEO') {
-            return res.status(403).json({
-                err: 1,
-                msg: 'Only CEO can create stores'
-            });
-        }
-
         const payload = {
             name: req.body.name,
             address: req.body.address,
@@ -332,16 +325,9 @@ export const createStore = async (req, res) => {
     }
 };
 
-// CEO: Update store
+// Update store
 export const updateStore = async (req, res) => {
     try {
-        if (req.user?.role !== 'CEO') {
-            return res.status(403).json({
-                err: 1,
-                msg: 'Only CEO can update stores'
-            });
-        }
-
         const storeId = req.params.id;
         const payload = {
             name: req.body.name,
@@ -360,16 +346,9 @@ export const updateStore = async (req, res) => {
     }
 };
 
-// CEO: Delete store
+// Delete store
 export const deleteStore = async (req, res) => {
     try {
-        if (req.user?.role !== 'CEO') {
-            return res.status(403).json({
-                err: 1,
-                msg: 'Only CEO can delete stores'
-            });
-        }
-
         const storeId = req.params.id;
         const response = await employeeService.deleteStore(storeId);
         return res.status(response.err === 0 ? 200 : 400).json(response);

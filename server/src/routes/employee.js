@@ -41,13 +41,13 @@ router.get('/employees/role/:role', employeeController.getEmployeesByRole);
 // Get all stores
 router.get('/stores', employeeController.getAllStores);
 
-// Create new store (CEO only)
+// Create new store
 router.post('/stores', employeeController.createStore);
 
-// Update store (CEO only)
+// Update store
 router.put('/stores/:id', employeeController.updateStore);
 
-// Delete store (CEO only)
+// Delete store
 router.delete('/stores/:id', employeeController.deleteStore);
 
 export default router;

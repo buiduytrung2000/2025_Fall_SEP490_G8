@@ -386,7 +386,7 @@ export const getAllStores = () => new Promise(async (resolve, reject) => {
     }
 });
 
-// Create a new store (CEO only, controller is responsible for role check)
+// Create a new store
 export const createStore = (payload) => new Promise(async (resolve, reject) => {
     try {
         const { name, address = null, phone = null, status = 'active' } = payload;
@@ -415,7 +415,7 @@ export const createStore = (payload) => new Promise(async (resolve, reject) => {
     }
 });
 
-// Update store (CEO only)
+// Update store
 export const updateStore = (storeId, payload) => new Promise(async (resolve, reject) => {
     try {
         const store = await db.Store.findByPk(storeId);
@@ -444,7 +444,7 @@ export const updateStore = (storeId, payload) => new Promise(async (resolve, rej
     }
 });
 
-// Delete store (CEO only)
+// Delete store
 export const deleteStore = (storeId) => new Promise(async (resolve, reject) => {
     try {
         const store = await db.Store.findByPk(storeId);

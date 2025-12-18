@@ -27,7 +27,7 @@ export const getAllStores = async () => {
     }
 };
 
-// Create store (CEO)
+// Create store
 export const createStore = async (payload) => {
     try {
         const token = getToken();
@@ -43,7 +43,7 @@ export const createStore = async (payload) => {
     }
 };
 
-// Update store (CEO)
+// Update store
 export const updateStore = async (id, payload) => {
     try {
         const token = getToken();
@@ -59,7 +59,7 @@ export const updateStore = async (id, payload) => {
     }
 };
 
-// Delete store (CEO)
+// Delete store
 export const deleteStore = async (id) => {
     try {
         const token = getToken();
