@@ -57,7 +57,7 @@ const formatCurrency = (number) => {
 const POS = () => {
     const { user } = useAuth();
     const [products, setProducts] = useState([]);
-    
+
     // Load cart from localStorage on mount
     const getInitialCart = () => {
         try {
@@ -71,7 +71,7 @@ const POS = () => {
         }
         return [];
     };
-    
+
     const [cart, setCart] = useState(getInitialCart());
     const [searchTerm, setSearchTerm] = useState('');
     const [isScanning, setIsScanning] = useState(false);
@@ -119,14 +119,14 @@ const POS = () => {
     const [showClearCartModal, setShowClearCartModal] = useState(false); // Modal xác nhận clear cart
 
     // Helper function: Kiểm tra schedule có phải chưa check-in không
-    const isUncheckedSchedule = useCallback((schedule) => {        
+    const isUncheckedSchedule = useCallback((schedule) => {
         const status = schedule?.attendance_status;
-        return status === null || 
-               status === undefined || 
-               status === '' ||
-               status === 'not_check' ||
-               status === 'not_checked_in' ||
-               (typeof status === 'string' && status.trim() === '');
+        return status === null ||
+            status === undefined ||
+            status === '' ||
+            status === 'not_check' ||
+            status === 'not_checked_in' ||
+            (typeof status === 'string' && status.trim() === '');
     }, []);
 
     // Helper function: Load và xử lý schedules của ngày hôm nay
@@ -176,10 +176,10 @@ const POS = () => {
 
         // Tìm ca đang active (checked_in)
         const activeSchedule = todaySchedules.find(s => s.attendance_status === 'checked_in');
-        
+
         // Tìm tất cả ca chưa check-in
         const uncheckedSchedules = todaySchedules.filter(isUncheckedSchedule);
-        
+
         // Tìm ca đã checkout (bất kỳ ca nào trong ngày đã kết ca)
         const checkedOutSchedule = todaySchedules.find(s => s.attendance_status === 'checked_out');
         const hasCheckedOut = !!checkedOutSchedule;
@@ -192,7 +192,7 @@ const POS = () => {
         setScheduleAttendanceStatus(selectedSchedule?.attendance_status || null);
         setHasUncheckedSchedule(uncheckedSchedules.length > 0);
         setHasCheckedOutToday(hasCheckedOut);
-        
+
         // Lưu schedule_id để check-in (ưu tiên ca chưa check-in)
         if (uncheckedSchedules.length > 0) {
             console.log('Unchecked schedules:', uncheckedSchedules.map(s => ({
@@ -202,31 +202,31 @@ const POS = () => {
                 attendance_status: s.attendance_status,
                 shiftTemplate: s.shiftTemplate
             })));
-            
+
             // Nếu có nhiều ca chưa check-in, ưu tiên ca đang trong thời gian làm việc
             let selectedUncheckedSchedule = null;
             const now = new Date();
             let canCheckIn = false;
-            
+
             for (const s of uncheckedSchedules) {
                 const shiftTemplate = s.shiftTemplate || s.shift_template;
                 if (!shiftTemplate || !shiftTemplate.start_time || !shiftTemplate.end_time) continue;
-                
+
                 const workDate = new Date(s.work_date);
                 const [startHour, startMinute] = shiftTemplate.start_time.split(':').map(Number);
                 const [endHour, endMinute] = shiftTemplate.end_time.split(':').map(Number);
-                
+
                 const shiftStart = new Date(workDate);
                 shiftStart.setHours(startHour, startMinute, 0, 0);
-                
+
                 const shiftEnd = new Date(workDate);
                 shiftEnd.setHours(endHour, endMinute, 0, 0);
-                
+
                 // Xử lý ca qua đêm
                 if (shiftEnd < shiftStart) {
                     shiftEnd.setDate(shiftEnd.getDate() + 1);
                 }
-                
+
                 // Kiểm tra có đang trong ca không
                 if (now >= shiftStart && now <= shiftEnd) {
                     selectedUncheckedSchedule = s;
@@ -235,12 +235,12 @@ const POS = () => {
                     break;
                 }
             }
-            
+
             // Nếu không có ca nào đang trong thời gian, chọn ca đầu tiên
             if (!selectedUncheckedSchedule) {
                 selectedUncheckedSchedule = uncheckedSchedules[0];
             }
-            
+
             const selectedId = selectedUncheckedSchedule.schedule_id;
             console.log('Selected schedule_id for check-in:', selectedId, 'from shift_template_id:', selectedUncheckedSchedule.shift_template_id);
             setSelectedScheduleId(selectedId);
@@ -259,12 +259,12 @@ const POS = () => {
         const fetchOpenShift = async () => {
             const storedStoreId = (() => {
                 if (user && user.store_id) return user.store_id;
-                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
                 return 1;
             })();
-            
+
             const resp = await getMyOpenShift(storedStoreId);
-            
+
             if (resp && resp.err === 0 && resp.data) {
                 // Có ca đang mở
                 setIsShiftActive(true);
@@ -273,7 +273,7 @@ const POS = () => {
                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
                 setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
                 setTotalSales(Number(resp.data.total_sales || 0));
-                
+
                 // Nếu có schedule info từ shift, dùng luôn
                 if (resp.data.schedule && resp.data.schedule.attendance_status) {
                     setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
@@ -294,7 +294,7 @@ const POS = () => {
                 setTotalSales(0);
                 setOpeningCash('');
                 setCanCheckInNow(false);
-                
+
                 // Load schedules để kiểm tra có ca nào chưa check-in không
                 const todaySchedules = await loadTodaySchedules();
                 processSchedules(todaySchedules);
@@ -306,12 +306,12 @@ const POS = () => {
     const refreshOpenShift = useCallback(async () => {
         const storedStoreId = (() => {
             if (user && user.store_id) return user.store_id;
-            try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+            try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
             return 1;
         })();
-        
+
         const resp = await getMyOpenShift(storedStoreId);
-        
+
         if (resp && resp.err === 0 && resp.data) {
             // Có ca đang mở
             setIsShiftActive(true);
@@ -320,7 +320,7 @@ const POS = () => {
             setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
             setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
             setTotalSales(Number(resp.data.total_sales || 0));
-            
+
             // Nếu có schedule info từ shift, dùng luôn
             if (resp.data.schedule && resp.data.schedule.attendance_status) {
                 setScheduleAttendanceStatus(resp.data.schedule.attendance_status);
@@ -345,7 +345,7 @@ const POS = () => {
             setCanCheckInNow(false);
             setHasCheckedOutToday(false);
             setHasCheckedOutToday(false);
-            
+
             // Load schedules để kiểm tra có ca nào chưa check-in không
             const todaySchedules = await loadTodaySchedules();
             processSchedules(todaySchedules);
@@ -355,7 +355,7 @@ const POS = () => {
     // Auto-refresh shift data mỗi 10 giây để cập nhật realtime
     useEffect(() => {
         if (!isShiftActive) return; // Chỉ refresh khi đang trong ca
-        
+
         const interval = setInterval(() => {
             refreshOpenShift();
         }, 10000); // Refresh mỗi 10 giây
@@ -386,7 +386,7 @@ const POS = () => {
         const timer = setTimeout(async () => {
             // Kiểm tra lại để tránh race condition
             if (lastScannedCodeRef.current === code) return;
-            
+
             try {
                 setIsScanning(true);
                 lastScannedCodeRef.current = code; // Đánh dấu đã scan mã này
@@ -430,7 +430,7 @@ const POS = () => {
                 scanCompleteTimeRef.current = Date.now();
                 // Reset lastScannedCodeRef ngay sau khi thêm thành công để cho phép scan mã mới
                 lastScannedCodeRef.current = '';
-                
+
                 // Thêm vào giỏ hàng sau khi đã clear searchTerm (skip clear vì đã clear rồi)
                 handleAddToCart(productForCart, true);
             } catch (error) {
@@ -471,7 +471,7 @@ const POS = () => {
                 try {
                     const persisted = localStorage.getItem('store_id');
                     if (persisted) return Number(persisted);
-                } catch {}
+                } catch { }
                 return 1; // fallback test
             })();
 
@@ -535,7 +535,7 @@ const POS = () => {
         const now = Date.now();
         const timeSinceScan = now - scanCompleteTimeRef.current;
         const completedCode = completedScanCodeRef.current;
-        
+
         // Nếu vừa scan xong trong vòng 500ms và giá trị mới bắt đầu bằng mã đã scan thành công
         // thì block input này (có thể là ký tự tiếp theo từ máy quét)
         if (timeSinceScan < 500 && completedCode && newValue.startsWith(completedCode)) {
@@ -544,12 +544,12 @@ const POS = () => {
                 return; // Block input này
             }
         }
-        
+
         // Nếu đã qua 500ms, reset completedScanCodeRef
         if (timeSinceScan >= 500) {
             completedScanCodeRef.current = '';
         }
-        
+
         setSearchTerm(newValue);
     };
 
@@ -712,12 +712,23 @@ const POS = () => {
         await loadCustomerVouchers(customer.customer_id);
     };
 
-    // Load vouchers for customer
+    // Load vouchers cho khách hàng, chỉ theo store mà cashier đang làm
     const loadCustomerVouchers = async (customerId) => {
         setLoadingVouchers(true);
         try {
             console.log('Loading vouchers for customer:', customerId);
-            const res = await getAvailableVouchers(customerId);
+
+            // Lấy store_id hiện tại của cashier (ưu tiên từ user, fallback localStorage)
+            const storedStoreId = (() => {
+                if (user && user.store_id) return user.store_id;
+                try {
+                    const persisted = localStorage.getItem('store_id');
+                    if (persisted) return Number(persisted);
+                } catch { }
+                return null;
+            })();
+
+            const res = await getAvailableVouchers(customerId, storedStoreId);
             console.log('Vouchers response:', res);
 
             if (res && res.err === 0) {
@@ -769,7 +780,22 @@ const POS = () => {
         }
 
         try {
-            const res = await validateVoucher(voucher.voucher_code, selectedCustomer.customer_id, subtotal);
+            // Lấy store_id hiện tại của cashier (ưu tiên từ user, fallback localStorage)
+            const storedStoreId = (() => {
+                if (user && user.store_id) return user.store_id;
+                try {
+                    const persisted = localStorage.getItem('store_id');
+                    if (persisted) return Number(persisted);
+                } catch { }
+                return null;
+            })();
+
+            const res = await validateVoucher(
+                voucher.voucher_code,
+                selectedCustomer.customer_id,
+                subtotal,
+                storedStoreId
+            );
             if (res && res.err === 0) {
                 setSelectedVoucher(voucher);
                 ToastNotification.success(`Đã áp dụng voucher: ${voucher.voucher_name}`);
@@ -890,10 +916,10 @@ const POS = () => {
         // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
         if (selectedCustomer) {
             try {
-            const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-            if (customerRes && customerRes.err === 0 && customerRes.data) {
-                ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
-            }
+                const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                if (customerRes && customerRes.err === 0 && customerRes.data) {
+                    ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+                }
             } catch (e) {
                 console.error('Error reloading customer after QR payment:', e);
             }
@@ -1009,8 +1035,8 @@ const POS = () => {
                 // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
                 if (selectedCustomer) {
                     try {
-                    const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                    if (customerRes && customerRes.err === 0 && customerRes.data) {
+                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
+                        if (customerRes && customerRes.err === 0 && customerRes.data) {
                             // Có thể dùng dữ liệu mới nếu cần hiển thị ở nơi khác
                             console.log('Updated customer loyalty:', customerRes.data.loyalty_point);
                         }
@@ -1061,17 +1087,17 @@ const POS = () => {
                 }}
             >
                 {/* Header */}
-                <Box sx={{  borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                         {isShiftActive ? (
                             <>
                                 <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                                     Đang trong ca • Tiền đầu ca: <strong>{formatCurrency(Number(openingCash || 0))}</strong> • Số tiền đã bán được: <strong>{formatCurrency(totalSales)}</strong> (Tiền mặt: {formatCurrency(cashSalesTotal)}, Chuyển khoản: {formatCurrency(bankTransferTotal)})
                                 </Typography>
-                                <Button 
-                                    variant="contained" 
-                                    color="warning" 
-                                    size="small" 
+                                <Button
+                                    variant="contained"
+                                    color="warning"
+                                    size="small"
                                     startIcon={<LogoutIcon />}
                                     onClick={() => { setClosingCashInput(''); setShowCheckoutModal(true); }}
                                 >
@@ -1079,10 +1105,10 @@ const POS = () => {
                                 </Button>
                             </>
                         ) : canCheckInNow ? (
-                            <Button 
-                                variant="contained" 
-                                color="success" 
-                                size="small" 
+                            <Button
+                                variant="contained"
+                                color="success"
+                                size="small"
                                 startIcon={<LoginIcon />}
                                 onClick={() => {
                                     setOpeningCashInput('');
@@ -1109,25 +1135,25 @@ const POS = () => {
 
                 {/* Search */}
                 <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        <TextField
-                            fullWidth
-                            placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon />
-                                    </InputAdornment>
-                                ),
+                    <TextField
+                        fullWidth
+                        placeholder="Tìm kiếm sản phẩm hoặc mã vạch..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
                             endAdornment: isScanning ? (
                                 <InputAdornment position="end">
                                     <CircularProgress size={16} />
                                 </InputAdornment>
                             ) : null,
-                            }}
-                            size="small"
-                        />
+                        }}
+                        size="small"
+                    />
                 </Box>
 
                 {/* Product List */}
@@ -1166,6 +1192,14 @@ const POS = () => {
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Box sx={{ flex: 1 }}>
                                                     <Typography variant="body1" fontWeight="bold">{product.name}</Typography>
+                                                    {product.code && (
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{ color: 'text.secondary' }}
+                                                        >
+                                                            Mã SKU: {product.code}
+                                                        </Typography>
+                                                    )}
                                                     {product.oldPrice && (
                                                         <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
                                                             {formatCurrency(product.oldPrice)}
@@ -1304,8 +1338,8 @@ const POS = () => {
 
                             {/* Customer Search Results & Create Form - Floating Overlay */}
                             {(searchResults.length > 0 || showCreateForm) && (
-                                <Paper 
-                                    sx={{ 
+                                <Paper
+                                    sx={{
                                         position: 'absolute',
                                         top: '100%',
                                         left: 0,
@@ -1446,11 +1480,10 @@ const POS = () => {
                                         <List dense>
                                             {vouchers.map((voucher) => {
                                                 const isDisabled = cart.length === 0 || subtotal < voucher.min_purchase_amount;
-                                                const label = `${voucher.voucher_name} • ${
-                                                    voucher.discount_type === 'percentage'
-                                                        ? `${voucher.discount_value}%`
-                                                        : formatCurrency(voucher.discount_value)
-                                                }`;
+                                                const label = `${voucher.voucher_name} • ${voucher.discount_type === 'percentage'
+                                                    ? `${voucher.discount_value}%`
+                                                    : formatCurrency(voucher.discount_value)
+                                                    }`;
                                                 return (
                                                     <ListItem
                                                         key={voucher.customer_voucher_id}
@@ -1503,16 +1536,16 @@ const POS = () => {
                 {/* Cart Items - Scrollable */}
                 <Box
                     sx={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    p: 1.5,
-                    minHeight: 0,
-                    '&::-webkit-scrollbar': {
-                        display: 'none'
-                    },
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none'
+                        flex: 1,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        p: 1.5,
+                        minHeight: 0,
+                        '&::-webkit-scrollbar': {
+                            display: 'none'
+                        },
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none'
                     }}
                 >
                     {cart.length > 0 && (
@@ -1550,7 +1583,7 @@ const POS = () => {
                                 size="small"
                                 color="error"
                                 onClick={() => handleRemoveFromCart(item.id)}
-                                sx={{ 
+                                sx={{
                                     position: 'absolute',
                                     top: 4,
                                     right: 4,
@@ -1570,10 +1603,21 @@ const POS = () => {
                                 {/* Tên sản phẩm */}
                                 <Box sx={{ flex: 4, pr: 1 }}>
                                     <Typography variant="body2" fontWeight="bold" noWrap title={item.name}>
-                                    {item.name}
-                                </Typography>
+                                        {item.name}
+                                    </Typography>
+                                    {item.code && (
+                                        <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                            noWrap
+                                            title={item.code}
+                                            sx={{ display: 'block' }}
+                                        >
+                                            Mã SKU: {item.code}
+                                        </Typography>
+                                    )}
                                 </Box>
-                                
+
                                 {/* Số lượng + nút +/- */}
                                 <Box sx={{ flex: 2, display: 'flex', justifyContent: 'center' }}>
                                     <Stack direction="row" spacing={0.5} alignItems="center">
@@ -1604,12 +1648,12 @@ const POS = () => {
                                         </Button>
                                     </Stack>
                                 </Box>
-                                    
+
                                 {/* Đơn giá */}
                                 <Box sx={{ flex: 2, textAlign: 'right' }}>
                                     <Typography variant="body2" color="text.secondary">
-                                            {formatCurrency(item.price)}
-                                        </Typography>
+                                        {formatCurrency(item.price)}
+                                    </Typography>
                                 </Box>
 
                                 {/* Thành tiền */}
@@ -1620,8 +1664,8 @@ const POS = () => {
                                         color="primary"
                                         sx={{ fontSize: '1rem' }}
                                     >
-                                            {formatCurrency(item.price * item.qty)}
-                                        </Typography>
+                                        {formatCurrency(item.price * item.qty)}
+                                    </Typography>
                                 </Box>
                             </Box>
                         </Box>
@@ -1779,7 +1823,7 @@ const POS = () => {
                                 setShowCheckinModal(false);
                                 return;
                             }
-                            
+
                             const open = Number(openingCashInput);
                             if (isNaN(open) || open < 0) {
                                 ToastNotification.error('Vui lòng nhập số tiền hợp lệ');
@@ -1787,14 +1831,14 @@ const POS = () => {
                             }
                             const storedStoreId = (() => {
                                 if (user && user.store_id) return user.store_id;
-                                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch {}
+                                try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
                                 return 1;
                             })();
-                            
+
                             // Gửi schedule_id nếu đã chọn (ưu tiên ca chưa check-in)
-                            const checkinData = { 
-                                store_id: storedStoreId, 
-                                opening_cash: open 
+                            const checkinData = {
+                                store_id: storedStoreId,
+                                opening_cash: open
                             };
                             if (selectedScheduleId) {
                                 checkinData.schedule_id = selectedScheduleId;
@@ -1802,7 +1846,7 @@ const POS = () => {
                             } else {
                                 console.warn('Không có selectedScheduleId, backend sẽ tự động chọn schedule');
                             }
-                            
+
                             console.log('Check-in data:', checkinData);
                             const resp = await checkinShift(checkinData);
                             if (resp && resp.err === 0 && resp.data) {
@@ -1813,10 +1857,10 @@ const POS = () => {
                                 setCashSalesTotal(Number(resp.data.cash_sales_total || 0));
                                 setBankTransferTotal(Number(resp.data.bank_transfer_total || 0));
                                 setTotalSales(Number(resp.data.total_sales || 0));
-                                
+
                                 // Refresh lại để đảm bảo có data mới nhất
                                 await refreshOpenShift();
-                                
+
                                 setShowCheckinModal(false);
                                 setOpeningCashInput(''); // Reset input cho lần mở modal sau
                                 ToastNotification.success('Bắt đầu ca thành công!');
@@ -1906,11 +1950,11 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
-                                
+
                                 // Refresh schedules để kiểm tra có ca tiếp theo không
                                 const todaySchedules = await loadTodaySchedules();
                                 processSchedules(todaySchedules);
-                                
+
                                 setShowCheckoutModal(false);
                                 ToastNotification.success('Kết ca thành công!');
                             } else {

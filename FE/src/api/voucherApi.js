@@ -12,10 +12,11 @@ function getAuthHeaders() {
     }
 }
 
-// Get available vouchers for a customer
-export async function getAvailableVouchers(customerId) {
+// Get available vouchers for a customer (optionally filtered by store_id)
+export async function getAvailableVouchers(customerId, storeId = null) {
     try {
-        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available`, {
+        const query = storeId ? `?store_id=${storeId}` : '';
+        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/available${query}`, {
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
         });
 
@@ -53,15 +54,16 @@ export async function getAllVouchers(customerId) {
     return res.json();
 }
 
-// Validate voucher
-export async function validateVoucher(voucherCode, customerId, purchaseAmount) {
+// Validate voucher (optionally scoped by store_id)
+export async function validateVoucher(voucherCode, customerId, purchaseAmount, storeId = null) {
     const res = await fetch(`${API_BASE}/voucher/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
             voucher_code: voucherCode,
             customer_id: customerId,
-            purchase_amount: purchaseAmount
+            purchase_amount: purchaseAmount,
+            store_id: storeId
         })
     });
     return res.json();

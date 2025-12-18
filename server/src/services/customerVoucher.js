@@ -1,10 +1,10 @@
 import db from '../models'
 import { Op } from 'sequelize'
 
-// GET AVAILABLE VOUCHERS BY CUSTOMER ID (filtered by loyalty points)
-export const getAvailableVouchersByCustomer = (customerId) => new Promise(async (resolve, reject) => {
+// GET AVAILABLE VOUCHERS BY CUSTOMER ID (filtered by loyalty points and optionally by store)
+export const getAvailableVouchersByCustomer = (customerId, storeId = null) => new Promise(async (resolve, reject) => {
     try {
-        console.log('Getting vouchers for customer:', customerId);
+        console.log('Getting vouchers for customer:', customerId, 'store:', storeId);
 
         // Get customer's loyalty points
         const customer = await db.Customer.findByPk(customerId, {
@@ -26,20 +26,27 @@ export const getAvailableVouchersByCustomer = (customerId) => new Promise(async 
         const now = new Date();
 
         // Get vouchers that customer can use based on loyalty points
-        const response = await db.CustomerVoucher.findAll({
-            where: {
-                customer_id: customerId,
-                status: 'available',
-                start_date: {
-                    [Op.lte]: now
-                },
-                end_date: {
-                    [Op.gte]: now
-                },
-                required_loyalty_points: {
-                    [Op.lte]: customerLoyaltyPoints
-                }
+        const whereClause = {
+            customer_id: customerId,
+            status: 'available',
+            start_date: {
+                [Op.lte]: now
             },
+            end_date: {
+                [Op.gte]: now
+            },
+            required_loyalty_points: {
+                [Op.lte]: customerLoyaltyPoints
+            }
+        };
+
+        // Nếu có storeId, chỉ lấy voucher của store đó (có thể mở rộng thêm voucher global sau này)
+        if (storeId) {
+            whereClause.store_id = storeId;
+        }
+
+        const response = await db.CustomerVoucher.findAll({
+            where: whereClause,
             attributes: {
                 exclude: ['createdAt', 'updatedAt']
             },
@@ -82,22 +89,29 @@ export const getAllVouchersByCustomer = (customerId) => new Promise(async (resol
     }
 })
 
-// VALIDATE AND APPLY VOUCHER
-export const validateVoucher = (voucherCode, customerId, purchaseAmount) => new Promise(async (resolve, reject) => {
+// VALIDATE AND APPLY VOUCHER (optionally scoped by store)
+export const validateVoucher = (voucherCode, customerId, purchaseAmount, storeId = null) => new Promise(async (resolve, reject) => {
     try {
         const now = new Date();
-        const voucher = await db.CustomerVoucher.findOne({
-            where: {
-                voucher_code: voucherCode,
-                customer_id: customerId,
-                status: 'available',
-                start_date: {
-                    [Op.lte]: now
-                },
-                end_date: {
-                    [Op.gte]: now
-                }
+        const whereClause = {
+            voucher_code: voucherCode,
+            customer_id: customerId,
+            status: 'available',
+            start_date: {
+                [Op.lte]: now
+            },
+            end_date: {
+                [Op.gte]: now
             }
+        };
+
+        // Nếu có storeId, chỉ cho phép voucher thuộc store đó
+        if (storeId) {
+            whereClause.store_id = storeId;
+        }
+
+        const voucher = await db.CustomerVoucher.findOne({
+            where: whereClause
         })
 
         if (!voucher) {

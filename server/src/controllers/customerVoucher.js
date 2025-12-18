@@ -9,8 +9,12 @@ export const getAvailableVouchers = async (req, res) => {
             msg: 'Missing customer_id'
         })
 
-        console.log('Controller: Getting vouchers for customer:', customer_id);
-        const response = await voucherService.getAvailableVouchersByCustomer(customer_id)
+        // Ưu tiên lấy store_id từ query, sau đó tới user context (nếu có middleware auth)
+        const { store_id } = req.query;
+        const storeId = store_id || req.user?.store_id || null;
+
+        console.log('Controller: Getting vouchers for customer:', customer_id, 'store:', storeId);
+        const response = await voucherService.getAvailableVouchersByCustomer(customer_id, storeId)
         console.log('Controller: Voucher response:', response);
 
         return res.status(200).json(response)
@@ -43,7 +47,7 @@ export const getAllVouchers = async (req, res) => {
 
 // VALIDATE VOUCHER
 export const validateVoucher = async (req, res) => {
-    const { voucher_code, customer_id, purchase_amount } = req.body
+    const { voucher_code, customer_id, purchase_amount, store_id } = req.body
     try {
         if (!voucher_code || !customer_id || !purchase_amount) {
             return res.status(400).json({
@@ -51,7 +55,11 @@ export const validateVoucher = async (req, res) => {
                 msg: 'Missing required fields'
             })
         }
-        const response = await voucherService.validateVoucher(voucher_code, customer_id, purchase_amount)
+
+        // Ưu tiên store_id từ body, fallback từ user context nếu có
+        const storeId = store_id || req.user?.store_id || null;
+
+        const response = await voucherService.validateVoucher(voucher_code, customer_id, purchase_amount, storeId)
         return res.status(200).json(response)
     } catch (error) {
         return res.status(500).json({
