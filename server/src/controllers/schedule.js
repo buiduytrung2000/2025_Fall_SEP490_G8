@@ -520,7 +520,19 @@ export const reviewShiftChangeRequest = async (req, res) => {
             req.user?.user_id || req.user?.id,
             review_notes
         );
-        return res.status(response.err === 0 ? 200 : 404).json(response);
+
+        // Thành công
+        if (response.err === 0) {
+            return res.status(200).json(response);
+        }
+
+        // Lỗi dữ liệu/validation (ví dụ trùng ca, vi phạm ràng buộc)
+        if (response.err === 1) {
+            return res.status(400).json(response);
+        }
+
+        // Các lỗi khác: coi như không tìm thấy
+        return res.status(404).json(response);
     } catch (error) {
         return res.status(500).json({
             err: -1,

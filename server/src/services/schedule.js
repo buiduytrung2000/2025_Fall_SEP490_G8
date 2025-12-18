@@ -940,6 +940,28 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
             data: updatedRequest
         });
     } catch (error) {
+        // Nếu lỗi là ValidationError/UniqueConstraintError của Sequelize
+        // thì trả về err = 1 với message thân thiện, tránh vỡ 500 ở controller
+        if (error && (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError')) {
+            // Lấy message chi tiết nhất nếu có
+            const firstError = Array.isArray(error.errors) && error.errors.length > 0 ? error.errors[0].message : null;
+
+            let friendlyMsg = firstError || 'Không thể duyệt yêu cầu do vi phạm ràng buộc dữ liệu.';
+
+            // Mapping message constraint sang tiếng Việt dễ hiểu hơn
+            if (friendlyMsg.includes('unique_schedule_user_shift_date')) {
+                friendlyMsg = 'Nhân viên đã có lịch trùng ngày và ca làm việc này, không thể duyệt yêu cầu đổi ca.';
+            }
+
+            resolve({
+                err: 1,
+                msg: friendlyMsg,
+                data: null
+            });
+            return;
+        }
+
+        // Các lỗi khác giữ nguyên để controller xử lý (500)
         reject(error);
     }
 });

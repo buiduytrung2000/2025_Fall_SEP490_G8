@@ -56,6 +56,21 @@ const statusIcons = {
   out_of_stock: <Icon name="Error" fontSize="small" />
 };
 
+// Làm tròn an toàn 2 chữ số thập phân để tránh lỗi 999999.99 thay vì 1_000_000
+const safeRound2 = (value) => {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return 0;
+
+  // Nếu giá trị rất gần một số nguyên (chênh < 0.005) thì làm tròn hẳn về số nguyên
+  const nearestInt = Math.round(num);
+  if (Math.abs(num - nearestInt) < 0.005) {
+    return nearestInt;
+  }
+
+  // Ngược lại làm tròn 2 chữ số thập phân bình thường
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
 const formatQty = (value) =>
   Number(value ?? 0).toLocaleString('vi-VN', {
@@ -79,9 +94,11 @@ const toBaseQuantity = (item) => {
 const toBaseUnitPrice = (item) => {
   const price = Number(item?.unit_price) || 0;
   if (item?.use_package_unit && item?.package_conversion) {
-    return Number((price / item.package_conversion).toFixed(2));
+    // Quy về đơn vị cơ sở và làm tròn an toàn 2 số lẻ
+    return safeRound2(price / item.package_conversion);
   }
-  return price;
+  // Đơn vị cơ sở thì chỉ cần làm tròn an toàn 2 số lẻ
+  return safeRound2(price);
 };
 
 const getDisplaySubtotal = (item) => {
@@ -565,9 +582,10 @@ const InventoryList = () => {
             const baseUnitPrice = toBaseUnitPrice(item);
 
             // Đảm bảo unit_price là số hợp lệ và không quá lớn
-            const finalUnitPrice = baseUnitPrice && !isNaN(baseUnitPrice) && isFinite(baseUnitPrice)
-              ? Number(baseUnitPrice.toFixed(2))
-              : 0;
+            const finalUnitPrice =
+              baseUnitPrice && !isNaN(baseUnitPrice) && isFinite(baseUnitPrice)
+                ? safeRound2(baseUnitPrice)
+                : 0;
 
             // Validate và log chi tiết
             if (baseQuantity <= 0) {
