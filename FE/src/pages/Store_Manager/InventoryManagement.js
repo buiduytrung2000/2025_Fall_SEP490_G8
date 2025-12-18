@@ -59,6 +59,7 @@ const InventoryManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
@@ -190,10 +191,26 @@ const InventoryManagement = () => {
 
   const rowId = (row) => String(row.inventory_id || row.sku);
 
+  const categoryOptions = useMemo(() => {
+    const set = new Set();
+    (data || []).forEach((row) => {
+      const cat = row.category || row.category_name;
+      if (cat) set.add(cat);
+    });
+    return Array.from(set);
+  }, [data]);
+
   const filtered = useMemo(() => {
-    const list = !query
+    let list = !query
       ? [...data]
       : data.filter((i) => (i.name || '').toLowerCase().includes(query.toLowerCase()) || (i.sku || '').toLowerCase().includes(query.toLowerCase()));
+
+    if (categoryFilter) {
+      list = list.filter((i) => {
+        const cat = i.category || i.category_name;
+        return cat === categoryFilter;
+      });
+    }
 
     // sort by remaining ratio: stock / target (target = reorder_point || min*2 || 10)
     const ratio = (row) => {
@@ -214,7 +231,7 @@ const InventoryManagement = () => {
       if (sa !== sb) return sa - sb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [data, query]);
+  }, [data, query, categoryFilter]);
 
   const allVisibleIds = useMemo(() => filtered.map(rowId), [filtered]);
   const selectedCountInView = useMemo(() => allVisibleIds.filter(id => selected.has(id)).length, [allVisibleIds, selected]);
@@ -379,28 +396,39 @@ const InventoryManagement = () => {
     {
       accessorKey: 'category',
       header: 'Danh mục',
-      size: 100,
+      size: 120,
     },
     {
-      accessorKey: 'package_price',
-      header: 'Giá nhập/thùng',
-      size: 100,
+      accessorKey: 'stock_big_unit',
+      header: 'Tồn (đơn vị lớn)',
+      size: 120,
       Cell: ({ row }) => {
-        // Lấy giá thùng từ package_price (đã tính từ latest_import_price * conversion)
-        // Nếu không có thì hiển thị 0
-        const price = row.original.package_price ?? 0;
-        return `${formatVnd(Number(price) || 0)}đ`;
+        const stock = Number(row.original.stock || 0);
+        const conv = Number(row.original.package_conversion || 0);
+        if (!conv || conv <= 0) {
+          return '-';
+        }
+        const bigQty = Math.floor(stock / conv);
+        const unitLabel = row.original.package_unit || '';
+        return `${bigQty} ${unitLabel}`.trim();
       },
       enableColumnFilter: false,
     },
     {
-      accessorKey: 'price',
-      header: 'Giá lẻ/đơn vị',
-      size: 100,
+      accessorKey: 'stock_small_unit',
+      header: 'Tồn (đơn vị nhỏ)',
+      size: 120,
       Cell: ({ row }) => {
-        // Chỉ lấy giá từ order (latest_import_price), nếu không có thì hiển thị 0
-        const price = row.original.latest_import_price ?? 0;
-        return `${formatVnd(Number(price) || 0)}đ`;
+        const stock = Number(row.original.stock || 0);
+        const conv = Number(row.original.package_conversion || 0);
+        if (!conv || conv <= 0) {
+          const baseUnitLabel = row.original.unit || '';
+          return `${stock} ${baseUnitLabel}`.trim();
+        }
+        const bigQty = Math.floor(stock / conv);
+        const smallQty = stock - bigQty * conv;
+        const baseUnitLabel = row.original.unit || '';
+        return `${smallQty} ${baseUnitLabel}`.trim();
       },
       enableColumnFilter: false,
     },
@@ -908,13 +936,32 @@ const InventoryManagement = () => {
       </Box>
 
       <Paper sx={{ p: 2, mb: 2 }}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Tìm theo tên hoặc mã SKU..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Tìm theo tên hoặc mã SKU..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>Danh mục</InputLabel>
+            <Select
+              value={categoryFilter}
+              label="Danh mục"
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>Tất cả</em>
+              </MenuItem>
+              {categoryOptions.map((cat) => (
+                <MenuItem key={cat} value={cat}>
+                  {cat}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
       </Paper>
 
       <MaterialReactTable

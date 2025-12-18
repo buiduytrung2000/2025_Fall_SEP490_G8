@@ -5,7 +5,7 @@ import {
     getAllProducts, createProduct, updateProduct, toggleProductStatus, getAllCategories, getAllSuppliers,
     getProductPriceHistory, createPricingRule, updatePricingRule, deletePricingRule, getProduct, getAllPricingRules, getAllUnits
 } from '../../api/productApi';
-import { getInventoryByProduct } from '../../api/inventoryApi';
+import { getInventoryByProduct, createWarehouseInventory } from '../../api/inventoryApi';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { Box, Chip, Switch, Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Grid, Card, CardContent, Divider, List, ListItem, ListItemText } from '@mui/material';
@@ -425,6 +425,25 @@ const ProductManagement = () => {
                 result = await createProduct(productData);
                 if (result.err === 0) {
                     ToastNotification.success('Thêm sản phẩm thành công');
+
+                    // Tự động khởi tạo tồn kho kho tổng (warehouse inventory) cho sản phẩm mới
+                    const newProduct = result.data;
+                    if (newProduct && newProduct.product_id) {
+                        try {
+                            await createWarehouseInventory({
+                                product_id: newProduct.product_id,
+                                stock: 0, // Khởi tạo 0 tồn kho
+                                min_stock_level: Number(editData.min_stock_level),
+                                reorder_point: Number(editData.reorder_point),
+                                location: 'Kho tổng',
+                                notes: 'Khởi tạo tự động khi tạo sản phẩm mới',
+                            });
+                        } catch (invErr) {
+                            // Không chặn luồng tạo sản phẩm nếu tạo tồn kho lỗi
+                            console.error('Lỗi khi khởi tạo warehouse inventory cho sản phẩm mới:', invErr);
+                        }
+                    }
+
                     await loadData();
                     setShowEditDialog(false);
                 } else {

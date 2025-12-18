@@ -83,8 +83,11 @@ const StaffManagement = () => {
         if (field === 'phone') {
             const cleaned = value?.trim() || '';
             if (!cleaned) return 'Số điện thoại là bắt buộc';
-            const phoneRegex = /^[0-9]{10}$/;
-            if (!phoneRegex.test(cleaned)) return 'Số điện thoại phải gồm đúng 10 chữ số';
+            // Yêu cầu: đúng 10 chữ số và phải bắt đầu bằng số 0
+            const phoneRegex = /^0[0-9]{9}$/;
+            if (!phoneRegex.test(cleaned)) {
+                return 'Số điện thoại phải bắt đầu bằng số 0 và gồm đúng 10 chữ số';
+            }
         }
         if (field === 'role') {
             if (!value) return 'Vai trò là bắt buộc';

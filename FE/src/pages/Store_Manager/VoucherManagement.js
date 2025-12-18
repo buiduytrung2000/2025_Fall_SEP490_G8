@@ -406,7 +406,15 @@ function VoucherManagement() {
                                 <InputLabel>Loại giảm giá *</InputLabel>
                                 <Select
                                     value={formData.discount_type}
-                                    onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            discount_type: value,
+                                            // Khi chuyển sang giảm theo số tiền, reset "giảm tối đa"
+                                            max_discount_amount: value === 'percentage' ? prev.max_discount_amount : ''
+                                        }));
+                                    }}
                                     label="Loại giảm giá *"
                                 >
                                     <MenuItem value="percentage">Phần trăm (%)</MenuItem>
@@ -430,14 +438,16 @@ function VoucherManagement() {
                                 value={formData.min_purchase_amount}
                                 onChange={(e) => setFormData({...formData, min_purchase_amount: e.target.value})}
                             />
-                            <TextField
-                                label="Giảm tối đa (VND)"
-                                fullWidth
-                                type="number"
-                                value={formData.max_discount_amount}
-                                onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
-                                placeholder="Để trống nếu không giới hạn"
-                            />
+                            {formData.discount_type === 'percentage' && (
+                                <TextField
+                                    label="Giảm tối đa (VND)"
+                                    fullWidth
+                                    type="number"
+                                    value={formData.max_discount_amount}
+                                    onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
+                                    placeholder="Để trống nếu không giới hạn"
+                                />
+                            )}
                         </Stack>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                             <TextField

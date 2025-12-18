@@ -87,7 +87,8 @@ export const loginService = async ({ email, password }) => {
         if (!user) {
             return {
                 err: 1,
-                msg: 'Email not found!'
+                // Thông báo tiếng Việt khi email không tồn tại
+                msg: 'Email không tồn tại trong hệ thống!'
             }
         }
 
@@ -97,14 +98,16 @@ export const loginService = async ({ email, password }) => {
         if (!isPasswordValid) {
             return {
                 err: 1,
-                msg: 'Invalid password!'
+                // Thông báo tiếng Việt khi mật khẩu không đúng
+                msg: 'Mật khẩu không chính xác!'
             }
         }
 
         if (user.status !== 'active') {
             return {
                 err: 1,
-                msg: 'Account is not active!'
+                // Thông báo tiếng Việt khi tài khoản bị khóa / không hoạt động
+                msg: 'Tài khoản của bạn đang không hoạt động. Vui lòng liên hệ quản lý!'
             }
         }
 
@@ -123,7 +126,8 @@ export const loginService = async ({ email, password }) => {
 
         return {
             err: 0,
-            msg: 'Login successful!',
+            // Thông báo tiếng Việt khi đăng nhập thành công
+            msg: 'Đăng nhập thành công!',
             token,
             user: {
                 user_id: user.user_id,

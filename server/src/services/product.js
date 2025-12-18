@@ -240,6 +240,28 @@ export const create = (body) => new Promise(async (resolve, reject) => {
             reorder_point: Math.max(0, reorderPoint)
         }, { transaction })
 
+        // Auto-create Inventory records for all stores with stock = 0
+        // so that Store Manager có thể cấu hình tồn tối thiểu ngay sau khi tạo sản phẩm
+        const stores = await db.Store.findAll({
+            attributes: ['store_id'],
+            transaction
+        })
+
+        if (stores && stores.length > 0) {
+            const invPayloads = stores.map(store => ({
+                store_id: store.store_id,
+                product_id: response.product_id,
+                // Store inventory khởi tạo với tồn kho = 0
+                stock: 0,
+                // Không set tồn tối thiểu & reorder point cho từng store từ form sản phẩm
+                // Để Store Manager tự cấu hình sau, nên mặc định = 0
+                min_stock_level: 0,
+                reorder_point: 0
+            }))
+
+            await db.Inventory.bulkCreate(invPayloads, { transaction })
+        }
+
         await transaction.commit()
         resolve({
             err: 0,

@@ -160,6 +160,58 @@ const ShiftReports = () => {
     }, 0);
   }, [getDiscrepancy, shifts]);
 
+  // Xác định các ca có tiền đầu ca < tiền cuối ca trước đó (cùng thu ngân)
+  // -> highlight cả "tiền cuối ca" của ca trước và "tiền đầu ca" của ca sau
+  const { lowOpeningCashShiftIds, highClosingCashShiftIds } = useMemo(() => {
+    const lowOpening = new Set();
+    const highClosing = new Set();
+
+    if (!Array.isArray(shifts) || shifts.length === 0) {
+      return { lowOpeningCashShiftIds: lowOpening, highClosingCashShiftIds: highClosing };
+    }
+
+    // Nhóm theo cashier_id (hoặc cashier.user_id)
+    const byCashier = new Map();
+    shifts.forEach((s) => {
+      const cashierIdKey =
+        s.cashier_id ||
+        s.cashier?.user_id ||
+        s.cashier?.id ||
+        'unknown';
+      if (!byCashier.has(cashierIdKey)) byCashier.set(cashierIdKey, []);
+      byCashier.get(cashierIdKey).push(s);
+    });
+
+    byCashier.forEach((list) => {
+      // Sắp xếp theo thời gian đóng ca (closed_at) hoặc mở ca (opened_at) nếu chưa đóng
+      const sorted = [...list].sort((a, b) => {
+        const ta = new Date(a.closed_at || a.opened_at || a.created_at || 0).getTime();
+        const tb = new Date(b.closed_at || b.opened_at || b.created_at || 0).getTime();
+        return ta - tb; // Sắp xếp tăng dần: ca cũ trước, ca mới sau
+      });
+
+      // So sánh từng cặp ca liên tiếp
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        
+        // Chuyển đổi sang số, xử lý cả string và number
+        const prevClosing = parseFloat(prev.closing_cash) || 0;
+        const currOpening = parseFloat(curr.opening_cash) || 0;
+        
+        // Highlight khi tiền cuối ca trước > tiền đầu ca sau (có chênh lệch bất thường)
+        if (prevClosing > currOpening && prevClosing > 0 && currOpening >= 0) {
+          // Đánh dấu ca hiện tại có tiền đầu ca thấp hơn tiền cuối ca trước
+          if (curr.shift_id) lowOpening.add(curr.shift_id);
+          // Đồng thời đánh dấu ca trước có tiền cuối ca cao bất thường
+          if (prev.shift_id) highClosing.add(prev.shift_id);
+        }
+      }
+    });
+
+    return { lowOpeningCashShiftIds: lowOpening, highClosingCashShiftIds: highClosing };
+  }, [shifts]);
+
   const columns = useMemo(() => [
     {
       accessorKey: 'index',
@@ -269,7 +321,24 @@ const ShiftReports = () => {
       accessorKey: 'opening_cash',
       header: 'Tiền đầu ca',
       size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      Cell: ({ cell, row }) => {
+        const value = cell.getValue() || 0;
+        const isLowOpening = lowOpeningCashShiftIds.has(row.original.shift_id);
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: isLowOpening ? 700 : 400,
+              color: isLowOpening ? '#ff9800' : 'inherit',
+              backgroundColor: isLowOpening ? '#ffe0b2' : 'transparent',
+              padding: isLowOpening ? '4px 8px' : '0',
+              borderRadius: isLowOpening ? '4px' : '0',
+            }}
+          >
+            {formatCurrency(value)}
+          </Typography>
+        );
+      },
       enableColumnFilter: false,
       muiTableHeadCellProps: {
         align: 'center',
@@ -282,7 +351,24 @@ const ShiftReports = () => {
       accessorKey: 'closing_cash',
       header: 'Tiền cuối ca',
       size: 130,
-      Cell: ({ cell }) => formatCurrency(cell.getValue() || 0),
+      Cell: ({ cell, row }) => {
+        const value = cell.getValue() || 0;
+        const isHighClosing = highClosingCashShiftIds.has(row.original.shift_id);
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: isHighClosing ? 700 : 400,
+              color: isHighClosing ? '#ff9800' : 'inherit',
+              backgroundColor: isHighClosing ? '#ffe0b2' : 'transparent',
+              padding: isHighClosing ? '4px 8px' : '0',
+              borderRadius: isHighClosing ? '4px' : '0',
+            }}
+          >
+            {formatCurrency(value)}
+          </Typography>
+        );
+      },
       enableColumnFilter: false,
       muiTableHeadCellProps: {
         align: 'center',
@@ -317,7 +403,7 @@ const ShiftReports = () => {
         align: 'center',
       },
     },
-  ], [getDiscrepancy]);
+  ], [getDiscrepancy, lowOpeningCashShiftIds, highClosingCashShiftIds]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>

@@ -63,7 +63,9 @@ export const createVoucherTemplate = (data) => new Promise(async (resolve, rejec
             max_discount_amount,
             required_loyalty_points,
             validity_days,
-            is_active
+            is_active,
+            // store_id của cửa hàng tạo voucher
+            store_id
         } = data;
 
         // Validation
@@ -95,7 +97,9 @@ export const createVoucherTemplate = (data) => new Promise(async (resolve, rejec
             max_discount_amount: max_discount_amount || null,
             required_loyalty_points: required_loyalty_points || 0,
             validity_days: validity_days || 30,
-            is_active: is_active !== undefined ? is_active : true
+            is_active: is_active !== undefined ? is_active : true,
+            // Gán store_id theo cửa hàng tạo voucher (nếu có)
+            store_id: store_id || null
         });
 
         resolve({
