@@ -110,6 +110,7 @@ const ShiftChangeRequest = () => {
     const [availableSchedules, setAvailableSchedules] = useState([]);
     const [allPossibleShifts, setAllPossibleShifts] = useState([]); 
     const [selectedWeek, setSelectedWeek] = useState('');
+    const [filterDate, setFilterDate] = useState(''); // Lọc lịch theo ngày
 
     // Form state
     const [formData, setFormData] = useState({
@@ -609,7 +610,7 @@ const renderShiftOption = (shift, shiftTemplates) => {
 
         const todayStr = new Date().toISOString().split('T')[0];
 
-        return [...mySchedules]
+        const baseList = [...mySchedules]
             .filter((s) => {
                 const d = (s.work_date || s.workDate || '').slice(0, 10);
                 // Chỉ lấy ca có ngày > hôm nay
@@ -625,7 +626,15 @@ const renderShiftOption = (shift, shiftTemplates) => {
                 if (da !== db) return da.localeCompare(db);
                 return (a.shift_template_id || 0) - (b.shift_template_id || 0);
             });
-    }, [mySchedules]);
+        // Nếu có chọn ngày filter, chỉ hiển thị ca đúng ngày đó
+        if (filterDate) {
+            return baseList.filter((s) => {
+                const d = (s.work_date || s.workDate || '').slice(0, 10);
+                return d === filterDate;
+            });
+        }
+        return baseList;
+    }, [mySchedules, filterDate]);
 
     // Định nghĩa cột cho bảng lịch làm việc
     const scheduleColumns = useMemo(() => [
@@ -734,8 +743,26 @@ const renderShiftOption = (shift, shiftTemplates) => {
                 <>
                     {tabValue === 0 && (
                         <Box>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={2}>
                                 <Typography variant="h6">Lịch làm việc của tôi (30 ngày tới)</Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <TextField
+                                        type="date"
+                                        size="small"
+                                        label="Lọc theo ngày"
+                                        InputLabelProps={{ shrink: true }}
+                                        value={filterDate}
+                                        onChange={(e) => setFilterDate(e.target.value)}
+                                    />
+                                    {filterDate && (
+                                        <SecondaryButton
+                                            size="small"
+                                            onClick={() => setFilterDate('')}
+                                        >
+                                            Xóa lọc
+                                        </SecondaryButton>
+                                    )}
+                                </Box>
                             </Box>
 
                             {mySchedules.length === 0 ? (
