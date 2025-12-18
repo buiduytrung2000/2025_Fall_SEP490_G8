@@ -281,31 +281,6 @@ const PurchaseOrders = () => {
       enableColumnFilter: false,
     },
     {
-      accessorKey: 'total_received_quantity',
-      header: 'Thực tế tổng kho đã giao',
-      size: 180,
-      Cell: ({ row }) => {
-        const items = row.original.items || [];
-        const totalReceived = items.reduce((sum, item) => {
-          const receivedQty = Number(item.received_quantity ?? 0);
-          return sum + (isNaN(receivedQty) ? 0 : receivedQty);
-        }, 0);
-        // Hiển thị số lượng đã nhận, nếu = 0 hoặc null thì hiển thị "—"
-        if (totalReceived > 0) {
-          return totalReceived.toLocaleString('vi-VN');
-        }
-        return '—';
-      },
-      enableColumnFilter: false,
-      enableSorting: true,
-      muiTableHeadCellProps: {
-        align: 'right',
-      },
-      muiTableBodyCellProps: {
-        align: 'right',
-      },
-    },
-    {
       accessorKey: 'total_amount',
       header: 'Tổng tiền',
       size: 120,
@@ -333,21 +308,43 @@ const PurchaseOrders = () => {
       size: 100,
       enableColumnFilter: false,
       enableSorting: false,
-      Cell: ({ row }) => (
-        <Tooltip title="Xem chi tiết">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedOrder(row.original);
-              setOpenModal(true);
-            }}
-            color="primary"
-          >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      ),
+      Cell: ({ row }) => {
+        const order = row.original;
+        const isPending = order.status?.toLowerCase() === 'pending';
+        
+        return (
+          <Stack direction="row" spacing={0.5} justifyContent="center">
+            <Tooltip title="Xem chi tiết">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedOrder(order);
+                  setOpenModal(true);
+                }}
+                color="primary"
+              >
+                <VisibilityIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            {isPending && (
+              <Tooltip title="Hủy đơn hàng">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedOrder(order);
+                    handleOpenCancelOrder();
+                  }}
+                  color="error"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+        );
+      },
       muiTableHeadCellProps: {
         align: 'center',
       },
@@ -360,10 +357,10 @@ const PurchaseOrders = () => {
   const handleOpenConfirmReceived = () => {
     if (!selectedOrder) return;
 
-    // Khởi tạo danh sách sản phẩm với số lượng nhận thực tế mặc định = số lượng đặt
+    // Khởi tạo danh sách sản phẩm với số lượng nhận thực tế mặc định = số lượng tổng kho giao (nếu có), không thì dùng số lượng đặt
     const initialItems = (selectedOrder.items || []).map((item) => ({
       ...item,
-      received_quantity: item.received_quantity ?? item.quantity ?? 0
+      received_quantity: item.received_quantity ?? item.package_quantity ?? item.quantity ?? 0
     }));
     setReceiveItems(initialItems);
     setReceiveNote('');
@@ -1038,6 +1035,9 @@ const PurchaseOrders = () => {
                       <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Tên hàng</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Số lượng</TableCell>
+                      {(selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered') && (
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>Thực tế tổng kho đã giao</TableCell>
+                      )}
                       <TableCell align="right" sx={{ fontWeight: 700 }}>SL nhận thực tế</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Đơn giá</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Thành tiền</TableCell>
@@ -1067,6 +1067,13 @@ const PurchaseOrders = () => {
                               item.quantity || 0
                             )}
                           </TableCell>
+                          {(selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered') && (
+                            <TableCell align="right">
+                              {item.package_quantity !== null && item.package_quantity !== undefined
+                                ? Number(item.package_quantity).toLocaleString('vi-VN')
+                                : '—'}
+                            </TableCell>
+                          )}
                           <TableCell align="right">
                             {item.received_quantity !== null && item.received_quantity !== undefined
                               ? Number(item.received_quantity).toLocaleString('vi-VN')
@@ -1149,14 +1156,26 @@ const PurchaseOrders = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={selectedOrder?.status?.toLowerCase() === 'pending' ? 8 : 7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        <TableCell colSpan={
+                          selectedOrder?.status?.toLowerCase() === 'pending' 
+                            ? 8 
+                            : (selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered')
+                              ? 8
+                              : 7
+                        } align="center" sx={{ py: 3, color: 'text.secondary' }}>
                           Không có sản phẩm
                         </TableCell>
                       </TableRow>
                     )}
                     {selectedOrder.items && selectedOrder.items.length > 0 && (
                       <TableRow>
-                        <TableCell colSpan={selectedOrder?.status?.toLowerCase() === 'pending' ? 6 : 5} align="right" sx={{ fontWeight: 700 }}>
+                        <TableCell colSpan={
+                          selectedOrder?.status?.toLowerCase() === 'pending' 
+                            ? 7 
+                            : (selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered')
+                              ? 7
+                              : 6
+                        } align="right" sx={{ fontWeight: 700 }}>
                           Tổng cộng:
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'primary.main' }}>
@@ -1384,14 +1403,16 @@ const PurchaseOrders = () => {
           <SecondaryButton onClick={() => setConfirmCancelDialog(false)} disabled={updatingStatus}>
             Không, quay lại
           </SecondaryButton>
-          <ActionButton
-            action="delete"
+          <Button
+            variant="contained"
+            color="error"
             onClick={handleConfirmCancelOrder}
             disabled={updatingStatus}
-            loading={updatingStatus}
+            startIcon={<DeleteIcon />}
+            sx={{ ml: 1 }}
           >
-            Xác nhận hủy đơn
-          </ActionButton>
+            {updatingStatus ? 'Đang xử lý...' : 'Xác nhận hủy đơn'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1419,6 +1440,7 @@ const PurchaseOrders = () => {
                     <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Tên hàng</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>SL đặt</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>SL tổng kho giao</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>SL nhận thực tế</TableCell>
                   </TableRow>
                 </TableHead>
@@ -1428,6 +1450,7 @@ const PurchaseOrders = () => {
                       <TableCell>{item.sku || 'N/A'}</TableCell>
                       <TableCell>{item.product_name || item.name || 'N/A'}</TableCell>
                       <TableCell align="right">{item.quantity || 0}</TableCell>
+                      <TableCell align="right">{item.package_quantity ?? "—"}</TableCell>
                       <TableCell align="right">
                         <TextField
                           type="number"

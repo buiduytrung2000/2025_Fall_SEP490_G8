@@ -213,3 +213,49 @@ export const updateStoreOrderStatus = async (req, res) => {
     }
 };
 
+// Update store order (edit order details when status is pending)
+export const updateStoreOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const orderData = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing order ID'
+            });
+        }
+
+        const response = await storeOrderService.updateStoreOrder(parseInt(orderId), orderData);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at store order controller: ' + error.message
+        });
+    }
+};
+
+// Cancel store order
+export const cancelStoreOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { cancel_reason } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing order ID'
+            });
+        }
+
+        const response = await storeOrderService.cancelStoreOrder(parseInt(orderId), cancel_reason);
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at store order controller: ' + error.message
+        });
+    }
+};
+

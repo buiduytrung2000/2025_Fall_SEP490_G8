@@ -335,6 +335,125 @@ export const getStoreOrderDetail = (orderId) => new Promise(async (resolve, reje
     }
 });
 
+// Update store order (edit order details when status is pending)
+export const updateStoreOrder = (orderId, orderData) => new Promise(async (resolve, reject) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const { target_warehouse, supplier_id, items, perishable, notes } = orderData;
+
+        const order = await db.StoreOrder.findByPk(orderId, { transaction });
+        if (!order) {
+            await transaction.rollback();
+            return resolve({ err: 1, msg: 'Order not found' });
+        }
+
+        if (order.status !== 'pending') {
+            await transaction.rollback();
+            return resolve({ err: 1, msg: 'Only pending orders can be updated' });
+        }
+
+        // Update items: delete and recreate
+        await db.StoreOrderItem.destroy({
+            where: { store_order_id: orderId },
+            transaction
+        });
+
+        let total = 0;
+        for (const item of items) {
+            let product = null;
+            if (item.product_id) {
+                product = await db.Product.findByPk(item.product_id, { transaction });
+            } else if (item.sku) {
+                product = await db.Product.findOne({
+                    where: { sku: item.sku },
+                    transaction
+                });
+            }
+
+            const quantity = parseFloat(item.quantity || 0);
+            const unitPrice = parseFloat(item.unit_price || 0);
+            const subtotal = quantity * unitPrice;
+            total += subtotal;
+
+            const productId = product?.product_id || null;
+            const packageMeta = await getPreferredPackageUnit(productId);
+            const conversionToBase = packageMeta?.conversion_to_base;
+            const quantityInBase = item.quantity_in_base ?? (
+                conversionToBase ? quantity * conversionToBase : quantity
+            );
+            const unitId = item.unit_id || product?.base_unit_id || null;
+            const packageUnitId = packageMeta?.unit?.unit_id || null;
+            const packageQuantity = quantity ? Math.ceil(quantity) : null;
+
+            await db.StoreOrderItem.create({
+                store_order_id: orderId,
+                product_id: productId,
+                sku: item.sku?.trim() || product?.sku || '',
+                product_name: item.name?.trim() || product?.name || '',
+                quantity,
+                unit_price: unitPrice,
+                subtotal,
+                unit_id: unitId,
+                quantity_in_base: quantityInBase,
+                package_unit_id: packageUnitId,
+                package_quantity: packageQuantity
+            }, { transaction });
+        }
+
+        // Update order info
+        await order.update({
+            target_warehouse: target_warehouse?.trim() || order.target_warehouse,
+            supplier_id: supplier_id || order.supplier_id,
+            total_amount: total,
+            perishable: perishable !== undefined ? perishable : order.perishable,
+            notes: notes || order.notes,
+            updated_at: new Date()
+        }, { transaction });
+
+        await transaction.commit();
+        resolve({
+            err: 0,
+            msg: 'Order updated successfully',
+            data: {
+                order_id: order.store_order_id,
+                total_amount: total
+            }
+        });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Error updating store order:', error);
+        reject(error);
+    }
+});
+
+// Cancel store order
+export const cancelStoreOrder = (orderId, cancelReason = '') => new Promise(async (resolve, reject) => {
+    try {
+        const order = await db.StoreOrder.findByPk(orderId);
+        if (!order) {
+            return resolve({ err: 1, msg: 'Order not found' });
+        }
+
+        if (order.status !== 'pending') {
+            return resolve({ err: 1, msg: 'Only pending orders can be cancelled' });
+        }
+
+        await order.update({
+            status: 'cancelled',
+            notes: cancelReason ? (order.notes ? `${order.notes}\n[Lý do hủy]: ${cancelReason}` : `[Lý do hủy]: ${cancelReason}`) : order.notes,
+            updated_at: new Date()
+        });
+
+        resolve({
+            err: 0,
+            msg: 'Order cancelled successfully'
+        });
+    } catch (error) {
+        console.error('Error cancelling store order:', error);
+        reject(error);
+    }
+});
+
 // Update store order status (for store to mark as delivered)
 export const updateStoreOrderStatus = ({ orderId, status, updatedBy, notes, receivedItems }) => new Promise(async (resolve, reject) => {
     try {
