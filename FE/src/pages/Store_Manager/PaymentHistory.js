@@ -138,13 +138,10 @@ const PaymentHistory = () => {
         }
     };
 
-    // Filter transactions by cashier and search term (transaction ID)
+    // Filter transactions by search term (transaction ID) - client-side only
+    // Note: cashier and shift filters are handled by API
     useEffect(() => {
         let filtered = allTransactions;
-
-        if (selectedCashier !== 'all') {
-            filtered = filtered.filter((tx) => String(tx.cashier_id || tx.cashier?.user_id) === String(selectedCashier));
-        }
 
         if (searchTerm.trim()) {
             const term = searchTerm.trim();
@@ -155,7 +152,7 @@ const PaymentHistory = () => {
         }
 
         setTransactions(filtered);
-    }, [searchTerm, allTransactions, selectedCashier]);
+    }, [searchTerm, allTransactions]);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('vi-VN', {
@@ -175,6 +172,36 @@ const PaymentHistory = () => {
             minute: '2-digit',
             second: '2-digit'
         });
+    };
+
+    const formatShiftTime = (shift) => {
+        if (!shift) return '';
+        
+        const formatTime = (dateString) => {
+            if (!dateString) return null;
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return null;
+                return date.toLocaleTimeString('vi-VN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const checkInTime = formatTime(shift.check_in_time);
+        const checkOutTime = formatTime(shift.check_out_time);
+
+        if (checkInTime && checkOutTime) {
+            return `${checkInTime} - ${checkOutTime}`;
+        } else if (checkInTime) {
+            return checkInTime;
+        } else if (checkOutTime) {
+            return checkOutTime;
+        }
+        return '';
     };
 
     const getPaymentMethodBadge = (method) => {
@@ -379,11 +406,14 @@ const PaymentHistory = () => {
                             label="Ca làm việc"
                         >
                             <MenuItem value="all">Tất cả</MenuItem>
-                            {shifts.map(shift => (
-                                <MenuItem key={shift.shift_id} value={shift.shift_id}>
-                                    Ca #{shift.shift_id} ({new Date(shift.check_in_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
-                                </MenuItem>
-                            ))}
+                            {shifts.map(shift => {
+                                const timeDisplay = formatShiftTime(shift);
+                                return (
+                                    <MenuItem key={shift.shift_id} value={shift.shift_id}>
+                                        Ca #{shift.shift_id}{timeDisplay ? ` (${timeDisplay})` : ''}
+                                    </MenuItem>
+                                );
+                            })}
                         </Select>
                     </FormControl>
                 </Grid>

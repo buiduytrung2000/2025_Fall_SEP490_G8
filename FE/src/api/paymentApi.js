@@ -143,6 +143,7 @@ export async function getTransactionHistory(filters = {}) {
         if (filters.payment_method) queryParams.append('payment_method', filters.payment_method);
         if (filters.store_id) queryParams.append('store_id', filters.store_id);
         if (filters.cashier_id) queryParams.append('cashier_id', filters.cashier_id);
+        if (filters.shift_id) queryParams.append('shift_id', filters.shift_id);
 
         const queryString = queryParams.toString();
         const url = `${API_BASE}/payment/history${queryString ? '?' + queryString : ''}`;

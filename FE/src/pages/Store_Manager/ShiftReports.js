@@ -31,9 +31,9 @@ const getRangeForPeriod = (period) => {
 const formatDate = (dateString) => {
   if (!dateString) return '—';
   const date = new Date(dateString);
-  return date.toLocaleDateString('vi-VN', { 
-    year: 'numeric', 
-    month: '2-digit', 
+  return date.toLocaleDateString('vi-VN', {
+    year: 'numeric',
+    month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
@@ -77,18 +77,18 @@ const ShiftReports = () => {
 
   const load = useCallback(async (showLoading = false) => {
     if (showLoading) {
-    setLoading(true);
+      setLoading(true);
     }
     setError(null);
     try {
       const storeId = user?.store_id || null;
-      const resp = await getShiftReport({ 
+      const resp = await getShiftReport({
         store_id: storeId,
         cashier_id: cashierId || null,
         date_from: from,
         date_to: to
       });
-      
+
       if (resp && resp.err === 0 && resp.data) {
         setShifts(resp.data.shifts || []);
         setSummary(resp.data.summary || null);
@@ -101,18 +101,18 @@ const ShiftReports = () => {
       // Không clear dữ liệu để tránh nháy
     } finally {
       if (showLoading) {
-      setLoading(false);
+        setLoading(false);
       }
     }
   }, [from, to, cashierId, user]);
 
-  useEffect(() => { 
+  useEffect(() => {
     loadCashiers();
   }, [loadCashiers]);
 
-  useEffect(() => { 
+  useEffect(() => {
     // Không hiển thị loading khi filter thay đổi
-    load(false); 
+    load(false);
   }, [load]);
 
   useEffect(() => {
@@ -125,7 +125,7 @@ const ShiftReports = () => {
     if (user?.store_id) {
       const storeId = user?.store_id || null;
       setError(null);
-      getShiftReport({ 
+      getShiftReport({
         store_id: storeId,
         cashier_id: cashierId || null,
         date_from: newFrom,
@@ -419,7 +419,7 @@ const ShiftReports = () => {
         // Chuyển đổi phút thành giờ - phút
         const hours = Math.floor(displayLateMinutes / 60);
         const minutes = displayLateMinutes % 60;
-        const formattedTime = hours > 0 
+        const formattedTime = hours > 0
           ? `${hours} giờ ${minutes} phút`
           : `${minutes} phút`;
         return (
@@ -483,9 +483,10 @@ const ShiftReports = () => {
         const note = row.original.note || '';
         if (!earlyMinutes || earlyMinutes === 0 || !note.trim()) return '—';
 
-        // Note được lưu dạng: "Lý do đi muộn | Lý do kết ca sớm"
+        // Note được lưu dạng: "Lý do đi muộn | Lý do kết ca sớm" hoặc chỉ "Lý do kết ca sớm"
         const parts = note.split('|').map((p) => p.trim()).filter(Boolean);
-        const earlyReason = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+        // Nếu có dấu |, lấy phần sau (phần thứ 2). Nếu không có dấu |, lấy toàn bộ note
+        const earlyReason = parts.length > 1 ? parts[parts.length - 1] : (parts[0] || note);
 
         if (!earlyReason) return '—';
 
@@ -520,22 +521,30 @@ const ShiftReports = () => {
       Cell: ({ cell, row }) => {
         const note = cell.getValue();
         const lateMinutes = row.original.late_minutes;
-        // Hiển thị note nếu có, hoặc "—" nếu không có
-        if (!note || !note.trim()) return '—';
+        // Chỉ hiển thị nếu có lateMinutes > 0
+        if (!lateMinutes || lateMinutes === 0 || !note || !note.trim()) return '—';
+
+        // Note được lưu dạng: "Lý do đi muộn | Lý do kết ca sớm" hoặc chỉ "Lý do muộn"
+        // Nếu có dấu |, lấy phần trước (phần thứ 1). Nếu không có dấu |, lấy toàn bộ note
+        const parts = note.split('|').map((p) => p.trim()).filter(Boolean);
+        const lateReason = parts.length > 1 ? parts[0] : (parts[0] || note);
+
+        if (!lateReason) return '—';
+
         return (
           <Typography
             variant="body2"
             sx={{
-              color: lateMinutes && lateMinutes > 0 ? 'error.main' : 'text.primary',
-              fontWeight: lateMinutes && lateMinutes > 0 ? 600 : 400,
+              color: 'error.main',
+              fontWeight: 600,
               maxWidth: 200,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
             }}
-            title={note}
+            title={lateReason}
           >
-            {note}
+            {lateReason}
           </Typography>
         );
       },
@@ -571,7 +580,7 @@ const ShiftReports = () => {
                   {formatCurrency(summary.total_sales)}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Tiền mặt: {formatCurrency(summary.total_cash_sales)} • 
+                  Tiền mặt: {formatCurrency(summary.total_cash_sales)} •
                   Chuyển khoản: {formatCurrency(summary.total_bank_transfer)}
                 </Typography>
               </CardContent>
@@ -592,21 +601,21 @@ const ShiftReports = () => {
             <Tab label="Theo tuần" value="week" />
             <Tab label="Theo tháng" value="month" />
           </Tabs>
-          <TextField 
-            label="Từ ngày" 
-            type="date" 
-            value={from} 
-            onChange={(e) => setFrom(e.target.value)} 
-            size="small" 
+          <TextField
+            label="Từ ngày"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            size="small"
             InputLabelProps={{ shrink: true }}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           />
-          <TextField 
-            label="Đến ngày" 
-            type="date" 
-            value={to} 
-            onChange={(e) => setTo(e.target.value)} 
-            size="small" 
+          <TextField
+            label="Đến ngày"
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            size="small"
             InputLabelProps={{ shrink: true }}
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           />
@@ -644,7 +653,7 @@ const ShiftReports = () => {
         enableBottomToolbar={true}
         enablePagination={true}
         layoutMode="grid"
-        initialState={{ 
+        initialState={{
           density: 'compact',
           pagination: { pageSize: 10, pageIndex: 0 }
         }}
