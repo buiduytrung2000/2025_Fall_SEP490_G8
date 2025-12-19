@@ -27,13 +27,19 @@ router.get('/schedules/available', scheduleController.getAvailableShifts);
 // Get available employees for a shift (store_id, work_date, shift_template_id, role)
 router.get('/schedules/available-employees', scheduleController.getAvailableEmployees);
 
+// Get my schedules (current user) - MUST be before /schedules/:id
+router.get('/schedules/my-schedules', scheduleController.getMySchedules);
+
+// Get count of future schedules for an employee at a specific store - MUST be before /schedules/:id
+router.get('/schedules/future-count-by-employee-store', scheduleController.getFutureSchedulesCountByEmployeeAndStore);
+
+// Get schedule statistics (with query params: store_id, role) - MUST be before /schedules/:id
+router.get('/schedules/statistics', scheduleController.getScheduleStatistics);
+
 // Get employee schedules (with query params: start_date, end_date)
 router.get('/schedules/employee/:user_id', scheduleController.getEmployeeSchedules);
 
-// Get my schedules (current user)
-router.get('/schedules/my-schedules', scheduleController.getMySchedules);
-
-// Get schedule by ID
+// Get schedule by ID - MUST be after all specific routes
 router.get('/schedules/:id', scheduleController.getScheduleById);
 
 // Create schedule
@@ -42,11 +48,11 @@ router.post('/schedules', scheduleController.createSchedule);
 // Update schedule
 router.put('/schedules/:id', scheduleController.updateSchedule);
 
-// Delete schedule
-router.delete('/schedules/:id', scheduleController.deleteSchedule);
+// Delete future schedules for an employee at a specific store - MUST be before /schedules/:id
+router.delete('/schedules/future-by-employee-store', scheduleController.deleteFutureSchedulesByEmployeeAndStore);
 
-// Get schedule statistics (with query params: store_id, role)
-router.get('/schedules/statistics', scheduleController.getScheduleStatistics);
+// Delete schedule - MUST be after all specific routes
+router.delete('/schedules/:id', scheduleController.deleteSchedule);
 
 // Check schedule conflicts
 router.post('/schedules/check-conflicts', scheduleController.checkScheduleConflicts);

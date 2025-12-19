@@ -113,10 +113,15 @@ const MySchedule = () => {
                         const templateId = String(r.shift_template_id || r.shiftTemplate?.shift_template_id || '');
                         if (!grid[dateKey]) grid[dateKey] = {};
                         if (templateId) {
+                            // Lấy thông tin shift (late_minutes) từ shifts array
+                            const shift = r.shifts && r.shifts.length > 0 ? r.shifts[0] : null;
+                            const lateMinutes = shift?.late_minutes || null;
+                            
                             grid[dateKey][templateId] = { 
                                 mine: true,
                                 attendance_status: r.attendance_status || 'not_checked_in',
-                                schedule_id: r.schedule_id
+                                schedule_id: r.schedule_id,
+                                late_minutes: lateMinutes
                             };
                             if (r.shiftTemplate) {
                                 scheduleTemplates.set(templateId, formatShiftLabel(r.shiftTemplate));
@@ -233,6 +238,7 @@ const MySchedule = () => {
                                             const shiftData = schedule[dayKey] ? schedule[dayKey][shift.id] : null;
                                             const isMyShift = !!shiftData;
                                             const attendanceStatus = shiftData?.attendance_status || 'not_checked_in';
+                                            const lateMinutes = shiftData?.late_minutes || null;
 
                                             // Hàm lấy label và màu cho trạng thái điểm danh
                                             const getAttendanceInfo = (status) => {
@@ -249,7 +255,20 @@ const MySchedule = () => {
                                                 }
                                             };
 
+                                            // Format số phút muộn thành giờ - phút
+                                            const formatLateTime = (minutes) => {
+                                                if (!minutes || minutes === 0) return null;
+                                                // Cộng thêm 5 phút để hiển thị đúng so với giờ bắt đầu ca
+                                                const displayLateMinutes = minutes + 5;
+                                                const hours = Math.floor(displayLateMinutes / 60);
+                                                const mins = displayLateMinutes % 60;
+                                                return hours > 0 
+                                                    ? `${hours} giờ ${mins} phút`
+                                                    : `${mins} phút`;
+                                            };
+
                                             const attendanceInfo = getAttendanceInfo(attendanceStatus);
+                                            const lateTimeText = formatLateTime(lateMinutes);
 
                                             return (
                                                 <TableCell
@@ -283,6 +302,19 @@ const MySchedule = () => {
                                                                     sx={{ height: 22, fontSize: '0.7rem' }}
                                                                 />
                                                             </Tooltip>
+                                                            {lateTimeText && (
+                                                                <Typography 
+                                                                    variant="caption" 
+                                                                    sx={{ 
+                                                                        color: 'error.main', 
+                                                                        fontWeight: 600,
+                                                                        fontSize: '0.65rem',
+                                                                        mt: 0.5
+                                                                    }}
+                                                                >
+                                                                    Muộn: {lateTimeText}
+                                                                </Typography>
+                                                            )}
                                                         </Box>
                                                     ) : '-'}
                                                 </TableCell>

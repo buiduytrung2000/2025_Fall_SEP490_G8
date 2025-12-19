@@ -336,6 +336,56 @@ export const deleteSchedule = async (req, res) => {
     }
 };
 
+// Get count of future schedules for an employee at a specific store
+export const getFutureSchedulesCountByEmployeeAndStore = async (req, res) => {
+    try {
+        const { user_id, store_id } = req.query;
+
+        if (!user_id || !store_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: user_id, store_id'
+            });
+        }
+
+        const response = await scheduleService.getFutureSchedulesCountByEmployeeAndStore(
+            parseInt(user_id),
+            parseInt(store_id)
+        );
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
+// Delete future schedules for an employee at a specific store
+export const deleteFutureSchedulesByEmployeeAndStore = async (req, res) => {
+    try {
+        const { user_id, store_id } = req.query;
+
+        if (!user_id || !store_id) {
+            return res.status(400).json({
+                err: 1,
+                msg: 'Missing required parameters: user_id, store_id'
+            });
+        }
+
+        const response = await scheduleService.deleteFutureSchedulesByEmployeeAndStore(
+            parseInt(user_id),
+            parseInt(store_id)
+        );
+        return res.status(response.err === 0 ? 200 : 400).json(response);
+    } catch (error) {
+        return res.status(500).json({
+            err: -1,
+            msg: 'Failed at schedule controller: ' + error.message
+        });
+    }
+};
+
 // Get available shifts
 export const getAvailableShifts = async (req, res) => {
     try {

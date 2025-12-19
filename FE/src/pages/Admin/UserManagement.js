@@ -400,7 +400,7 @@ const UserManagement = () => {
                 <MaterialReactTable table={table} />
             )}
 
-            {/* User Dialog */}
+            {/* User Dialog - Tự động xóa lịch làm việc tương lai khi chuyển nhân viên sang store mới */}
             <UserDialog
                 open={openDialog}
                 onClose={handleCloseDialog}

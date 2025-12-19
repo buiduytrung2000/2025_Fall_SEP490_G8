@@ -328,45 +328,6 @@ const ManagerDashboard = () => {
             Thống kê và phân tích hoạt động kinh doanh
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Năm</InputLabel>
-            <Select
-              value={selectedYear}
-              label="Năm"
-              onChange={(e) => setSelectedYear(e.target.value)}
-            >
-              {Array.from({ length: 5 }, (_, i) => {
-                const year = new Date().getFullYear() - i;
-                return <MenuItem key={year} value={year}>{year}</MenuItem>;
-              })}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Tháng</InputLabel>
-            <Select
-              value={selectedMonth}
-              label="Tháng"
-              onChange={(e) => setSelectedMonth(e.target.value)}
-            >
-              {Array.from({ length: 12 }, (_, i) => {
-                const month = i + 1;
-                return <MenuItem key={month} value={month}>Tháng {month}</MenuItem>;
-              })}
-            </Select>
-          </FormControl>
-          <Chip 
-            icon={<Assessment />} 
-            label="Hôm nay" 
-            color="primary" 
-            size={isMobile ? 'small' : 'medium'}
-            sx={{ 
-              height: { xs: 32, sm: 36 },
-              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-              fontWeight: 600
-            }}
-          />
-        </Box>
       </Box>
 
       {/* STAT CARDS */}
@@ -383,9 +344,46 @@ const ManagerDashboard = () => {
 
       {/* MONTHLY STATISTICS */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" fontWeight={600} sx={{ mb: 2, color: '#1a202c' }}>
-          Thống kê theo tháng ({selectedMonth}/{selectedYear})
-        </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          mb: 2,
+          gap: 2
+        }}>
+          <Typography variant="h6" fontWeight={600} sx={{ color: '#1a202c' }}>
+            Thống kê theo tháng ({selectedMonth}/{selectedYear})
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Năm</InputLabel>
+              <Select
+                value={selectedYear}
+                label="Năm"
+                onChange={(e) => setSelectedYear(e.target.value)}
+              >
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return <MenuItem key={year} value={year}>{year}</MenuItem>;
+                })}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Tháng</InputLabel>
+              <Select
+                value={selectedMonth}
+                label="Tháng"
+                onChange={(e) => setSelectedMonth(e.target.value)}
+              >
+                {Array.from({ length: 12 }, (_, i) => {
+                  const month = i + 1;
+                  return <MenuItem key={month} value={month}>Tháng {month}</MenuItem>;
+                })}
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={6}>
             <Card 

@@ -380,6 +380,17 @@ const PurchaseOrders = () => {
         return;
       }
 
+      // Kiểm tra số lượng nhận không được vượt quá số lượng thực tế giao
+      if (item.package_quantity !== null && item.package_quantity !== undefined) {
+        const packageQty = Number(item.package_quantity);
+        if (rq > packageQty) {
+          ToastNotification.error(
+            `Dòng ${i + 1}: Số lượng nhận thực tế (${rq.toLocaleString('vi-VN')}) không được vượt quá số lượng thực tế giao (${packageQty.toLocaleString('vi-VN')})`
+          );
+          return;
+        }
+      }
+
       payloadItems.push({
         sku: item.sku,
         product_name: item.product_name || item.name || '',
@@ -1458,14 +1469,48 @@ const PurchaseOrders = () => {
                           value={item.received_quantity ?? item.quantity ?? 0}
                           onChange={(e) => {
                             const value = e.target.value;
+                            const numValue = Number(value);
+                            const maxQuantity = item.package_quantity !== null && item.package_quantity !== undefined 
+                              ? Number(item.package_quantity) 
+                              : null;
+                            
+                            // Giới hạn số lượng nhận không được vượt quá số lượng giao
+                            let finalValue = value;
+                            if (maxQuantity !== null && numValue > maxQuantity) {
+                              finalValue = maxQuantity;
+                            } else if (numValue < 0) {
+                              finalValue = 0;
+                            }
+                            
                             setReceiveItems((prev) =>
                               prev.map((it, i) =>
-                                i === idx ? { ...it, received_quantity: value } : it
+                                i === idx ? { ...it, received_quantity: finalValue } : it
                               )
                             );
                           }}
                           sx={{ width: 90 }}
-                          inputProps={{ min: 0 }}
+                          inputProps={{ 
+                            min: 0,
+                            max: item.package_quantity !== null && item.package_quantity !== undefined 
+                              ? Number(item.package_quantity) 
+                              : undefined
+                          }}
+                          error={
+                            item.received_quantity !== null && 
+                            item.received_quantity !== undefined &&
+                            item.package_quantity !== null && 
+                            item.package_quantity !== undefined &&
+                            Number(item.received_quantity) > Number(item.package_quantity)
+                          }
+                          helperText={
+                            item.received_quantity !== null && 
+                            item.received_quantity !== undefined &&
+                            item.package_quantity !== null && 
+                            item.package_quantity !== undefined &&
+                            Number(item.received_quantity) > Number(item.package_quantity)
+                              ? `Không được vượt quá ${Number(item.package_quantity).toLocaleString('vi-VN')}`
+                              : ''
+                          }
                         />
                       </TableCell>
                     </TableRow>

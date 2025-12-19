@@ -207,7 +207,7 @@ export const getSchedules = (storeId, startDate, endDate) => new Promise(async (
                 {
                     model: db.User,
                     as: 'employee',
-                    attributes: ['user_id', 'username', 'email', 'role']
+                    attributes: ['user_id', 'username', 'email', 'role', 'full_name']
                 },
                 {
                     model: db.ShiftTemplate,
@@ -296,6 +296,14 @@ export const getEmployeeSchedules = (userId, startDate, endDate) => new Promise(
                     model: db.Store,
                     as: 'store',
                     attributes: ['store_id', 'name', 'address']
+                },
+                {
+                    model: db.Shift,
+                    as: 'shifts',
+                    attributes: ['shift_id', 'opened_at', 'closed_at', 'status', 'late_minutes', 'note'],
+                    required: false,
+                    limit: 1,
+                    order: [['opened_at', 'DESC']]
                 }
             ],
             order: [['work_date', 'ASC'], [{ model: db.ShiftTemplate, as: 'shiftTemplate' }, 'start_time', 'ASC']],
@@ -400,6 +408,68 @@ export const deleteSchedule = (id) => new Promise(async (resolve, reject) => {
             err: deleted > 0 ? 0 : 1,
             msg: deleted > 0 ? 'OK' : 'Schedule not found',
             data: deleted
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Get count of future schedules for an employee at a specific store
+// NOTE: Only counts schedules with work_date >= today (future schedules)
+// Past schedules are not counted as they are kept for historical records
+export const getFutureSchedulesCountByEmployeeAndStore = (userId, storeId) => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Only count future schedules (work_date >= today)
+        // Past schedules are not counted as they are preserved
+        const count = await db.Schedule.count({
+            where: {
+                user_id: userId,
+                store_id: storeId,
+                work_date: {
+                    [Op.gte]: todayStr  // Only future dates
+                }
+            }
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: { count }
+        });
+    } catch (error) {
+        reject(error);
+    }
+});
+
+// Delete future schedules for an employee at a specific store
+// NOTE: Only deletes schedules with work_date >= today (future schedules)
+// Past schedules (work_date < today) are kept for historical records
+export const deleteFutureSchedulesByEmployeeAndStore = (userId, storeId) => new Promise(async (resolve, reject) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Only delete future schedules (work_date >= today)
+        // Past schedules are preserved to show historical records
+        const deleted = await db.Schedule.destroy({
+            where: {
+                user_id: userId,
+                store_id: storeId,
+                work_date: {
+                    [Op.gte]: todayStr  // Only future dates, past dates are kept
+                }
+            }
+        });
+
+        resolve({
+            err: 0,
+            msg: 'OK',
+            data: { deletedCount: deleted }
         });
     } catch (error) {
         reject(error);
@@ -800,14 +870,25 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
 
             if (requestData.request_type === 'swap') {
                 if (toSchedule) {
-                    // Swap: exchange users between two schedules
-                    const tempUserId = fromSchedule.user_id;
+                    // Khi đổi ca: thêm nhân viên vào ca mới thay vì swap
+                    const fromUserId = fromSchedule.user_id;
                     if (toSchedule.user_id) {
-                        await fromSchedule.update({ user_id: toSchedule.user_id });
-                        await toSchedule.update({ user_id: tempUserId });
+                        // Ca đã có nhân viên: tạo Schedule mới cho nhân viên muốn đổi ca
+                        // Giữ nguyên toSchedule và nhân viên hiện tại
+                        await db.Schedule.create({
+                            store_id: toSchedule.store_id,
+                            user_id: fromUserId,
+                            shift_template_id: toSchedule.shift_template_id,
+                            work_date: toSchedule.work_date,
+                            status: 'confirmed',
+                            attendance_status: 'not_checked_in',
+                            created_by: reviewerId
+                        });
+                        // Xóa nhân viên khỏi ca cũ (hoặc set status = draft)
+                        await fromSchedule.update({ user_id: null, status: 'draft' });
                     } else {
                         // To schedule is empty, just move user and keep the old schedule record
-                        await toSchedule.update({ user_id: tempUserId });
+                        await toSchedule.update({ user_id: fromUserId, status: 'confirmed' });
                         await fromSchedule.update({ user_id: null, status: 'draft' });
                     }
                 } else if (requestData.to_work_date && requestData.to_shift_template_id) {
@@ -849,9 +930,18 @@ export const updateShiftChangeRequestStatus = (id, status, reviewerId, reviewNot
                                 // Cùng user, cùng ca - giữ lại fromSchedule nhưng làm trống user
                                 await fromSchedule.update({ user_id: null, status: 'draft' });
                             } else if (existingSchedule.user_id) {
-                                // Đã có nhân viên khác - swap
-                                const tempUserId = fromSchedule.user_id;
-                                await existingSchedule.update({ user_id: tempUserId, status: 'confirmed' });
+                                // Đã có nhân viên khác - tạo Schedule mới thay vì swap
+                                // Giữ nguyên existingSchedule và nhân viên hiện tại
+                                await db.Schedule.create({
+                                    store_id: fromSchedule.store_id,
+                                    user_id: fromUserId,
+                                    shift_template_id: toShiftTemplateId,
+                                    work_date: toWorkDate,
+                                    status: 'confirmed',
+                                    attendance_status: 'not_checked_in',
+                                    created_by: reviewerId
+                                });
+                                // Xóa nhân viên khỏi ca cũ
                                 await fromSchedule.update({ user_id: null, status: 'draft' });
                             } else {
                                 // Schedule trống (user_id = null) - chỉ cần gán user
