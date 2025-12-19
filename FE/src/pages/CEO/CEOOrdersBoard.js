@@ -87,7 +87,7 @@ export default function CEOOrdersBoard() {
   const [branchOrders, setBranchOrders] = useState([]);
   const [warehouseOrders, setWarehouseOrders] = useState(null);
   const [branchOrdersStats, setBranchOrdersStats] = useState(null);
-  
+
   // Detail modal states
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -561,7 +561,7 @@ export default function CEOOrdersBoard() {
                 key={`branch-orders-${activeTab}-${branchOrders.length}`}
                 columns={branchOrderColumns}
                 data={Array.isArray(branchOrders) ? branchOrders : []}
-                state={{ 
+                state={{
                   isLoading: loading,
                   showProgressBars: loading
                 }}
@@ -571,8 +571,8 @@ export default function CEOOrdersBoard() {
                 enableStickyHeader
                 enablePagination={true}
                 enableBottomToolbar={true}
-                initialState={{ 
-                  pagination: { pageSize: 10, pageIndex: 0 }, 
+                initialState={{
+                  pagination: { pageSize: 10, pageIndex: 0 },
                   density: "compact"
                 }}
                 localization={{
@@ -690,11 +690,11 @@ export default function CEOOrdersBoard() {
                       const unitPrice = Number(item.display_unit_price ?? item.unit_price ?? 0);
                       const subtotal = Number(item.subtotal ?? ((quantity * unitPrice) || 0));
                       // Lấy nhãn đơn vị lớn
-                      const unitLabel = item.display_unit_label || 
-                                       item.unit?.name || 
-                                       item.unit?.symbol || 
-                                       '';
-                      
+                      const unitLabel = item.display_unit_label ||
+                        item.unit?.name ||
+                        item.unit?.symbol ||
+                        '';
+
                       return (
                         <TableRow key={idx}>
                           <TableCell>{idx + 1}</TableCell>
@@ -727,10 +727,11 @@ export default function CEOOrdersBoard() {
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
                         {formatCurrency(
                           orderItems.reduce((sum, item) => {
-                            const quantity = item.quantity || 0;
-                            const unitPrice = item.unit_price || 0;
-                            const subtotal = item.subtotal || (quantity * unitPrice) || 0;
-                            return sum + subtotal;
+                            // Sử dụng cùng logic như phần hiển thị từng item
+                            const quantity = Number(item.display_quantity ?? item.quantity ?? 0);
+                            const unitPrice = Number(item.display_unit_price ?? item.unit_price ?? 0);
+                            const subtotal = Number(item.subtotal ?? (quantity * unitPrice) ?? 0);
+                            return sum + (isNaN(subtotal) ? 0 : subtotal);
                           }, 0)
                         )}
                       </TableCell>
