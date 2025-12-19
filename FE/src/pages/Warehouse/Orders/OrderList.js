@@ -22,12 +22,13 @@ import {
   IconButton,
   Tooltip
 } from '@mui/material';
-import { 
-  Search as SearchIcon, 
-  Visibility as ViewIcon, 
+import {
+  Search as SearchIcon,
+  Visibility as ViewIcon,
   Lock as LockIcon,
   CheckCircle as ConfirmIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { ToastNotification, PrimaryButton, SecondaryButton, Alert, Icon } from '../../../components/common';
 import {
@@ -65,7 +66,7 @@ const formatTotalAmount = (value) => {
   // Nếu giá trị rất gần số nguyên (chênh lệch < 1) thì làm tròn lên
   const nearestInt = Math.round(num);
   const diff = Math.abs(num - nearestInt);
-  
+
   // Nếu chênh lệch < 1 VND thì làm tròn về số nguyên
   if (diff < 1) {
     return nearestInt.toLocaleString('vi-VN');
@@ -211,19 +212,19 @@ export default function OrderList() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          <TextField 
-            size="small" 
-            placeholder="Tìm mã đơn / nhà cung cấp" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            InputProps={{ startAdornment: <SearchIcon fontSize="small" /> }} 
+          <TextField
+            size="small"
+            placeholder="Tìm mã đơn / nhà cung cấp"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            InputProps={{ startAdornment: <SearchIcon fontSize="small" /> }}
           />
-          <TextField 
-            select 
-            size="small" 
-            label="Trạng thái" 
-            value={status} 
-            onChange={e => { setStatus(e.target.value); setPage(0); }} 
+          <TextField
+            select
+            size="small"
+            label="Trạng thái"
+            value={status}
+            onChange={e => { setStatus(e.target.value); setPage(0); }}
             sx={{ minWidth: 180 }}
           >
             <MenuItem value="">Tất cả</MenuItem>
@@ -258,7 +259,7 @@ export default function OrderList() {
                 <TableRow><TableCell colSpan={8} align="center"><Alert severity="info">Không có dữ liệu</Alert></TableCell></TableRow>
               ) : orders.map(order => {
                 const editable = isOrderEditable(order.status);
-                
+
                 return (
                   <TableRow
                     key={order.order_id}
@@ -274,10 +275,10 @@ export default function OrderList() {
                     <TableCell align="right">{formatTotalAmount(order.totalAmount)} đ</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Chip 
-                          size="small" 
-                          color={statusColors[order.status] || 'default'} 
-                          label={statusLabels[order.status] || order.status} 
+                        <Chip
+                          size="small"
+                          color={statusColors[order.status] || 'default'}
+                          label={statusLabels[order.status] || order.status}
                         />
                         {!editable && <LockIcon fontSize="small" color="disabled" titleAccess="Đơn hàng đã khóa, không thể chỉnh sửa" />}
                       </Stack>
@@ -334,13 +335,13 @@ export default function OrderList() {
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination 
-          component="div" 
-          count={totalOrders} 
-          page={page} 
-          onPageChange={(e, p) => setPage(p)} 
-          rowsPerPage={rowsPerPage} 
-          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }} 
+        <TablePagination
+          component="div"
+          count={totalOrders}
+          page={page}
+          onPageChange={(e, p) => setPage(p)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
           labelRowsPerPage="Số dòng mỗi trang:"
           labelDisplayedRows={({ from, to, count }) => `${from}-${to} trong ${count !== -1 ? count : `hơn ${to}`}`}
         />
@@ -353,8 +354,18 @@ export default function OrderList() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>
-          {detailOrder ? `Chi tiết phiếu nhập #${detailOrder.order_id}` : 'Chi tiết phiếu nhập hàng'}
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" component="span">
+            {detailOrder ? `Chi tiết phiếu nhập #${detailOrder.order_id}` : 'Chi tiết phiếu nhập hàng'}
+          </Typography>
+          <IconButton
+            onClick={() => !detailLoading && setDetailDialogOpen(false)}
+            disabled={detailLoading}
+            size="small"
+            sx={{ ml: 2 }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
         <DialogContent dividers>
           {detailLoading ? (
@@ -405,18 +416,18 @@ export default function OrderList() {
                 </TableHead>
                 <TableBody>
                   {(detailOrder.orderItems || []).map((item, idx) => {
-                  const quantityPerCase = Number(
-                    item.display_quantity ?? item.quantity ?? 0,
-                  );
-                  // Làm tròn đơn giá và thành tiền về số nguyên (VND) để tránh lệch 1đ kiểu 999.999,99
-                  const rawPricePerCase = Number(
-                    item.display_unit_price ?? item.unit_price ?? 0,
-                  );
-                  const pricePerCase = Math.round(rawPricePerCase);
-                  const rawSubtotalBase = Number(
-                    item.subtotal ?? quantityPerCase * rawPricePerCase,
-                  );
-                  const subtotalBase = Math.round(rawSubtotalBase);
+                    const quantityPerCase = Number(
+                      item.display_quantity ?? item.quantity ?? 0,
+                    );
+                    // Làm tròn đơn giá và thành tiền về số nguyên (VND) để tránh lệch 1đ kiểu 999.999,99
+                    const rawPricePerCase = Number(
+                      item.display_unit_price ?? item.unit_price ?? 0,
+                    );
+                    const pricePerCase = Math.round(rawPricePerCase);
+                    const rawSubtotalBase = Number(
+                      item.subtotal ?? quantityPerCase * rawPricePerCase,
+                    );
+                    const subtotalBase = Math.round(rawSubtotalBase);
                     const unitLabel =
                       item.display_unit_label ||
                       item.unit?.name ||
@@ -452,31 +463,42 @@ export default function OrderList() {
           )}
         </DialogContent>
         <DialogActions>
-          <SecondaryButton onClick={() => setDetailDialogOpen(false)} disabled={detailLoading}>
-            Đóng
-          </SecondaryButton>
+          {detailOrder && detailOrder.status === 'pending' && (
+            <>
+              <SecondaryButton
+                onClick={() => {
+                  setDetailDialogOpen(false);
+                  handleUpdateStatus(detailOrder, 'cancelled');
+                }}
+                disabled={detailLoading}
+                startIcon={<CancelIcon />}
+              >
+                Hủy phiếu nhập
+              </SecondaryButton>
+              <PrimaryButton
+                onClick={() => {
+                  setDetailDialogOpen(false);
+                  handleUpdateStatus(detailOrder, 'confirmed');
+                }}
+                disabled={detailLoading}
+                startIcon={<ConfirmIcon />}
+              >
+                Xác nhận phiếu nhập
+              </PrimaryButton>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 
       {/* Status Update Dialog */}
       <Dialog open={updateDialog} onClose={() => !updating && setUpdateDialog(false)}>
-        <DialogTitle>Cập nhật trạng thái đơn hàng</DialogTitle>
+        <DialogTitle>
+          {newStatus === 'confirmed' ? 'Xác nhận phiếu nhập hàng' : newStatus === 'cancelled' ? 'Hủy phiếu nhập hàng' : 'Cập nhật trạng thái đơn hàng'}
+        </DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Đơn hàng #{selectedOrder?.order_id}
+          <Typography variant="body1" mb={2}>
+            Bạn có chắc chắn muốn {newStatus === 'confirmed' ? 'xác nhận' : newStatus === 'cancelled' ? 'hủy' : 'cập nhật'} phiếu nhập hàng <b>#{selectedOrder?.order_id}</b>?
           </Typography>
-          <TextField
-            select
-            fullWidth
-            label="Trạng thái mới"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            disabled={updating}
-          >
-            {(nextTransitions[selectedOrder?.status] || []).map(s => (
-              <MenuItem key={s} value={s}>{statusLabels[s]}</MenuItem>
-            ))}
-          </TextField>
           {newStatus === 'confirmed' && (
             <Alert severity="info" message="Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
@@ -485,9 +507,9 @@ export default function OrderList() {
           )}
         </DialogContent>
         <DialogActions>
-          <SecondaryButton onClick={() => setUpdateDialog(false)} disabled={updating}>Hủy</SecondaryButton>
+          <SecondaryButton onClick={() => setUpdateDialog(false)} disabled={updating}>Không</SecondaryButton>
           <PrimaryButton onClick={confirmUpdateStatus} disabled={updating || !newStatus} loading={updating}>
-            Xác nhận
+            Đồng ý
           </PrimaryButton>
         </DialogActions>
       </Dialog>
