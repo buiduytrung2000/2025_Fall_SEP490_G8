@@ -215,7 +215,7 @@ const SupplierManagement = () => {
             },
             {
                 accessorKey: 'contact',
-                header: 'Liên hệ',
+                header: 'Người liên hệ',
                 size: 130,
                 Cell: ({ cell }) => cell.getValue() || '-',
                 filterVariant: 'select',
@@ -350,7 +350,7 @@ const SupplierManagement = () => {
                                 fullWidth
                             />
                             <TextField
-                                label="Liên hệ"
+                                label="Người liên hệ"
                                 name="contact"
                                 value={formData.contact}
                                 onChange={handleInputChange}
