@@ -403,6 +403,73 @@ const ShiftReports = () => {
         align: 'center',
       },
     },
+    {
+      accessorKey: 'late_minutes',
+      header: 'Số phút muộn',
+      size: 120,
+      Cell: ({ cell, row }) => {
+        const lateMinutes = cell.getValue();
+        if (!lateMinutes || lateMinutes === 0) return '—';
+        // Hiển thị số phút muộn (cộng thêm 5 phút để hiển thị đúng so với giờ bắt đầu ca)
+        const displayLateMinutes = lateMinutes + 5;
+        // Chuyển đổi phút thành giờ - phút
+        const hours = Math.floor(displayLateMinutes / 60);
+        const minutes = displayLateMinutes % 60;
+        const formattedTime = hours > 0 
+          ? `${hours} giờ ${minutes} phút`
+          : `${minutes} phút`;
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'error.main',
+              fontWeight: 600
+            }}
+          >
+            {formattedTime}
+          </Typography>
+        );
+      },
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
+    },
+    {
+      accessorKey: 'note',
+      header: 'Lý do muộn',
+      size: 200,
+      Cell: ({ cell, row }) => {
+        const note = cell.getValue();
+        const lateMinutes = row.original.late_minutes;
+        // Hiển thị note nếu có, hoặc "—" nếu không có
+        if (!note || !note.trim()) return '—';
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              color: lateMinutes && lateMinutes > 0 ? 'error.main' : 'text.primary',
+              fontWeight: lateMinutes && lateMinutes > 0 ? 600 : 400,
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+            title={note}
+          >
+            {note}
+          </Typography>
+        );
+      },
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'left',
+      },
+    },
   ], [getDiscrepancy, lowOpeningCashShiftIds, highClosingCashShiftIds]);
 
   return (

@@ -159,7 +159,7 @@ export default function CEORevenueBoard() {
   return (
     <Box p={3}>
       <Typography variant="h4" fontWeight={700} mb={3}>
-        Bảng doanh thu
+        Bảng doanh thu chi nhánh
       </Typography>
 
       <Card sx={{ mb: 3 }}>

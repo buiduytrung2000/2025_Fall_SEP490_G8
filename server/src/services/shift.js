@@ -200,29 +200,44 @@ export const checkin = async ({ cashier_id, store_id, opening_cash = 0, note = n
     }
 
     // Tính phút đi muộn (nếu có)
+    // Thời gian hợp lệ check-in là ±5 phút từ thời gian bắt đầu ca
+    // Chỉ coi là muộn nếu check-in sau thời gian bắt đầu ca hơn 5 phút
     let lateMinutes = 0
     if (scheduleForLate && scheduleForLate.shiftTemplate && scheduleForLate.work_date) {
       const [startHour, startMinute] = scheduleForLate.shiftTemplate.start_time.split(':').map(Number)
       const shiftStart = new Date(scheduleForLate.work_date)
       shiftStart.setHours(startHour, startMinute, 0, 0)
       const now = new Date()
-      if (now > shiftStart) {
-        lateMinutes = Math.floor((now - shiftStart) / 60000)
+      // Cho phép check-in sớm 5 phút hoặc muộn 5 phút (tổng cộng 10 phút window)
+      const validStartTime = new Date(shiftStart)
+      validStartTime.setMinutes(validStartTime.getMinutes() - 5) // Cho phép sớm 5 phút
+      const validEndTime = new Date(shiftStart)
+      validEndTime.setMinutes(validEndTime.getMinutes() + 5) // Cho phép muộn 5 phút
+      
+      // Chỉ tính là muộn nếu check-in sau thời gian hợp lệ (sau shiftStart + 5 phút)
+      if (now > validEndTime) {
+        lateMinutes = Math.floor((now - validEndTime) / 60000)
       }
     }
 
-    const lateNote = lateMinutes > 0 ? `Đi muộn ${lateMinutes} phút` : null
-    const mergedNote = [lateNote, note].filter(Boolean).join(' | ') || null
+    // Nếu check-in muộn (sau thời gian hợp lệ), bắt buộc phải có note
+    if (lateMinutes > 0 && (!note || !note.trim())) {
+      await t.rollback()
+      return { err: 1, msg: 'Bạn đang check-in muộn. Vui lòng nhập lý do vào phần ghi chú.' }
+    }
 
+    // lateMinutes đã được tính từ sau thời gian hợp lệ (shiftStart + 5 phút)
+    // Lưu late_minutes vào DB và note (lý do) riêng biệt
+    // Note chỉ lưu lý do do người dùng nhập, không lưu thông tin "Đi muộn X phút"
     const shift = await db.Shift.create({ 
       cashier_id, 
       store_id,
       schedule_id: foundScheduleId,
       opening_cash, 
       status: 'opened', 
-      note: mergedNote
+      note: note && note.trim() ? note.trim() : null,
+      late_minutes: lateMinutes > 0 ? lateMinutes : null
     }, { transaction: t })
-    shift.setDataValue('late_minutes', lateMinutes)
 
     // Cập nhật attendance_status của schedule nếu có
     if (foundScheduleId) {
@@ -267,13 +282,28 @@ export const checkout = async ({ shift_id, closing_cash = 0, note = null }) => {
     })
     const sumCash = cashTransactions.reduce((acc, tr) => acc + parseFloat(tr.total_amount || 0), 0)
 
-    await shift.update({
+    // Giữ nguyên note cũ nếu note mới là null/rỗng, chỉ cập nhật nếu có note mới
+    const updateData = {
       status: 'closed',
       closed_at: new Date(),
       closing_cash: closing_cash,
-      cash_sales_total: sumCash, // Cập nhật lại để đảm bảo chính xác
-      note
-    }, { transaction: t })
+      cash_sales_total: sumCash // Cập nhật lại để đảm bảo chính xác
+    }
+    
+    // Chỉ cập nhật note nếu có note mới (không null và không rỗng)
+    // Nếu không có note mới, giữ nguyên note cũ (lý do muộn khi check-in)
+    if (note && note.trim()) {
+      // Nếu có note cũ, merge với note mới
+      const existingNote = shift.note ? shift.note.trim() : ''
+      if (existingNote) {
+        updateData.note = `${existingNote} | ${note.trim()}`
+      } else {
+        updateData.note = note.trim()
+      }
+    }
+    // Nếu note mới là null/rỗng, không cập nhật note (giữ nguyên note cũ)
+    
+    await shift.update(updateData, { transaction: t })
 
     // Cập nhật attendance_status của schedule nếu có
     if (shift.schedule_id) {
@@ -482,3 +512,4 @@ export const getShiftReport = async (query) => {
     }
   }
 }
+

@@ -5,3 +5,4 @@ ALTER TABLE `Schedule`
   DROP INDEX `unique_schedule_user_shift_date`;
 
 
+

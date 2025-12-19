@@ -105,11 +105,61 @@ export default function CEOOrdersBoard() {
           getBranchOrdersSummary(),
         ]);
 
-        if (purchaseRes.err === 0) setPurchaseOrders(purchaseRes.data);
-        if (warehouseRes.err === 0) setWarehouseOrders(warehouseRes.data);
-        if (branchRes.err === 0) setBranchOrders(branchRes.data);
-        if (branchStatsRes.err === 0) setBranchOrdersStats(branchStatsRes.data);
+        if (purchaseRes.err === 0) {
+          const purchaseData = purchaseRes.data || [];
+          console.log('Purchase orders data:', purchaseData);
+          console.log('Purchase orders count:', purchaseData.length);
+          setPurchaseOrders(Array.isArray(purchaseData) ? purchaseData : []);
+        } else {
+          console.error('Purchase orders error:', purchaseRes);
+          ToastNotification.error(purchaseRes.msg || 'Không thể tải đơn nhập kho');
+          setPurchaseOrders([]);
+        }
+
+        if (warehouseRes.err === 0) {
+          setWarehouseOrders(warehouseRes.data || {});
+        } else {
+          console.error('Warehouse orders summary error:', warehouseRes);
+        }
+
+        if (branchRes.err === 0) {
+          const ordersData = branchRes.data || [];
+          console.log('Branch orders data:', ordersData);
+          console.log('Branch orders count:', ordersData.length);
+          console.log('First order sample:', ordersData[0]);
+          // Đảm bảo dữ liệu là mảng và có format đúng
+          if (Array.isArray(ordersData)) {
+            // Normalize data để đảm bảo tất cả các field cần thiết đều có
+            const normalizedData = ordersData.map(order => ({
+              store_order_id: order.store_order_id,
+              order_code: order.order_code || `ORDER-${order.store_order_id}`,
+              status: order.status || 'pending',
+              store_name: order.store_name || 'N/A',
+              created_at: order.created_at,
+              notes: order.notes || null,
+              total_amount: order.total_amount || 0,
+              item_count: order.item_count || 0
+            }));
+            console.log('Normalized branch orders:', normalizedData);
+            setBranchOrders(normalizedData);
+          } else {
+            console.error('Branch orders data is not an array:', typeof ordersData);
+            setBranchOrders([]);
+          }
+        } else {
+          console.error('Branch orders error:', branchRes);
+          ToastNotification.error(branchRes.msg || 'Không thể tải đơn xuất chi nhánh');
+          setBranchOrders([]);
+        }
+
+        if (branchStatsRes.err === 0) {
+          setBranchOrdersStats(branchStatsRes.data || {});
+        } else {
+          console.error('Branch orders summary error:', branchStatsRes);
+          setBranchOrdersStats({});
+        }
       } catch (error) {
+        console.error('Load data error:', error);
         ToastNotification.error("Không tải được dữ liệu nhập/xuất: " + error.message);
       } finally {
         setLoading(false);
@@ -118,6 +168,16 @@ export default function CEOOrdersBoard() {
 
     loadData();
   }, []);
+
+  // Debug: Log khi branchOrders thay đổi
+  useEffect(() => {
+    console.log('[useEffect] branchOrders changed:', branchOrders);
+    console.log('[useEffect] branchOrders length:', branchOrders?.length);
+    console.log('[useEffect] branchOrders is array:', Array.isArray(branchOrders));
+    if (branchOrders && branchOrders.length > 0) {
+      console.log('[useEffect] First order:', branchOrders[0]);
+    }
+  }, [branchOrders]);
 
   const warehouseSummary = warehouseOrders || {};
   const branchSummary = branchOrdersStats || {};
@@ -189,13 +249,8 @@ export default function CEOOrdersBoard() {
         accessorKey: "supplier_name",
         header: "Nhà cung cấp",
         size: 220,
-        Cell: ({ cell, row }) => (
-          <Box>
-            <Typography fontWeight={600}>{cell.getValue()}</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Giao dự kiến: {formatDate(row.original.expected_delivery)}
-            </Typography>
-          </Box>
+        Cell: ({ cell }) => (
+          <Typography fontWeight={600}>{cell.getValue()}</Typography>
         ),
       },
       {
@@ -327,7 +382,7 @@ export default function CEOOrdersBoard() {
   return (
     <Box p={3}>
       <Typography variant="h4" fontWeight={700} mb={3}>
-        Bảng đơn hàng nhập/xuất
+        Bảng đơn hàng nhập/xuất kho tổng
       </Typography>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
@@ -406,14 +461,17 @@ export default function CEOOrdersBoard() {
                 <Assignment /> Đơn nhập kho gần nhất
               </Typography>
               <MaterialReactTable
+                key={`purchase-orders-${activeTab}-${purchaseOrders.length}`}
                 columns={purchaseOrderColumns}
-                data={purchaseOrders}
+                data={Array.isArray(purchaseOrders) ? purchaseOrders : []}
                 state={{ isLoading: loading }}
                 muiTableContainerProps={{ sx: { maxHeight: 520 } }}
                 enableColumnFilters={false}
                 enableColumnActions={false}
                 enableStickyHeader
-                initialState={{ pagination: { pageSize: 10 }, density: "compact" }}
+                enablePagination={true}
+                enableBottomToolbar={true}
+                initialState={{ pagination: { pageSize: 10, pageIndex: 0 }, density: "compact" }}
                 localization={{
                   rowsPerPage: 'Số dòng mỗi trang',
                 }}
@@ -422,6 +480,7 @@ export default function CEOOrdersBoard() {
                     Chưa có đơn nhập hàng nào.
                   </Alert>
                 )}
+                manualPagination={false}
               />
             </CardContent>
           </Card>
@@ -497,14 +556,23 @@ export default function CEOOrdersBoard() {
                 <LocalShipping /> Đơn xuất chi nhánh gần nhất
               </Typography>
               <MaterialReactTable
+                key={`branch-orders-${activeTab}-${branchOrders.length}`}
                 columns={branchOrderColumns}
-                data={branchOrders}
-                state={{ isLoading: loading }}
+                data={Array.isArray(branchOrders) ? branchOrders : []}
+                state={{ 
+                  isLoading: loading,
+                  showProgressBars: loading
+                }}
                 muiTableContainerProps={{ sx: { maxHeight: 520 } }}
                 enableColumnFilters={false}
                 enableColumnActions={false}
                 enableStickyHeader
-                initialState={{ pagination: { pageSize: 10 }, density: "compact" }}
+                enablePagination={true}
+                enableBottomToolbar={true}
+                initialState={{ 
+                  pagination: { pageSize: 10, pageIndex: 0 }, 
+                  density: "compact"
+                }}
                 localization={{
                   rowsPerPage: 'Số dòng mỗi trang',
                 }}
@@ -513,6 +581,7 @@ export default function CEOOrdersBoard() {
                     Chưa có đơn xuất hàng nào.
                   </Alert>
                 )}
+                manualPagination={false}
               />
             </CardContent>
           </Card>
@@ -580,16 +649,6 @@ export default function CEOOrdersBoard() {
                     {formatDate(selectedOrder.created_at)}
                   </Typography>
                 </Grid>
-                {selectedOrder.type === 'purchase' && selectedOrder.expected_delivery && (
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Giao dự kiến
-                    </Typography>
-                    <Typography variant="body1" fontWeight={600}>
-                      {formatDate(selectedOrder.expected_delivery)}
-                    </Typography>
-                  </Grid>
-                )}
                 {selectedOrder.notes && (
                   <Grid item xs={12}>
                     <Typography variant="caption" color="text.secondary">
