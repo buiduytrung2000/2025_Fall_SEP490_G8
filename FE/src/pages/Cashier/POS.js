@@ -420,7 +420,6 @@ const POS = () => {
                     id: p.product_id,
                     name: p.name || 'Sản phẩm',
                     price,
-                    oldPrice: price !== hqPrice ? hqPrice : undefined,
                     category: p.category?.name || 'Tất cả',
                     code: p.sku || '',
                     stock: p.available_quantity
@@ -489,7 +488,6 @@ const POS = () => {
                         id: p.product_id,
                         name: p.name || 'Sản phẩm',
                         price: currentPrice,
-                        oldPrice: currentPrice !== hqPrice ? hqPrice : undefined,
                         category: p.category?.name || p.category?.category_name || 'Tất cả',
                         code: p.sku || ''
                     };
@@ -521,7 +519,8 @@ const POS = () => {
             return nameMatch || codeMatch;
         });
 
-        return filtered;
+        // Giới hạn chỉ hiển thị 8 sản phẩm đầu tiên
+        return filtered.slice(0, 8);
     }, [products, searchTerm]);
 
     // Lưu cart vào localStorage mỗi khi cart thay đổi
@@ -1255,11 +1254,6 @@ const POS = () => {
                                                             sx={{ color: 'text.secondary' }}
                                                         >
                                                             Mã SKU: {product.code}
-                                                        </Typography>
-                                                    )}
-                                                    {product.oldPrice && (
-                                                        <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
-                                                            {formatCurrency(product.oldPrice)}
                                                         </Typography>
                                                     )}
                                                 </Box>

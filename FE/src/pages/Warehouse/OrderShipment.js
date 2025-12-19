@@ -134,14 +134,8 @@ const OrderShipment = () => {
         const normalizedStatus =
           orderData.status === 'preparing' ? 'confirmed' : orderData.status;
 
-        // Nếu đơn đã bị hủy thì không xử lý xuất kho
-        if (normalizedStatus === 'cancelled') {
-          ToastNotification.error('Đơn hàng này đã bị hủy');
-          navigate('/warehouse/branch-orders');
-          return;
-        }
-
         // Xử lý tự động set số lượng thực tế giao = tồn kho nếu số lượng đặt > tồn kho
+        // Lưu ý: Vẫn cho phép xem chi tiết đơn hàng đã hủy, chỉ chặn các thao tác xuất kho
         if (orderData.orderItems && orderData.orderItems.length > 0) {
           const itemsToUpdate = [];
 
@@ -308,6 +302,11 @@ const OrderShipment = () => {
   // =====================================================
 
   const handleEditQuantity = (item) => {
+    // Không cho phép chỉnh sửa nếu đơn hàng đã hủy
+    if (order.status === 'cancelled') {
+      ToastNotification.error('Không thể chỉnh sửa số lượng vì đơn hàng đã bị hủy');
+      return;
+    }
     // Chỉ cho phép chỉnh sửa số lượng khi đơn đang ở trạng thái "đã xác nhận"
     // Sau khi đã "Xuất kho & giao hàng" (shipped) sẽ không cho chỉnh sửa nữa
     if (order.status !== 'confirmed') {
@@ -1200,6 +1199,7 @@ const OrderShipment = () => {
                                 size="small"
                                 onClick={() => handleEditQuantity(item)}
                                 disabled={
+                                  order.status === 'cancelled' ||
                                   order.status !== 'confirmed' ||
                                   stockAvailable === 0 ||
                                   (stockInPackages !== null && stockInPackages < 1)
@@ -1236,6 +1236,15 @@ const OrderShipment = () => {
                 </Typography>
                 <Divider sx={{ my: 2 }} />
 
+                {/* Hiển thị cảnh báo nếu đơn hàng đã hủy */}
+                {order.status === 'cancelled' && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      Đơn hàng này đã bị hủy. Không thể thực hiện các thao tác xuất kho.
+                    </Typography>
+                  </Alert>
+                )}
+
                 {/* Ngày giao dự kiến – chọn khi xác nhận đơn */}
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
@@ -1247,19 +1256,26 @@ const OrderShipment = () => {
                     size="small"
                     value={deliveryDate}
                     onChange={(e) => setDeliveryDate(e.target.value)}
+                    disabled={order.status === 'cancelled'}
                     InputLabelProps={{ shrink: true }}
                     inputProps={{
                       min: getMinDeliveryDateTime()
                     }}
                     helperText={
-                      order.status === 'pending'
+                      order.status === 'cancelled'
+                        ? 'Đơn hàng đã hủy'
+                        : order.status === 'pending'
                         ? 'Bắt buộc chọn ngày giao trước khi xác nhận đơn hàng'
                         : 'Có thể điều chỉnh nếu cần'
                     }
                   />
                 </Box>
 
-                {canProceed ? (
+                {order.status === 'cancelled' ? (
+                  <Alert severity="warning">
+                    Đơn hàng đã bị hủy. Chỉ có thể xem thông tin, không thể thực hiện thao tác.
+                  </Alert>
+                ) : canProceed ? (
                   <>
                     <Alert severity="info" sx={{ mb: 2 }}>
                       Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
