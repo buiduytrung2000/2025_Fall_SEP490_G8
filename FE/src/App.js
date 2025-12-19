@@ -40,6 +40,8 @@ import MySchedule from "./pages/Cashier/MySchedule";
 import ShiftChangeRequest from "./pages/Cashier/ShiftChangeRequest";
 import CashierProfile from "./pages/Cashier/Profile";
 import WarehouseProductManagement from "./pages/Warehouse/ProductManagement";
+import WarehouseUnitManagement from "./pages/Warehouse/UnitManagement";
+import WarehouseCategoryManagement from "./pages/Warehouse/CategoryManagement";
 import ShiftReports from "./pages/Store_Manager/ShiftReports";
 import CashierPaymentHistory from "./pages/Cashier/PaymentHistory";
 import ManagerPaymentHistory from "./pages/Store_Manager/PaymentHistory";
@@ -265,6 +267,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Warehouse", "Manager", "CEO"]}>
                   <WarehouseProductManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/categories"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseCategoryManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/warehouse/units"
+              element={
+                <ProtectedRoute allowedRoles={["Warehouse", "CEO"]}>
+                  <WarehouseUnitManagement />
                 </ProtectedRoute>
               }
             />

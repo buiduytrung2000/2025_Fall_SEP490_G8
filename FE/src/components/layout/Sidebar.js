@@ -57,6 +57,8 @@ const navLinks = {
         // Sản phẩm & Giá
         { to: "/warehouse/products", icon: <FaBox />, text: "Quản lý Sản phẩm" },
         { to: "/warehouse/suppliers", icon: <FaBuilding />, text: "Quản lý nhà cung cấp" },
+        { to: "/warehouse/units", icon: <FaBox />, text: "Đơn vị tính" },
+        { to: "/warehouse/categories", icon: <FaBox />, text: "Danh mục sản phẩm" },
     ],
 
     Supplier: [
