@@ -1009,7 +1009,7 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
                 {/* <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell> */}
-                <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Số lượng tồn kho</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn tối thiểu / Điểm đặt hàng</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center" width={100}>Thao tác</TableCell>
