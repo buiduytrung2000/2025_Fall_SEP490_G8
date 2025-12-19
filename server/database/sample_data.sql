@@ -104,11 +104,11 @@ INSERT INTO WarehouseInventory (product_id, base_quantity, reserved_quantity, mi
 (5, 600, 0, 80, 250, 'Kho đồ khô - Kệ Đường C2', 'Đường trắng tinh luyện 1kg'),
 (6, 24000, 0, 3600, 9600, 'Kho nước uống - Kệ D1', 'Thùng nước khoáng 500ml (24 chai)');
 
-    -- 9. Insert Customers
-    INSERT INTO Customer (name, phone, email, loyalty_point, tier) VALUES
-    ('John Customer', '0901234567', 'john.customer@email.com', 500, 'gold'),
-    ('Mary Shopper', '0902345678', 'mary.shopper@email.com', 150, 'silver'),
-    ('Bob Buyer', '0903456789', 'bob.buyer@email.com', 50, 'bronze');
+-- 9. Insert Customers
+INSERT INTO Customer (name, phone, email, loyalty_point, tier) VALUES
+('John Customer', '0901234567', 'john.customer@email.com', 500, 'gold'),
+('Mary Shopper', '0902345678', 'mary.shopper@email.com', 150, 'silver'),
+('Bob Buyer', '0903456789', 'bob.buyer@email.com', 50, 'bronze');
     -- =====================================================
     -- SCHEDULE MANAGEMENT DATA
     -- =====================================================

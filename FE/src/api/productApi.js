@@ -242,6 +242,53 @@ export async function getAllCategories() {
     }
 }
 
+export async function createCategory(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/category`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+export async function updateCategory(categoryId, payload) {
+    if (!categoryId) {
+        return { err: 1, msg: 'Missing categoryId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/category/${categoryId}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+export async function deleteCategory(categoryId) {
+    if (!categoryId) {
+        return { err: 1, msg: 'Missing categoryId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/category/${categoryId}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
 // SUPPLIER APIs
 export async function getAllSuppliers() {
     try {
@@ -391,6 +438,53 @@ export async function getAllUnits() {
         return data;
     } catch (error) {
         return { err: -1, msg: 'Network error: ' + error.message, data: [] };
+    }
+}
+
+export async function createUnit(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/unit`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+export async function updateUnit(unitId, payload) {
+    if (!unitId) {
+        return { err: 1, msg: 'Missing unitId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/unit/${unitId}`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
+    }
+}
+
+export async function deleteUnit(unitId) {
+    if (!unitId) {
+        return { err: 1, msg: 'Missing unitId', data: null };
+    }
+    try {
+        const res = await fetch(`${API_BASE}/unit/${unitId}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+        });
+        const data = await res.json();
+        return data;
+    } catch (error) {
+        return { err: -1, msg: 'Network error: ' + error.message, data: null };
     }
 }
 
