@@ -244,7 +244,6 @@ export default function OrderList() {
                 <TableCell>Nhà cung cấp</TableCell>
                 <TableCell>Người tạo</TableCell>
                 <TableCell>Ngày tạo</TableCell>
-                <TableCell>Ngày giao dự kiến</TableCell>
                 <TableCell align="right">Tổng tiền</TableCell>
                 <TableCell>Trạng thái</TableCell>
                 <TableCell align="center">Hành động</TableCell>
@@ -252,11 +251,11 @@ export default function OrderList() {
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={8} align="center"><CircularProgress /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} align="center"><CircularProgress /></TableCell></TableRow>
               ) : error ? (
-                <TableRow><TableCell colSpan={8} align="center"><Alert severity="error" message={error} action={<PrimaryButton size="small" startIcon={<Icon name="Replay" />} onClick={loadOrders}>Thử lại</PrimaryButton>} /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} align="center"><Alert severity="error" message={error} action={<PrimaryButton size="small" startIcon={<Icon name="Replay" />} onClick={loadOrders}>Thử lại</PrimaryButton>} /></TableCell></TableRow>
               ) : orders.length === 0 ? (
-                <TableRow><TableCell colSpan={8} align="center"><Alert severity="info">Không có dữ liệu</Alert></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} align="center"><Alert severity="info">Không có dữ liệu</Alert></TableCell></TableRow>
               ) : orders.map(order => {
                 const editable = isOrderEditable(order.status);
 
@@ -271,7 +270,6 @@ export default function OrderList() {
                     <TableCell>{order.supplier?.name || '—'}</TableCell>
                     <TableCell>{order.creator?.username || order.creator?.email || '—'}</TableCell>
                     <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
-                    <TableCell>{order.expected_delivery ? new Date(order.expected_delivery).toLocaleDateString() : '—'}</TableCell>
                     <TableCell align="right">{formatTotalAmount(order.totalAmount)} đ</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -386,11 +384,6 @@ export default function OrderList() {
                   <Typography><b>Ngày tạo:</b> {new Date(detailOrder.created_at).toLocaleString('vi-VN')}</Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography><b>Ngày giao dự kiến:</b>{' '}
-                    {detailOrder.expected_delivery
-                      ? new Date(detailOrder.expected_delivery).toLocaleDateString('vi-VN')
-                      : '—'}
-                  </Typography>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
                     <Chip
                       size="small"
@@ -454,6 +447,20 @@ export default function OrderList() {
                     <TableRow>
                       <TableCell colSpan={5} align="center">
                         Không có sản phẩm nào trong đơn
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {detailOrder.orderItems && detailOrder.orderItems.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="right">
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          Tổng tiền đơn hàng:
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          {formatTotalAmount(detailOrder.totalAmount)} đ
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   )}
