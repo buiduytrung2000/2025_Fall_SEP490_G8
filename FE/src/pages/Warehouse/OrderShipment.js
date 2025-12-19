@@ -31,7 +31,8 @@ import {
   CheckCircle as CheckIcon,
   Edit as EditIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Block as BlockIcon
 } from '@mui/icons-material';
 import { ToastNotification, PrimaryButton, SecondaryButton, ActionButton, Icon } from '../../components/common';
 import {
@@ -123,6 +124,8 @@ const OrderShipment = () => {
   const [pendingSaveItemId, setPendingSaveItemId] = useState(null);
   const [savingReasons, setSavingReasons] = useState({}); // Track which reasons are being saved
   const saveReasonTimeouts = React.useRef({}); // Store timeout refs for debounce
+  const [cancelDialog, setCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const loadOrderDetail = async () => {
     setLoading(true);
@@ -515,6 +518,41 @@ const OrderShipment = () => {
       });
     };
   }, []);
+
+  // =====================================================
+  // EVENT HANDLERS - Cancel Order
+  // =====================================================
+
+  const handleOpenCancelDialog = () => {
+    // Không cho phép hủy đơn đã giao
+    if (order.status === 'delivered') {
+      ToastNotification.warning('Không thể hủy đơn hàng đã được giao');
+      return;
+    }
+    setCancelDialog(true);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+
+    setUpdating(true);
+    try {
+      const response = await updateWarehouseOrderStatus(id, 'cancelled');
+      if (response.err === 0) {
+        ToastNotification.success('Đã hủy đơn hàng thành công!');
+        setCancelDialog(false);
+        setCancelReason('');
+        // Reload lại chi tiết đơn hàng
+        await loadOrderDetail();
+      } else {
+        ToastNotification.error(response.msg || 'Không thể hủy đơn hàng');
+      }
+    } catch (error) {
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   // =====================================================
   // EVENT HANDLERS - Status Update
@@ -1228,24 +1266,24 @@ const OrderShipment = () => {
           </Grid>
 
           {/* Right Column - Action */}
-          {order.status !== 'shipped' && (
-            <Grid item xs={12} lg={4}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" fontWeight={600} gutterBottom>
-                  Thao tác xuất kho
-                </Typography>
-                <Divider sx={{ my: 2 }} />
+          <Grid item xs={12} lg={4}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight={600} gutterBottom>
+                Thao tác xuất kho
+              </Typography>
+              <Divider sx={{ my: 2 }} />
 
-                {/* Hiển thị cảnh báo nếu đơn hàng đã hủy */}
-                {order.status === 'cancelled' && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    <Typography variant="body2" fontWeight={600}>
-                      Đơn hàng này đã bị hủy. Không thể thực hiện các thao tác xuất kho.
-                    </Typography>
-                  </Alert>
-                )}
+              {/* Hiển thị cảnh báo nếu đơn hàng đã hủy */}
+              {order.status === 'cancelled' && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  <Typography variant="body2" fontWeight={600}>
+                    Đơn hàng này đã bị hủy. Không thể thực hiện các thao tác xuất kho.
+                  </Typography>
+                </Alert>
+              )}
 
-                {/* Ngày giao dự kiến – chọn khi xác nhận đơn */}
+              {/* Ngày giao dự kiến – chọn khi xác nhận đơn */}
+              {order.status !== 'cancelled' && order.status !== 'delivered' && (
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Ngày giao dự kiến
@@ -1262,46 +1300,90 @@ const OrderShipment = () => {
                       min: getMinDeliveryDateTime()
                     }}
                     helperText={
-                      order.status === 'cancelled'
-                        ? 'Đơn hàng đã hủy'
-                        : order.status === 'pending'
+                      order.status === 'pending'
                         ? 'Bắt buộc chọn ngày giao trước khi xác nhận đơn hàng'
                         : 'Có thể điều chỉnh nếu cần'
                     }
                   />
                 </Box>
+              )}
 
-                {order.status === 'cancelled' ? (
-                  <Alert severity="warning">
-                    Đơn hàng đã bị hủy. Chỉ có thể xem thông tin, không thể thực hiện thao tác.
+              {order.status === 'cancelled' ? (
+                <Alert severity="warning">
+                  Đơn hàng đã bị hủy. Chỉ có thể xem thông tin, không thể thực hiện thao tác.
+                </Alert>
+              ) : order.status === 'delivered' ? (
+                <Alert severity="success">
+                  ✅ Đơn hàng đã được giao thành công vào {formatDate(order.updated_at)}
+                </Alert>
+              ) : canProceed ? (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
                   </Alert>
-                ) : canProceed ? (
-                  <>
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
-                    </Alert>
-                    <PrimaryButton
-                      fullWidth
-                      size="large"
-                      startIcon={getStatusActionIcon(next)}
-                      onClick={handleOpenConfirmDialog}
-                      sx={{ py: 1.5, fontWeight: 600 }}
-                    >
-                      {getStatusActionLabel(next)}
-                    </PrimaryButton>
-                  </>
-                ) : order.status === 'delivered' ? (
-                  <Alert severity="success">
-                    ✅ Đơn hàng đã được giao thành công vào {formatDate(order.updated_at)}
-                  </Alert>
-                ) : (
-                  <Alert severity="info">
+                  <PrimaryButton
+                    fullWidth
+                    size="large"
+                    startIcon={getStatusActionIcon(next)}
+                    onClick={handleOpenConfirmDialog}
+                    sx={{ py: 1.5, fontWeight: 600, mb: 2 }}
+                  >
+                    {getStatusActionLabel(next)}
+                  </PrimaryButton>
+
+                  {/* Nút hủy đơn hàng */}
+                  <SecondaryButton
+                    fullWidth
+                    size="large"
+                    startIcon={<BlockIcon />}
+                    onClick={handleOpenCancelDialog}
+                    sx={{
+                      py: 1.5,
+                      fontWeight: 600,
+                      color: 'error.main',
+                      borderColor: 'error.main',
+                      '&:hover': {
+                        borderColor: 'error.dark',
+                        bgcolor: 'error.light',
+                        color: 'error.dark'
+                      }
+                    }}
+                  >
+                    Hủy đơn hàng
+                  </SecondaryButton>
+                </>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
                     Đơn hàng đang trong quá trình xử lý
                   </Alert>
-                )}
-              </Paper>
-            </Grid>
-          )}
+
+                  {/* Nút hủy đơn hàng cho các trạng thái khác */}
+                  {order.status !== 'delivered' && (
+                    <SecondaryButton
+                      fullWidth
+                      size="large"
+                      startIcon={<BlockIcon />}
+                      onClick={handleOpenCancelDialog}
+                      sx={{
+                        py: 1.5,
+                        fontWeight: 600,
+                        color: 'error.main',
+                        borderColor: 'error.main',
+                        '&:hover': {
+                          borderColor: 'error.dark',
+                          bgcolor: 'error.light',
+                          color: 'error.dark'
+                        }
+                      }}
+                    >
+                      Hủy đơn hàng
+                    </SecondaryButton>
+                  )}
+                </>
+              )}
+            </Paper>
+          </Grid>
         </Grid>
       </Box>
 
@@ -1486,6 +1568,79 @@ const OrderShipment = () => {
             sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: 'success.dark' } }}
           >
             Xác nhận lưu
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Cancel Order Dialog */}
+      <Dialog
+        open={cancelDialog}
+        onClose={() => !updating && setCancelDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600} color="error">
+            Xác nhận hủy đơn hàng
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={600}>
+              ⚠️ Bạn có chắc chắn muốn hủy đơn hàng này?
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Hành động này không thể hoàn tác. Đơn hàng sẽ được đánh dấu là đã hủy và không thể tiếp tục xử lý.
+            </Typography>
+          </Alert>
+
+          <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1, mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Mã đơn hàng:
+            </Typography>
+            <Typography variant="body1" fontWeight={600}>
+              #ORD{String(order.order_id).padStart(3, '0')}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Cửa hàng: <strong>{order.store?.name}</strong>
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Trạng thái hiện tại: <strong>{statusLabels[order.status]}</strong>
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Tổng giá trị: <strong>{formatVnd(totalAmount)}</strong>
+            </Typography>
+          </Box>
+
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Lý do hủy đơn hàng (tùy chọn)"
+            placeholder="Nhập lý do hủy đơn hàng..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <SecondaryButton onClick={() => {
+            setCancelDialog(false);
+            setCancelReason('');
+          }} disabled={updating}>
+            Không hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleCancelOrder}
+            disabled={updating}
+            loading={updating}
+            startIcon={<BlockIcon />}
+            sx={{
+              bgcolor: 'error.main',
+              '&:hover': { bgcolor: 'error.dark' }
+            }}
+          >
+            Xác nhận hủy đơn
           </PrimaryButton>
         </DialogActions>
       </Dialog>
