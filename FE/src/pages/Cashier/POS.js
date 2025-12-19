@@ -912,23 +912,10 @@ const POS = () => {
     const handleQRPaymentSuccess = async (transactionId) => {
         ToastNotification.success('Thanh toán QR thành công!');
 
-        // Refresh shift data to update sales totals (wait a bit for backend to commit)
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await refreshOpenShift();
+        // Save customer info before clearing (for background refresh)
+        const customerToRefresh = selectedCustomer;
 
-        // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
-        if (selectedCustomer) {
-            try {
-                const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                if (customerRes && customerRes.err === 0 && customerRes.data) {
-                    ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
-                }
-            } catch (e) {
-                console.error('Error reloading customer after QR payment:', e);
-            }
-        }
-
-        // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách
+        // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách immediately
         setCart([]);
         setSelectedVoucher(null);
         setSelectedPaymentMethod(null);
@@ -942,6 +929,28 @@ const POS = () => {
         } catch (error) {
             console.error('Error clearing cart from localStorage:', error);
         }
+
+        // Refresh data in background (don't block UI)
+        setTimeout(async () => {
+            try {
+                // Refresh shift data to update sales totals
+                await refreshOpenShift();
+
+                // Reload customer data if needed (optional, run in background)
+                if (customerToRefresh) {
+                    try {
+                        const customerRes = await searchCustomerByPhone(customerToRefresh.phone);
+                        if (customerRes && customerRes.err === 0 && customerRes.data) {
+                            ToastNotification.info(`Điểm tích lũy mới: ${customerRes.data.loyalty_point || 0} điểm`);
+                        }
+                    } catch (e) {
+                        console.error('Error reloading customer after QR payment:', e);
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing data after payment:', error);
+            }
+        }, 500);
     };
 
     // Xử lý in hóa đơn
@@ -1031,30 +1040,38 @@ const POS = () => {
                     payment_id: res.data?.payment_id
                 }));
 
-                // Refresh shift data to update sales totals (wait a bit for backend to commit)
-                await new Promise(resolve => setTimeout(resolve, 300));
-                await refreshOpenShift();
+                // Save customer info before clearing (for background refresh)
+                const customerToRefresh = selectedCustomer;
 
-                // Sau khi thanh toán thành công, bỏ chọn khách hàng và làm mới dữ liệu
-                if (selectedCustomer) {
-                    try {
-                        const customerRes = await searchCustomerByPhone(selectedCustomer.phone);
-                        if (customerRes && customerRes.err === 0 && customerRes.data) {
-                            // Có thể dùng dữ liệu mới nếu cần hiển thị ở nơi khác
-                            console.log('Updated customer loyalty:', customerRes.data.loyalty_point);
-                        }
-                    } catch (e) {
-                        console.error('Error reloading customer after cash payment:', e);
-                    }
-                }
-
-                // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách
+                // Clear cart, voucher, phương thức thanh toán và bỏ chọn khách immediately
                 setCart([]);
                 setSelectedVoucher(null);
                 setSelectedPaymentMethod(null);
                 setSelectedCustomer(null);
                 setCustomerPhone('');
                 setSearchResults([]);
+
+                // Refresh data in background (don't block UI)
+                setTimeout(async () => {
+                    try {
+                        // Refresh shift data to update sales totals
+                        await refreshOpenShift();
+
+                        // Reload customer data if needed (optional, run in background)
+                        if (customerToRefresh) {
+                            try {
+                                const customerRes = await searchCustomerByPhone(customerToRefresh.phone);
+                                if (customerRes && customerRes.err === 0 && customerRes.data) {
+                                    console.log('Updated customer loyalty:', customerRes.data.loyalty_point);
+                                }
+                            } catch (e) {
+                                console.error('Error reloading customer after cash payment:', e);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error refreshing data after payment:', error);
+                    }
+                }, 500);
             } else {
                 ToastNotification.error(res?.msg || 'Thanh toán thất bại');
             }

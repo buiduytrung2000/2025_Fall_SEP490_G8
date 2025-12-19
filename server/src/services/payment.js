@@ -214,18 +214,30 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
                 await customer.update({
                     loyalty_point: newPoints
                 }, { transaction });
-
-                // Auto-generate vouchers based on new loyalty points
-                try {
-                    await customerVoucherService.autoGenerateVouchersForCustomer(customer_id, newPoints);
-                } catch (voucherError) {
-                    console.error('Error auto-generating vouchers:', voucherError);
-                    // Don't fail the payment if voucher generation fails
-                }
             }
         }
 
         await transaction.commit();
+
+        // Auto-generate vouchers based on new loyalty points (run after commit to avoid blocking payment)
+        if (customer_id) {
+            try {
+                const customer = await db.Customer.findByPk(customer_id, {
+                    attributes: ['loyalty_point']
+                });
+                if (customer) {
+                    // Run voucher generation in background (don't await to avoid blocking response)
+                    customerVoucherService.autoGenerateVouchersForCustomer(customer_id, customer.loyalty_point || 0, store_id)
+                        .catch(voucherError => {
+                            console.error('Error auto-generating vouchers (background):', voucherError);
+                            // Don't fail the payment if voucher generation fails
+                        });
+                }
+            } catch (voucherError) {
+                console.error('Error auto-generating vouchers:', voucherError);
+                // Don't fail the payment if voucher generation fails
+            }
+        }
 
         // Fetch complete transaction with items
         const completeTransaction = await db.Transaction.findOne({
@@ -765,14 +777,31 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
                 await customer.update({
                     loyalty_point: newPoints
                 }, { transaction });
-
-                // Auto-generate vouchers based on new loyalty points
-                const customerVoucherService = require('./customerVoucher');
-                await customerVoucherService.autoGenerateVouchersForCustomer(transactionRecord.customer_id, newPoints);
             }
         }
 
         await transaction.commit();
+
+        // Auto-generate vouchers based on new loyalty points (run after commit to avoid blocking payment)
+        if (transactionRecord.customer_id) {
+            try {
+                const customer = await db.Customer.findByPk(transactionRecord.customer_id, {
+                    attributes: ['loyalty_point']
+                });
+                if (customer) {
+                    // Run voucher generation in background (don't await to avoid blocking response)
+                    const customerVoucherService = require('./customerVoucher');
+                    customerVoucherService.autoGenerateVouchersForCustomer(transactionRecord.customer_id, customer.loyalty_point || 0, transactionRecord.store_id)
+                        .catch(voucherError => {
+                            console.error('Error auto-generating vouchers (background):', voucherError);
+                            // Don't fail the payment if voucher generation fails
+                        });
+                }
+            } catch (voucherError) {
+                console.error('Error auto-generating vouchers:', voucherError);
+                // Don't fail the payment if voucher generation fails
+            }
+        }
 
         resolve({
             err: 0,
