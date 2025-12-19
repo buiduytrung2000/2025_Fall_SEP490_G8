@@ -353,7 +353,13 @@ const ProductManagement = () => {
 
     const handleEditField = (e) => {
         const { name, value } = e.target;
-        setEditData(prev => ({ ...prev, [name]: value }));
+        // Xử lý đặc biệt cho conversion_factor: chỉ cho phép số nguyên
+        if (name === 'conversion_factor') {
+            const intValue = value === '' ? '' : Math.round(parseFloat(value) || 0);
+            setEditData(prev => ({ ...prev, [name]: intValue === 0 && value !== '0' ? '' : intValue }));
+        } else {
+            setEditData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSaveProduct = async (e) => {
@@ -365,7 +371,7 @@ const ProductManagement = () => {
             ToastNotification.error('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
             return;
         }
-        
+
         // Validate đơn vị và hệ số quy đổi khi thêm mới
         if (!isEditMode) {
             if (!editData.base_unit_id) {
@@ -397,7 +403,7 @@ const ProductManagement = () => {
                 description: editData.description?.trim() || null,
                 base_unit_id: editData.base_unit_id || null,
                 package_unit_id: editData.package_unit_id || null,
-                conversion_factor: editData.conversion_factor ? parseFloat(editData.conversion_factor) : null,
+                conversion_factor: editData.conversion_factor ? Math.round(parseFloat(editData.conversion_factor)) : null,
                 min_stock_level: editData.min_stock_level ? Number(editData.min_stock_level) : null,
                 reorder_point: editData.reorder_point ? Number(editData.reorder_point) : null,
                 is_active: editData.is_active !== undefined ? editData.is_active : true
@@ -1736,13 +1742,18 @@ const ProductManagement = () => {
                                 label={`Hệ số quy đổi${!isEditMode ? ' *' : ''}`}
                                 name="conversion_factor"
                                 type="number"
-                                inputProps={{ min: 0, step: 0.01 }}
-                                value={editData.conversion_factor}
+                                inputProps={{ min: 1, step: 1 }}
+                                value={editData.conversion_factor === '' || editData.conversion_factor === null || editData.conversion_factor === undefined
+                                    ? ''
+                                    : Math.round(parseFloat(editData.conversion_factor) || 0)}
                                 onChange={handleEditField}
                                 fullWidth
                                 margin="normal"
                                 required={!isEditMode}
-                                helperText="Số đơn vị lẻ trong 1 đơn vị lớn (ví dụ: 12 nếu 1 thùng = 12 chai)"
+                                disabled={isEditMode}
+                                helperText={isEditMode
+                                    ? "Không thể thay đổi hệ số quy đổi khi chỉnh sửa sản phẩm"
+                                    : "Số đơn vị lẻ trong 1 đơn vị lớn (ví dụ: 12 nếu 1 thùng = 12 chai)"}
                             />
                         )}
                         {!isEditMode && !editData.package_unit_id && (
