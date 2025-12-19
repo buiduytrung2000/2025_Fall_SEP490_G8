@@ -11,7 +11,8 @@ export const getAllWarehouseInventory = async (req, res) => {
             limit = 10, 
             categoryId, 
             status,
-            search 
+            search,
+            supplierId
         } = req.query;
 
         const response = await warehouseInventoryService.getAllWarehouseInventoryService({
@@ -19,7 +20,8 @@ export const getAllWarehouseInventory = async (req, res) => {
             limit: parseInt(limit),
             categoryId,
             status,
-            search
+            search,
+            supplierId: supplierId ? parseInt(supplierId) : undefined
         });
 
         return res.status(200).json(response);

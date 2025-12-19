@@ -120,6 +120,11 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             allowNull: true,
             comment: 'Số lượng đóng gói (ví dụ số thùng được xuất)'
+        },
+        discrepancy_reason: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: 'Lý do chênh lệch giữa số lượng giao và số lượng nhận thực tế'
         }
     }, {
         sequelize,

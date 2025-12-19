@@ -41,7 +41,7 @@ const buildPackageMetaMap = async (productIds = []) => {
 /**
  * Get all warehouse inventory with filters
  */
-export const getAllWarehouseInventoryService = async ({ page, limit, categoryId, status, search }) => {
+export const getAllWarehouseInventoryService = async ({ page, limit, categoryId, status, search, supplierId }) => {
     try {
         const offset = (page - 1) * limit;
 
@@ -71,7 +71,10 @@ export const getAllWarehouseInventoryService = async ({ page, limit, categoryId,
                     {
                         model: db.Supplier,
                         as: 'supplier',
-                        attributes: ['supplier_id', 'name', 'contact']
+                        attributes: ['supplier_id', 'name', 'contact'],
+                        ...(supplierId && {
+                            where: { supplier_id: supplierId }
+                        })
                     },
                     {
                         model: db.Unit,

@@ -27,9 +27,11 @@ import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Alert,
 import {
   getAllWarehouseInventory,
   adjustWarehouseStock,
-  createBatchStockCountReports
+  createBatchStockCountReports,
+  updateWarehouseInventorySettings
 } from '../../api/inventoryApi';
 import { createBatchWarehouseOrders } from '../../api/warehouseOrderApi';
+import { getAllSuppliers } from '../../api/supplierApi';
 
 // =====================================================
 // CONSTANTS
@@ -44,7 +46,7 @@ const statusColors = {
 
 const statusLabels = {
   normal: 'Đủ hàng',
-  low: 'Sắp hết',
+  low: 'Cần nhập hàng',
   critical: 'Gần hết',
   out_of_stock: 'Hết hàng'
 };
@@ -107,6 +109,38 @@ const getDisplaySubtotal = (item) => {
   return quantity * price;
 };
 
+// Quy đổi giá trị sang đơn vị lớn (thùng) nếu có package_conversion
+const convertToPackageUnit = (value, packageConversion) => {
+  if (!packageConversion || packageConversion <= 0) {
+    return value;
+  }
+  return value / packageConversion;
+};
+
+// Format giá trị min_stock_level và reorder_point theo đơn vị hiển thị
+const formatMinStockAndReorder = (item) => {
+  const minStock = Number(item?.min_stock_level) || 0;
+  const reorderPoint = Number(item?.reorder_point) || 0;
+
+  // Nếu có package_conversion thì quy đổi sang đơn vị lớn
+  if (item?.package_conversion && item.package_conversion > 0) {
+    const minStockInPackages = convertToPackageUnit(minStock, item.package_conversion);
+    const reorderPointInPackages = convertToPackageUnit(reorderPoint, item.package_conversion);
+    return {
+      minStock: formatQty(minStockInPackages),
+      reorderPoint: formatQty(reorderPointInPackages),
+      unit: item.package_unit_label || 'Thùng'
+    };
+  }
+
+  // Nếu không có đơn vị lớn thì hiển thị theo đơn vị cơ sở
+  return {
+    minStock: formatQty(minStock),
+    reorderPoint: formatQty(reorderPoint),
+    unit: item?.product?.base_unit_label || ''
+  };
+};
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -123,6 +157,8 @@ const InventoryList = () => {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [suppliers, setSuppliers] = useState([]);
 
   // =============================
   // Selection & Create Order
@@ -142,7 +178,23 @@ const InventoryList = () => {
   const [stockCountItems, setStockCountItems] = useState([]);
   const [processingStockCount, setProcessingStockCount] = useState(false);
 
-  const handleSelectProduct = (item) => {
+  // =============================
+  // Edit Inventory Settings
+  // =============================
+  const [editSettingsDialog, setEditSettingsDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    min_stock_level: '',
+    reorder_point: ''
+  });
+  const [updatingSettings, setUpdatingSettings] = useState(false);
+
+  const handleSelectProduct = (item, event) => {
+    // Ngăn mở dialog khi click vào checkbox
+    if (event && (event.target.type === 'checkbox' || event.target.closest('input[type="checkbox"]'))) {
+      return;
+    }
+
     const id = item.warehouse_inventory_id || item.inventory_id;
     const exists = selectedProducts.some(p => (p.warehouse_inventory_id || p.inventory_id) === id);
     const next = exists
@@ -150,6 +202,102 @@ const InventoryList = () => {
       : [...selectedProducts, item];
     setSelectedProducts(next);
     setSelectAll(next.length > 0 && next.length === inventory.length);
+  };
+
+  const handleOpenEditSettings = (item, event) => {
+    // Ngăn mở dialog khi đang trong dialog khác
+    if (createOrderDialog || stockCountDialog) {
+      return;
+    }
+
+    if (event) {
+      event.stopPropagation();
+    }
+
+    setEditingItem(item);
+
+    // Tính toán giá trị hiển thị theo đơn vị lớn nếu có
+    const hasPackageUnit = item?.package_conversion && item.package_conversion > 0;
+    const minStock = Number(item?.min_stock_level) || 0;
+    const reorderPoint = Number(item?.reorder_point) || 0;
+
+    if (hasPackageUnit) {
+      setEditFormData({
+        min_stock_level: formatQty(convertToPackageUnit(minStock, item.package_conversion)),
+        reorder_point: formatQty(convertToPackageUnit(reorderPoint, item.package_conversion))
+      });
+    } else {
+      setEditFormData({
+        min_stock_level: minStock.toString(),
+        reorder_point: reorderPoint.toString()
+      });
+    }
+
+    setEditSettingsDialog(true);
+  };
+
+  const handleCloseEditSettings = () => {
+    setEditSettingsDialog(false);
+    setEditingItem(null);
+    setEditFormData({ min_stock_level: '', reorder_point: '' });
+  };
+
+  const handleEditFormChange = (field, value) => {
+    // Chỉ cho phép số
+    const numValue = value === '' ? '' : Math.max(0, Number(value));
+    if (value !== '' && isNaN(numValue)) return;
+
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: numValue === '' ? '' : numValue.toString()
+    }));
+  };
+
+  const handleSubmitEditSettings = async () => {
+    if (!editingItem) return;
+
+    const minStockInput = editFormData.min_stock_level === '' ? 0 : Number(editFormData.min_stock_level);
+    const reorderPointInput = editFormData.reorder_point === '' ? 0 : Number(editFormData.reorder_point);
+
+    if (minStockInput < 0 || reorderPointInput < 0) {
+      ToastNotification.error('Giá trị không được âm');
+      return;
+    }
+
+    if (reorderPointInput < minStockInput) {
+      ToastNotification.error('Điểm đặt hàng phải lớn hơn hoặc bằng tồn tối thiểu');
+      return;
+    }
+
+    setUpdatingSettings(true);
+    try {
+      // Quy đổi về đơn vị cơ sở nếu đang nhập theo đơn vị lớn
+      const hasPackageUnit = editingItem?.package_conversion && editingItem.package_conversion > 0;
+      const minStockLevel = hasPackageUnit
+        ? Math.round(minStockInput * editingItem.package_conversion)
+        : Math.round(minStockInput);
+      const reorderPoint = hasPackageUnit
+        ? Math.round(reorderPointInput * editingItem.package_conversion)
+        : Math.round(reorderPointInput);
+
+      const inventoryId = editingItem.warehouse_inventory_id || editingItem.inventory_id;
+      const response = await updateWarehouseInventorySettings(inventoryId, {
+        min_stock_level: minStockLevel,
+        reorder_point: reorderPoint
+      });
+
+      if (response.err === 0) {
+        ToastNotification.success('Đã cập nhật thành công');
+        handleCloseEditSettings();
+        loadInventory();
+      } else {
+        ToastNotification.error(response.msg || 'Không thể cập nhật');
+      }
+    } catch (error) {
+      ToastNotification.error('Lỗi kết nối: ' + error.message);
+    } finally {
+      setUpdatingSettings(false);
+    }
   };
 
   const handleSelectAll = () => {
@@ -695,7 +843,8 @@ const InventoryList = () => {
         page: page + 1,
         limit: rowsPerPage,
         status: statusFilter,
-        search: debouncedSearch
+        search: debouncedSearch,
+        supplierId: supplierFilter || undefined
       });
 
       if (response.err === 0) {
@@ -714,7 +863,22 @@ const InventoryList = () => {
   useEffect(() => {
     loadInventory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, statusFilter, debouncedSearch]);
+  }, [page, rowsPerPage, statusFilter, debouncedSearch, supplierFilter]);
+
+  // Load suppliers list
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      try {
+        const response = await getAllSuppliers();
+        if (response.err === 0 && response.data) {
+          setSuppliers(response.data);
+        }
+      } catch (error) {
+        console.error('Error loading suppliers:', error);
+      }
+    };
+    loadSuppliers();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -800,9 +964,27 @@ const InventoryList = () => {
             >
               <MenuItem value="">Tất cả</MenuItem>
               <MenuItem value="normal">Đủ hàng</MenuItem>
-              <MenuItem value="low">Sắp hết</MenuItem>
+              <MenuItem value="low">Cần nhập hàng</MenuItem>
               <MenuItem value="critical">Gần hết</MenuItem>
               <MenuItem value="out_of_stock">Hết hàng</MenuItem>
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Nhà cung cấp"
+              value={supplierFilter}
+              onChange={(e) => {
+                setSupplierFilter(e.target.value);
+                setPage(0);
+              }}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="">Tất cả</MenuItem>
+              {suppliers.map((supplier) => (
+                <MenuItem key={supplier.supplier_id} value={supplier.supplier_id}>
+                  {supplier.name}
+                </MenuItem>
+              ))}
             </TextField>
           </Stack>
         </Stack>
@@ -827,21 +1009,22 @@ const InventoryList = () => {
                 <TableCell sx={{ fontWeight: 700 }}>Tên sản phẩm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Danh mục</TableCell>
                 {/* <TableCell sx={{ fontWeight: 700 }} align="right">Tồn kho (lẻ)</TableCell> */}
-                <TableCell sx={{ fontWeight: 700 }} align="right">Quy đổi (thùng)</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Số lượng tồn kho</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="right">Tồn tối thiểu / Điểm đặt hàng</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">Trạng thái</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="center" width={100}>Thao tác</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 5 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : inventory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                  <TableCell colSpan={10} align="center" sx={{ py: 5 }}>
                     <Alert severity="info">Không có dữ liệu</Alert>
                   </TableCell>
                 </TableRow>
@@ -856,9 +1039,17 @@ const InventoryList = () => {
                       role="checkbox"
                       aria-checked={selected}
                       selected={selected}
+                      sx={{ cursor: 'pointer' }}
                     >
-                      <TableCell padding="checkbox">
-                        <Checkbox color="primary" checked={selected} />
+                      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          color="primary"
+                          checked={selected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleSelectProduct(item, e);
+                          }}
+                        />
                       </TableCell>
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                       <TableCell>
@@ -893,9 +1084,15 @@ const InventoryList = () => {
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Typography variant="body2" color="text.secondary">
-                          {item.min_stock_level} / {item.reorder_point}
-                        </Typography>
+                        {(() => {
+                          const formatted = formatMinStockAndReorder(item);
+                          return (
+                            <Typography variant="body2" color="text.secondary">
+                              {formatted.minStock} / {formatted.reorderPoint}
+                              {formatted.unit && ` ${formatted.unit}`}
+                            </Typography>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="center">
                         <Chip
@@ -903,6 +1100,18 @@ const InventoryList = () => {
                           icon={statusIcons[item.stockStatus]}
                           label={statusLabels[item.stockStatus]}
                           color={statusColors[item.stockStatus]}
+                        />
+                      </TableCell>
+                      <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                        <ActionButton
+                          icon={<Icon name="Edit" />}
+                          action="edit"
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditSettings(item, e);
+                          }}
+                          title="Chỉnh sửa tồn tối thiểu và điểm đặt hàng"
                         />
                       </TableCell>
                     </TableRow>
@@ -1254,6 +1463,87 @@ const InventoryList = () => {
             loading={processingStockCount}
           >
             Xác nhận kiểm kê
+          </PrimaryButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Inventory Settings Dialog */}
+      <Dialog open={editSettingsDialog} onClose={handleCloseEditSettings} fullWidth maxWidth="sm">
+        <DialogTitle>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Icon name="Edit" />
+            <Typography variant="h6">Chỉnh sửa Cài đặt Tồn kho</Typography>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          {editingItem && (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <Paper sx={{ p: 2, bgcolor: 'grey.50' }} variant="outlined">
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Sản phẩm
+                </Typography>
+                <Typography variant="body1" fontWeight={600}>
+                  {editingItem.product?.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  SKU: {editingItem.product?.sku}
+                </Typography>
+              </Paper>
+
+              <Divider />
+
+              <TextField
+                fullWidth
+                label="Tồn tối thiểu"
+                type="number"
+                value={editFormData.min_stock_level}
+                onChange={(e) => handleEditFormChange('min_stock_level', e.target.value)}
+                InputProps={{
+                  endAdornment: editingItem?.package_conversion && editingItem.package_conversion > 0
+                    ? <InputAdornment position="end">{editingItem.package_unit_label || 'Thùng'}</InputAdornment>
+                    : <InputAdornment position="end">{editingItem?.product?.base_unit_label || ''}</InputAdornment>
+                }}
+                helperText={
+                  editingItem?.package_conversion && editingItem.package_conversion > 0
+                    ? `Giá trị theo đơn vị lớn (${editingItem.package_unit_label || 'Thùng'})`
+                    : `Giá trị theo đơn vị cơ sở (${editingItem?.product?.base_unit_label || ''})`
+                }
+                inputProps={{ min: 0, step: 1 }}
+              />
+
+              <TextField
+                fullWidth
+                label="Điểm đặt hàng"
+                type="number"
+                value={editFormData.reorder_point}
+                onChange={(e) => handleEditFormChange('reorder_point', e.target.value)}
+                InputProps={{
+                  endAdornment: editingItem?.package_conversion && editingItem.package_conversion > 0
+                    ? <InputAdornment position="end">{editingItem.package_unit_label || 'Thùng'}</InputAdornment>
+                    : <InputAdornment position="end">{editingItem?.product?.base_unit_label || ''}</InputAdornment>
+                }}
+                helperText={
+                  editingItem?.package_conversion && editingItem.package_conversion > 0
+                    ? `Giá trị theo đơn vị lớn (${editingItem.package_unit_label || 'Thùng'}). Phải ≥ Tồn tối thiểu`
+                    : `Giá trị theo đơn vị cơ sở (${editingItem?.product?.base_unit_label || ''}). Phải ≥ Tồn tối thiểu`
+                }
+                inputProps={{ min: 0, step: 1 }}
+              />
+
+
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <SecondaryButton onClick={handleCloseEditSettings} disabled={updatingSettings}>
+            Hủy
+          </SecondaryButton>
+          <PrimaryButton
+            onClick={handleSubmitEditSettings}
+            disabled={updatingSettings}
+            loading={updatingSettings}
+          >
+            Lưu thay đổi
           </PrimaryButton>
         </DialogActions>
       </Dialog>

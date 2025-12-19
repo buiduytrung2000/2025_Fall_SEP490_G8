@@ -52,4 +52,7 @@ router.patch('/:orderId/delivery', warehouseOrderController.updateExpectedDelive
 // Update order item actual quantity
 router.patch('/order-item/:orderItemId/quantity', warehouseOrderController.updateOrderItemQuantity);
 
+// Update order item discrepancy reason
+router.patch('/order-item/:orderItemId/discrepancy-reason', warehouseOrderController.updateOrderItemDiscrepancyReason);
+
 export default router;

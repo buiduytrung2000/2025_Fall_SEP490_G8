@@ -1670,13 +1670,41 @@ const POS = () => {
                                         >
                                             -
                                         </Button>
-                                        <Typography
-                                            variant="body2"
-                                            fontWeight="bold"
-                                            sx={{ minWidth: '24px', textAlign: 'center' }}
-                                        >
-                                            {item.qty}
-                                        </Typography>
+                                        <TextField
+                                            type="number"
+                                            value={item.qty}
+                                            onChange={(e) => {
+                                                const newValue = parseInt(e.target.value) || 0;
+                                                if (newValue >= 0) {
+                                                    handleUpdateQty(item.id, newValue);
+                                                }
+                                            }}
+                                            onBlur={(e) => {
+                                                const newValue = parseInt(e.target.value) || 0;
+                                                if (newValue <= 0) {
+                                                    handleUpdateQty(item.id, 1);
+                                                } else if (item.stock !== undefined && newValue > item.stock) {
+                                                    handleUpdateQty(item.id, item.stock);
+                                                }
+                                            }}
+                                            inputProps={{
+                                                min: 1,
+                                                max: item.stock !== undefined ? item.stock : undefined,
+                                                style: { textAlign: 'center', padding: '4px 8px' }
+                                            }}
+                                            sx={{
+                                                width: '60px',
+                                                '& .MuiOutlinedInput-root': {
+                                                    height: '28px',
+                                                    '& input': {
+                                                        padding: '4px 8px',
+                                                        fontSize: '0.875rem',
+                                                        fontWeight: 'bold'
+                                                    }
+                                                }
+                                            }}
+                                            size="small"
+                                        />
                                         <Button
                                             variant="outlined"
                                             size="small"

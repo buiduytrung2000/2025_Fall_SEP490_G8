@@ -248,12 +248,13 @@ export async function adjustStock(inventoryId, { adjustment, reason }) {
  * Get all warehouse inventory with filters
  * For Warehouse staff
  */
-export async function getAllWarehouseInventory({ page = 1, limit = 10, categoryId, status, search } = {}) {
+export async function getAllWarehouseInventory({ page = 1, limit = 10, categoryId, status, search, supplierId } = {}) {
     try {
         const params = new URLSearchParams({ page, limit });
         if (categoryId) params.append('categoryId', categoryId);
         if (status) params.append('status', status);
         if (search) params.append('search', search);
+        if (supplierId) params.append('supplierId', supplierId);
 
         const res = await fetch(`${API_BASE}/warehouse-inventory?${params}`, {
             method: 'GET',

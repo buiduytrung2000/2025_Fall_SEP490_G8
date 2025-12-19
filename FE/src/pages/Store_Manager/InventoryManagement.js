@@ -29,7 +29,7 @@ import {
   InputLabel,
   Select
 } from '@mui/material';
-import { Refresh, Add, Visibility } from '@mui/icons-material';
+import { Refresh, Add, Edit } from '@mui/icons-material';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
 import { PrimaryButton, SecondaryButton, ActionButton, ToastNotification, Icon } from '../../components/common';
@@ -46,8 +46,7 @@ const oldColumns = [
   { key: 'category', label: 'Danh mục' },
   { key: 'price', label: 'Giá nhập/thùng' },
   { key: 'unitPrice', label: 'Giá lẻ/đơn vị' },
-  { key: 'stock', label: 'Tồn kho' },
-  { key: 'minStock', label: 'Tồn tối thiểu' },
+  { key: 'minStock', label: 'Tồn tối thiểu/Điểm đặt hàng' },
   { key: 'status', label: 'Trạng thái' }
 ];
 
@@ -55,11 +54,82 @@ const formatVnd = (n) => n.toLocaleString('vi-VN');
 
 const emptyLine = () => ({ sku: '', name: '', qty: 1, price: 0 });
 
+// Chuyển đổi giá trị sang đơn vị lớn (thùng) nếu có package_conversion
+const convertToPackageUnit = (value, packageConversion) => {
+  if (!packageConversion || packageConversion <= 0) {
+    return value;
+  }
+  return value / packageConversion;
+};
+
+// Format số lượng với 2 chữ số thập phân
+const formatQty = (value) =>
+  Number(value ?? 0).toLocaleString('vi-VN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0
+  });
+
+// Status constants - tham khảo từ InventoryList.js
+const statusColors = {
+  normal: 'success',
+  low: 'warning',
+  critical: 'error',
+  out_of_stock: 'default'
+};
+
+const statusLabels = {
+  normal: 'Đủ hàng',
+  low: 'Cần nhập hàng',
+  critical: 'Gần hết',
+  out_of_stock: 'Hết hàng'
+};
+
+const statusIcons = {
+  normal: <Icon name="CheckCircle" fontSize="small" />,
+  low: <Icon name="Warning" fontSize="small" />,
+  critical: <Icon name="Error" fontSize="small" />,
+  out_of_stock: <Icon name="Error" fontSize="small" />
+};
+
+// Hàm tính toán trạng thái tồn kho - so sánh với tồn đơn vị lớn
+// Logic: Nếu vượt ngưỡng điểm đặt hàng thì là đủ hàng
+// minStock và reorderPoint là giá trị base_quantity, cần chuyển sang đơn vị lớn để so sánh
+const getStockStatus = (stock, minStock, reorderPoint, packageConversion) => {
+  // Chuyển tất cả sang đơn vị lớn để so sánh
+  const stockInPackage = convertToPackageUnit(Number(stock || 0), packageConversion);
+  const minStockInPackage = convertToPackageUnit(Number(minStock || 0), packageConversion);
+  const reorderPointInPackage = convertToPackageUnit(Number(reorderPoint || 0), packageConversion);
+
+  // Hết hàng
+  if (stockInPackage === 0) {
+    return 'out_of_stock';
+  }
+
+  // Nếu vượt ngưỡng điểm đặt hàng → Đủ hàng
+  if (reorderPointInPackage > 0 && stockInPackage > reorderPointInPackage) {
+    return 'normal';
+  }
+
+  // Nếu không có điểm đặt hàng, dùng minStock * 1.5 làm ngưỡng
+  if (reorderPointInPackage === 0 && stockInPackage > minStockInPackage * 1.5) {
+    return 'normal';
+  }
+
+  // Nếu <= điểm đặt hàng nhưng > tồn tối thiểu → Cần nhập hàng
+  if (stockInPackage > minStockInPackage) {
+    return 'low';
+  }
+
+  // Nếu <= tồn tối thiểu → Gần hết
+  return 'critical';
+};
+
 const InventoryManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(new Set());
@@ -67,8 +137,9 @@ const InventoryManagement = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [detailMinStock, setDetailMinStock] = useState('');
+  const [detailReorderPoint, setDetailReorderPoint] = useState('');
   const [detailSaving, setDetailSaving] = useState(false);
-  
+
   // Khôi phục dữ liệu đơn nhập từ localStorage khi component mount (chỉ đọc một lần)
   const getInitialOrderData = (() => {
     let cached = null;
@@ -108,12 +179,12 @@ const InventoryManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [perishable, setPerishable] = useState(initialData.perishable);
   const [storageType, setStorageType] = useState(initialData.storageType || 'stored'); // 'stored' hoặc 'direct'
-  
+
   // Active pricing rules map: product_id -> active rule
   const [activePricingRules, setActivePricingRules] = useState({});
   const skuOptions = useMemo(() => (data || []).map((i) => i.sku).filter(Boolean), [data]);
   const nameOptions = useMemo(() => (data || []).map((i) => i.name).filter(Boolean), [data]);
-  
+
   // Get store_id from localStorage or user context
   const getStoreId = () => {
     try {
@@ -135,7 +206,7 @@ const InventoryManagement = () => {
       // Get store_id from user if available, otherwise pass null to use user's store
       const items = await getStoreInventory(storeId);
       setData(items || []);
-      
+
       // Load active pricing rules for current store
       if (storeId) {
         try {
@@ -162,7 +233,7 @@ const InventoryManagement = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
-  
+
   // Lưu dữ liệu đơn nhập vào localStorage mỗi khi thay đổi
   useEffect(() => {
     try {
@@ -212,6 +283,17 @@ const InventoryManagement = () => {
       });
     }
 
+    if (statusFilter) {
+      list = list.filter((i) => {
+        const stock = Number(i.stock || 0);
+        const minStock = Number(i.min_stock_level || i.minStock || 0);
+        const reorderPoint = Number(i.reorder_point || i.reorderPoint || 0);
+        const packageConversion = Number(i.package_conversion || 0);
+        const stockStatus = getStockStatus(stock, minStock, reorderPoint, packageConversion);
+        return stockStatus === statusFilter;
+      });
+    }
+
     // sort by remaining ratio: stock / target (target = reorder_point || min*2 || 10)
     const ratio = (row) => {
       const stock = Number(row.stock || 0);
@@ -231,7 +313,7 @@ const InventoryManagement = () => {
       if (sa !== sb) return sa - sb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [data, query, categoryFilter]);
+  }, [data, query, categoryFilter, statusFilter]);
 
   const allVisibleIds = useMemo(() => filtered.map(rowId), [filtered]);
   const selectedCountInView = useMemo(() => allVisibleIds.filter(id => selected.has(id)).length, [allVisibleIds, selected]);
@@ -284,7 +366,7 @@ const InventoryManagement = () => {
       const row = filtered.find(r => rowId(r) === id) || data.find(r => rowId(r) === id);
       if (row) {
         const isPerishable = !!(row.is_perishable || row.product?.is_perishable);
-        
+
         // Kiểm tra xem đã có sản phẩm loại khác trong đơn chưa
         const currentLines = lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== ''));
         if (currentLines.length > 0) {
@@ -300,7 +382,7 @@ const InventoryManagement = () => {
             const otherIsPerishable = !!(invRow?.is_perishable || invRow?.product?.is_perishable);
             return otherIsPerishable !== isPerishable;
           });
-          
+
           if (hasOtherType) {
             ToastNotification.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
             // Không thêm sản phẩm này vào đơn
@@ -312,13 +394,13 @@ const InventoryManagement = () => {
             return;
           }
         }
-        
+
         const quantity = computeSuggestedQty(row);
         // Push into 'Tạo đơn hàng mới' draft instead of sending API immediately
         setLines(prev => {
           // Xóa các dòng trống trước khi thêm sản phẩm mới
           const filteredLines = prev.filter(l => !(l.sku === '' && l.name === ''));
-          
+
           const sku = row.sku || '';
           const name = row.name || '';
           // Tự động lấy giá nhập từ package_price (giá nhập/thùng)
@@ -388,7 +470,7 @@ const InventoryManagement = () => {
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography>{original.name}</Typography>
-            
+
           </Box>
         );
       },
@@ -403,12 +485,12 @@ const InventoryManagement = () => {
       header: 'Tồn (đơn vị lớn)',
       size: 120,
       Cell: ({ row }) => {
-        const stock = Number(row.original.stock || 0);
+        const baseQuantity = Number(row.original.base_quantity || row.original.stock || 0);
         const conv = Number(row.original.package_conversion || 0);
         if (!conv || conv <= 0) {
           return '-';
         }
-        const bigQty = Math.floor(stock / conv);
+        const bigQty = Math.floor(baseQuantity / conv);
         const unitLabel = row.original.package_unit || '';
         return `${bigQty} ${unitLabel}`.trim();
       },
@@ -419,16 +501,9 @@ const InventoryManagement = () => {
       header: 'Tồn (đơn vị nhỏ)',
       size: 120,
       Cell: ({ row }) => {
-        const stock = Number(row.original.stock || 0);
-        const conv = Number(row.original.package_conversion || 0);
-        if (!conv || conv <= 0) {
-          const baseUnitLabel = row.original.unit || '';
-          return `${stock} ${baseUnitLabel}`.trim();
-        }
-        const bigQty = Math.floor(stock / conv);
-        const smallQty = stock - bigQty * conv;
+        const baseQuantity = Number(row.original.base_quantity || row.original.stock || 0);
         const baseUnitLabel = row.original.unit || '';
-        return `${smallQty} ${baseUnitLabel}`.trim();
+        return `${baseQuantity} ${baseUnitLabel}`.trim();
       },
       enableColumnFilter: false,
     },
@@ -449,46 +524,44 @@ const InventoryManagement = () => {
       enableColumnFilter: false,
     },
     {
-      accessorKey: 'stock',
-      header: 'Tồn kho',
-      size: 70,
-      Cell: ({ row }) => {
-        const stock = row.original.stock || 0;
-        const minStock = row.original.min_stock_level || row.original.minStock || 0;
-        const isLow = stock <= minStock;
-        return (
-          <Typography
-            sx={{
-              fontWeight: isLow ? 700 : 400,
-              color: isLow ? '#dc2626' : 'inherit'
-            }}
-          >
-            {stock}
-          </Typography>
-        );
-      },
-      enableColumnFilter: false,
-    },
-    {
       accessorKey: 'min_stock_level',
-      header: 'Tồn tối thiểu',
-      size: 80,
-      Cell: ({ row }) => row.original.min_stock_level || row.original.minStock || 0,
+      header: 'Tồn tối thiểu/Điểm đặt hàng',
+      size: 120,
+      Cell: ({ row }) => {
+        const minStock = Number(row.original.min_stock_level || row.original.minStock || 0);
+        const reorderPoint = Number(row.original.reorder_point || row.original.reorderPoint || 0);
+        const packageConversion = Number(row.original.package_conversion || 0);
+
+        // Chuyển đổi sang đơn vị lớn nếu có package_conversion
+        if (packageConversion && packageConversion > 0) {
+          const minStockInPackage = convertToPackageUnit(minStock, packageConversion);
+          const reorderPointInPackage = convertToPackageUnit(reorderPoint, packageConversion);
+          const unitLabel = row.original.package_unit || 'Thùng';
+          return `${formatQty(minStockInPackage)} / ${formatQty(reorderPointInPackage)} ${unitLabel}`;
+        }
+
+        // Nếu không có đơn vị lớn thì hiển thị theo đơn vị cơ sở
+        const unitLabel = row.original.unit || '';
+        return `${formatQty(minStock)} / ${formatQty(reorderPoint)} ${unitLabel}`.trim();
+      },
       enableColumnFilter: false,
     },
     {
       accessorKey: 'status',
       header: 'Trạng thái',
-      size: 80,
+      size: 120,
       Cell: ({ row }) => {
         const stock = row.original.stock || 0;
         const minStock = row.original.min_stock_level || row.original.minStock || 0;
-        const isLow = stock <= minStock;
+        const reorderPoint = row.original.reorder_point || row.original.reorderPoint || 0;
+        const packageConversion = Number(row.original.package_conversion || 0);
+        const stockStatus = getStockStatus(stock, minStock, reorderPoint, packageConversion);
         return (
           <Chip
             size="small"
-            color={isLow ? 'warning' : 'success'}
-            label={isLow ? 'Thiếu hàng' : 'Ổn định'}
+            icon={statusIcons[stockStatus]}
+            label={statusLabels[stockStatus]}
+            color={statusColors[stockStatus]}
           />
         );
       },
@@ -501,18 +574,31 @@ const InventoryManagement = () => {
       Cell: ({ row }) => {
         const original = row.original;
         return (
-          <Tooltip title="Xem chi tiết">
+          <Tooltip title="Chỉnh sửa">
             <IconButton
               size="small"
               color="primary"
               onClick={() => {
                 setDetailItem(original);
-                const min = original.min_stock_level || original.minStock || 0;
-                setDetailMinStock(String(min));
+                const minStockBase = Number(original.min_stock_level || original.minStock || 0);
+                const reorderPointBase = Number(original.reorder_point || original.reorderPoint || 0);
+                const packageConversion = Number(original.package_conversion || 0);
+
+                // Chuyển đổi từ base_quantity sang đơn vị lớn để hiển thị
+                if (packageConversion && packageConversion > 0) {
+                  const minStockInPackage = convertToPackageUnit(minStockBase, packageConversion);
+                  const reorderPointInPackage = convertToPackageUnit(reorderPointBase, packageConversion);
+                  setDetailMinStock(formatQty(minStockInPackage));
+                  setDetailReorderPoint(formatQty(reorderPointInPackage));
+                } else {
+                  // Nếu không có đơn vị lớn thì hiển thị theo đơn vị cơ sở
+                  setDetailMinStock(String(minStockBase));
+                  setDetailReorderPoint(String(reorderPointBase));
+                }
                 setDetailOpen(true);
               }}
             >
-              <Visibility fontSize="small" />
+              <Edit fontSize="small" />
             </IconButton>
           </Tooltip>
         );
@@ -561,13 +647,13 @@ const InventoryManagement = () => {
         }
       }
       const updated = prev.map((l, i) => i === idx ? { ...l, [key]: val } : l);
-      
+
       // Khi nhập SKU hoặc tên hàng, kiểm tra loại hàng và validation, tự động điền giá nhập
       if (key === 'sku' || key === 'name') {
         const currentLine = updated[idx];
-        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') || 
-                       (currentLine.name && currentLine.name.trim() !== '');
-        
+        const hasData = (currentLine.sku && currentLine.sku.trim() !== '') ||
+          (currentLine.name && currentLine.name.trim() !== '');
+
         if (hasData) {
           // Kiểm tra xem sản phẩm này là hàng tươi sống hay không
           const sku = (currentLine.sku || '').trim();
@@ -578,7 +664,7 @@ const InventoryManagement = () => {
               (r.name && r.name === name)
           );
           const isPerishable = !!(invRow?.is_perishable || invRow?.product?.is_perishable);
-          
+
           // Tự động điền giá nhập từ package_price (giá nhập/thùng)
           if (invRow) {
             const packagePrice = Number(invRow.package_price ?? 0);
@@ -586,7 +672,7 @@ const InventoryManagement = () => {
               updated[idx].price = packagePrice;
             }
           }
-          
+
           // Kiểm tra xem có sản phẩm loại khác trong đơn không
           const otherLines = updated.filter((l, i) => i !== idx && ((l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')));
           const hasOtherType = otherLines.some((l) => {
@@ -601,13 +687,13 @@ const InventoryManagement = () => {
             const otherIsPerishable = !!(otherInvRow?.is_perishable || otherInvRow?.product?.is_perishable);
             return otherIsPerishable !== isPerishable;
           });
-          
+
           if (hasOtherType) {
             ToastNotification.error('Không được nhập chung hàng tươi sống với hàng thường. Vui lòng tách riêng thành 2 đơn hàng.');
             // Xóa dòng hiện tại vì không hợp lệ
             return updated.filter((_, i) => i !== idx);
           }
-          
+
           // Giữ dòng hiện tại và các dòng có dữ liệu, xóa các dòng trống khác
           const filtered = updated.filter((l, i) => {
             if (i === idx) return true; // Luôn giữ dòng đang được cập nhật
@@ -625,7 +711,7 @@ const InventoryManagement = () => {
   };
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.qty) * Number(l.price) || 0), 0), [lines]);
-  
+
   // Map SKU -> { supplierName, isPerishable } (từ dữ liệu tồn kho hiện có)
   const supplierBySku = useMemo(() => {
     const map = {};
@@ -663,7 +749,7 @@ const InventoryManagement = () => {
     });
     return Array.from(set);
   }, [lines, supplierBySku]);
-  
+
   // Đếm số sản phẩm hợp lệ trong đơn nhập (có SKU hoặc tên hàng)
   const orderItemsCount = useMemo(() => {
     return lines.filter(l => (l.sku && l.sku.trim() !== '') || (l.name && l.name.trim() !== '')).length;
@@ -672,16 +758,16 @@ const InventoryManagement = () => {
   // Kiểm tra xem có hàng tươi sống trong đơn không
   const hasPerishableInLines = useMemo(() => {
     return lines.some((line) => {
-        const sku = (line.sku || '').trim();
-        const name = (line.name || '').trim();
-        if (!sku && !name) return false;
-        const invRow = data.find(
-          (row) =>
-            (row.sku && row.sku === sku) ||
-            (row.name && row.name === name)
-        );
-        return !!invRow?.is_perishable;
-      });
+      const sku = (line.sku || '').trim();
+      const name = (line.name || '').trim();
+      if (!sku && !name) return false;
+      const invRow = data.find(
+        (row) =>
+          (row.sku && row.sku === sku) ||
+          (row.name && row.name === name)
+      );
+      return !!invRow?.is_perishable;
+    });
   }, [lines, data]);
 
   // Kiểm tra xem có hàng thường trong đơn không
@@ -720,10 +806,10 @@ const InventoryManagement = () => {
   }, [hasPerishableInLines, hasNonPerishableInLines]);
 
   const handleCreateOrder = async () => {
-      if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
-        ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
-        return;
-      }
+    if (lines.length === 0 || lines.every(l => !l.sku && !l.name)) {
+      ToastNotification.error('Vui lòng thêm ít nhất một sản phẩm vào đơn hàng');
+      return;
+    }
     if (!target || target.trim() === '') {
       ToastNotification.error('Vui lòng nhập tên kho nhận hàng');
       return;
@@ -813,7 +899,7 @@ const InventoryManagement = () => {
       };
 
       const result = await createStoreOrder(payload);
-      
+
       if (result.err === 0) {
         ToastNotification.success('Tạo đơn hàng thành công!');
         // Reset đơn nhập
@@ -845,41 +931,67 @@ const InventoryManagement = () => {
     if (!detailItem) return;
     // Chuẩn hoá inventory_id sang số để tránh gửi sai lên server (gây Missing inventory_id)
     const inventoryIdNum = Number(detailItem.inventory_id);
-    const parsedMin = parseInt(detailMinStock, 10);
-    if (isNaN(parsedMin) || parsedMin < 0) {
-      ToastNotification.error('Tồn tối thiểu phải là số nguyên không âm');
+    const packageConversion = Number(detailItem.package_conversion || 0);
+
+    // Giá trị nhập vào là theo đơn vị lớn (thùng)
+    const parsedMinInput = parseFloat(detailMinStock);
+    const parsedReorderInput = parseFloat(detailReorderPoint);
+
+    if (isNaN(parsedMinInput) || parsedMinInput < 0) {
+      ToastNotification.error('Tồn tối thiểu phải là số không âm');
       return;
     }
-    
+
+    if (isNaN(parsedReorderInput) || parsedReorderInput < 0) {
+      ToastNotification.error('Điểm đặt hàng phải là số không âm');
+      return;
+    }
+
+    if (parsedReorderInput < parsedMinInput) {
+      ToastNotification.error('Điểm đặt hàng phải lớn hơn hoặc bằng Tồn tối thiểu');
+      return;
+    }
+
     // Kiểm tra nếu inventory_id không hợp lệ (null/undefined/NaN/<=0)
     if (!Number.isInteger(inventoryIdNum) || inventoryIdNum <= 0) {
       ToastNotification.error('Không thể cập nhật: Sản phẩm chưa được đồng bộ tồn kho tại cửa hàng này');
       return;
     }
-    
+
+    // Chuyển đổi từ đơn vị lớn sang base_quantity (đơn vị cơ sở)
+    let minStockBase, reorderPointBase;
+    if (packageConversion && packageConversion > 0) {
+      // Nhân với package_conversion để chuyển về đơn vị cơ sở
+      minStockBase = Math.round(parsedMinInput * packageConversion);
+      reorderPointBase = Math.round(parsedReorderInput * packageConversion);
+    } else {
+      // Nếu không có đơn vị lớn thì giữ nguyên
+      minStockBase = Math.round(parsedMinInput);
+      reorderPointBase = Math.round(parsedReorderInput);
+    }
+
     setDetailSaving(true);
     try {
       const currentStock = Number(detailItem.stock || 0);
-      const currentReorder = Number(detailItem.reorder_point || detailItem.reorderPoint || 0);
-      const res = await updateInventoryStock(inventoryIdNum, currentStock, parsedMin, currentReorder);
+      const res = await updateInventoryStock(inventoryIdNum, currentStock, minStockBase, reorderPointBase);
       if (res && res.err === 0) {
-        ToastNotification.success('Cập nhật tồn tối thiểu thành công');
+        ToastNotification.success('Cập nhật cài đặt tồn kho thành công');
         // Cập nhật lại data tại chỗ
         setData(prev =>
           prev.map(it =>
             (Number(it.inventory_id) === inventoryIdNum)
-              ? { ...it, min_stock_level: parsedMin }
+              ? { ...it, min_stock_level: minStockBase, reorder_point: reorderPointBase }
               : it
           )
         );
         setDetailOpen(false);
         setDetailItem(null);
       } else {
-        ToastNotification.error(res?.msg || 'Không thể cập nhật tồn tối thiểu');
+        ToastNotification.error(res?.msg || 'Không thể cập nhật cài đặt tồn kho');
       }
     } catch (error) {
-      console.error('Error updating min_stock_level:', error);
-      ToastNotification.error('Lỗi khi cập nhật tồn tối thiểu: ' + error.message);
+      console.error('Error updating inventory settings:', error);
+      ToastNotification.error('Lỗi khi cập nhật cài đặt tồn kho: ' + error.message);
     } finally {
       setDetailSaving(false);
     }
@@ -887,11 +999,11 @@ const InventoryManagement = () => {
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
-        alignItems: { xs: 'flex-start', sm: 'center' }, 
-        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        justifyContent: 'space-between',
         mb: 2,
         gap: 2
       }}>
@@ -910,12 +1022,12 @@ const InventoryManagement = () => {
                 color="primary"
                 size={isMobile ? 'small' : 'medium'}
                 onClick={() => {
-                if (selected.size === 0 && orderItemsCount === 0) {
-                  ToastNotification.warning('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
-                  return;
-                }
-                setOpenCreateOrderModal(true);
-              }}
+                  if (selected.size === 0 && orderItemsCount === 0) {
+                    ToastNotification.warning('Vui lòng chọn ít nhất một sản phẩm trước khi lên đơn');
+                    return;
+                  }
+                  setOpenCreateOrderModal(true);
+                }}
               >
                 Lên đơn nhập {orderItemsCount > 0 ? `(${orderItemsCount})` : ''}
               </PrimaryButton>
@@ -959,6 +1071,22 @@ const InventoryManagement = () => {
                   {cat}
                 </MenuItem>
               ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>Trạng thái</InputLabel>
+            <Select
+              value={statusFilter}
+              label="Trạng thái"
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>Tất cả</em>
+              </MenuItem>
+              <MenuItem value="normal">Đủ hàng</MenuItem>
+              <MenuItem value="low">Cần nhập hàng</MenuItem>
+              <MenuItem value="critical">Gần hết</MenuItem>
+              <MenuItem value="out_of_stock">Hết hàng</MenuItem>
             </Select>
           </FormControl>
         </Box>
@@ -1009,7 +1137,7 @@ const InventoryManagement = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Chỉnh sửa tồn kho tối thiểu</DialogTitle>
+        <DialogTitle>Chỉnh sửa cài đặt tồn kho</DialogTitle>
         <DialogContent dividers>
           {detailItem && (
             <Stack spacing={2} sx={{ mt: 1 }}>
@@ -1076,9 +1204,37 @@ const InventoryManagement = () => {
                 fullWidth
                 value={detailMinStock}
                 onChange={(e) => setDetailMinStock(e.target.value)}
-                inputProps={{ min: 0 }}
-                helperText="Nhập số lượng tối thiểu cần duy trì tại cửa hàng"
+                inputProps={{ min: 0, step: 0.01 }}
+                InputProps={{
+                  endAdornment: detailItem?.package_conversion && detailItem.package_conversion > 0
+                    ? <InputAdornment position="end">{detailItem.package_unit || 'Thùng'}</InputAdornment>
+                    : <InputAdornment position="end">{detailItem?.unit || ''}</InputAdornment>
+                }}
+                helperText={
+                  detailItem?.package_conversion && detailItem.package_conversion > 0
+                    ? `Nhập số lượng tối thiểu theo đơn vị lớn (${detailItem.package_unit || 'Thùng'}). Sẽ tự động chuyển đổi sang đơn vị cơ sở khi lưu.`
+                    : 'Nhập số lượng tối thiểu cần duy trì tại cửa hàng'
+                }
                 focused
+              />
+              <TextField
+                label="Điểm đặt hàng"
+                size="small"
+                type="number"
+                fullWidth
+                value={detailReorderPoint}
+                onChange={(e) => setDetailReorderPoint(e.target.value)}
+                inputProps={{ min: 0, step: 0.01 }}
+                InputProps={{
+                  endAdornment: detailItem?.package_conversion && detailItem.package_conversion > 0
+                    ? <InputAdornment position="end">{detailItem.package_unit || 'Thùng'}</InputAdornment>
+                    : <InputAdornment position="end">{detailItem?.unit || ''}</InputAdornment>
+                }}
+                helperText={
+                  detailItem?.package_conversion && detailItem.package_conversion > 0
+                    ? `Nhập số lượng điểm đặt hàng theo đơn vị lớn (${detailItem.package_unit || 'Thùng'}). Phải ≥ Tồn tối thiểu. Sẽ tự động chuyển đổi sang đơn vị cơ sở khi lưu.`
+                    : 'Nhập số lượng để kích hoạt đặt hàng (phải ≥ Tồn tối thiểu)'
+                }
               />
             </Stack>
           )}
@@ -1112,18 +1268,18 @@ const InventoryManagement = () => {
         <DialogContent dividers>
           <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} flexWrap="wrap">
-              <TextField 
-                label="Kho nhận" 
-                size="small" 
-                value={target} 
-                onChange={(e) => setTarget(e.target.value)} 
-                sx={{ width: { xs: '100%', sm: 280, md: 320 } }} 
+              <TextField
+                label="Kho nhận"
+                size="small"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 280, md: 320 } }}
               />
-              <TextField 
-                select 
-                size="small" 
-                label="Loại hàng" 
-                value={storageType} 
+              <TextField
+                select
+                size="small"
+                label="Loại hàng"
+                value={storageType}
                 onChange={(e) => {
                   const newStorageType = e.target.value;
                   setStorageType(newStorageType);
@@ -1137,11 +1293,11 @@ const InventoryManagement = () => {
                 sx={{ width: { xs: '100%', sm: 220 } }}
                 disabled={hasPerishableInLines && hasNonPerishableInLines}
                 helperText={
-                  hasPerishableInLines && hasNonPerishableInLines 
-                    ? 'Không được nhập chung hàng tươi sống với hàng thường' 
-                    : hasPerishableInLines 
-                    ? 'Hàng tươi sống phải chọn "Hàng không lưu kho"' 
-                    : ''
+                  hasPerishableInLines && hasNonPerishableInLines
+                    ? 'Không được nhập chung hàng tươi sống với hàng thường'
+                    : hasPerishableInLines
+                      ? 'Hàng tươi sống phải chọn "Hàng không lưu kho"'
+                      : ''
                 }
                 error={hasPerishableInLines && hasNonPerishableInLines}
               >
@@ -1149,13 +1305,13 @@ const InventoryManagement = () => {
                 <MenuItem value="direct">Hàng không lưu kho (nhập trực tiếp)</MenuItem>
               </TextField>
               {hasPerishableInLines && (
-                <TextField 
-                  label="Nhà cung cấp tươi sống" 
-                  size="small" 
-                  value={perishableSuppliers.length ? perishableSuppliers.join(', ') : '—'} 
+                <TextField
+                  label="Nhà cung cấp tươi sống"
+                  size="small"
+                  value={perishableSuppliers.length ? perishableSuppliers.join(', ') : '—'}
                   InputProps={{ readOnly: true }}
                   helperText={perishableSuppliers.length ? '' : 'Nhập SKU của sản phẩm để hệ thống tự xác định nhà cung cấp'}
-                  sx={{ width: { xs: '100%', sm: 260, md: 300 } }} 
+                  sx={{ width: { xs: '100%', sm: 260, md: 300 } }}
                 />
               )}
             </Stack>
@@ -1174,16 +1330,16 @@ const InventoryManagement = () => {
                   <TableCell sx={{ minWidth: { xs: 100, sm: 120 } }}>Số lượng (thùng)</TableCell>
                   <TableCell sx={{ minWidth: { xs: 120, sm: 160 } }}>Đơn giá / thùng</TableCell>
                   <TableCell sx={{ minWidth: { xs: 100, sm: 100 } }}>Thành tiền</TableCell>
-                  <TableCell width={50}></TableCell>  
+                  <TableCell width={50}></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {lines.map((l, idx) => (
                   <TableRow key={idx}>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        value={l.sku} 
+                      <TextField
+                        size="small"
+                        value={l.sku}
                         sx={{ width: { xs: 100, sm: 120 } }}
                         onChange={(e) => updateLine(idx, 'sku', e.target.value)}
                         inputProps={!l.sku && !l.name ? { list: 'sku-options' } : {}}
@@ -1194,10 +1350,10 @@ const InventoryManagement = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        fullWidth 
-                        value={l.name} 
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={l.name}
                         sx={{ minWidth: { xs: 150, sm: 200 } }}
                         onChange={(e) => updateLine(idx, 'name', e.target.value)}
                         inputProps={!l.sku && !l.name ? { list: 'name-options' } : {}}
@@ -1208,22 +1364,22 @@ const InventoryManagement = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.qty} 
-                        onChange={(e) => updateLine(idx, 'qty', e.target.value)} 
-                        sx={{ width: { xs: 80, sm: 120 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.qty}
+                        onChange={(e) => updateLine(idx, 'qty', e.target.value)}
+                        sx={{ width: { xs: 80, sm: 120 } }}
                         inputProps={{ min: 0, step: 1 }}
                         placeholder="Thùng"
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField 
-                        size="small" 
-                        type="number" 
-                        value={l.price} 
-                        sx={{ width: { xs: 100, sm: 160 } }} 
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={l.price}
+                        sx={{ width: { xs: 100, sm: 160 } }}
                         placeholder="Giá 1 thùng"
                         InputProps={{
                           readOnly: true,
@@ -1309,18 +1465,32 @@ const InventoryManagement = () => {
 function exportCsv(rows) {
   const header = oldColumns.filter(c => c.key !== 'actions' && c.key !== 'select').map(c => c.label).join(',');
   const lines = rows.map(r => {
-    const minStock = r.min_stock_level || r.minStock || 0;
+    const stock = Number(r.stock || 0);
+    const minStock = Number(r.min_stock_level || r.minStock || 0);
+    const reorderPoint = Number(r.reorder_point || r.reorderPoint || 0);
+    const packageConversion = Number(r.package_conversion || 0);
+    const stockStatus = getStockStatus(stock, minStock, reorderPoint, packageConversion);
     const perThung = r.package_price || r.price || 0;
     const perUnit = r.price || 0;
+
+    // Chuyển đổi sang đơn vị lớn nếu có package_conversion
+    let minStockDisplay, reorderPointDisplay;
+    if (packageConversion && packageConversion > 0) {
+      minStockDisplay = formatQty(convertToPackageUnit(minStock, packageConversion));
+      reorderPointDisplay = formatQty(convertToPackageUnit(reorderPoint, packageConversion));
+    } else {
+      minStockDisplay = formatQty(minStock);
+      reorderPointDisplay = formatQty(reorderPoint);
+    }
+
     return [
       r.sku || '',
       r.name || '',
       r.category || '',
       perThung,
       perUnit,
-      r.stock || 0,
-      minStock,
-      r.stock <= minStock ? 'Thiếu hàng' : 'Ổn định'
+      `${minStockDisplay} / ${reorderPointDisplay}`,
+      statusLabels[stockStatus] || 'N/A'
     ].join(',');
   });
   const csv = ['\uFEFF' + header, ...lines].join('\n'); // Add BOM for UTF-8

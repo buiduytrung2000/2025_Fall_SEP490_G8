@@ -365,14 +365,6 @@ const ProductManagement = () => {
             ToastNotification.error('Vui lòng điền đầy đủ thông tin bắt buộc (Mã SKU và Tên sản phẩm)');
             return;
         }
-        if (editData.min_stock_level === '' || editData.reorder_point === '') {
-            ToastNotification.error('Vui lòng nhập Tồn tối thiểu và Điểm đặt hàng');
-            return;
-        }
-        if (Number(editData.min_stock_level) < 0 || Number(editData.reorder_point) < 0) {
-            ToastNotification.error('Tồn tối thiểu và Điểm đặt hàng phải lớn hơn hoặc bằng 0');
-            return;
-        }
         
         // Validate đơn vị và hệ số quy đổi khi thêm mới
         if (!isEditMode) {
@@ -406,8 +398,8 @@ const ProductManagement = () => {
                 base_unit_id: editData.base_unit_id || null,
                 package_unit_id: editData.package_unit_id || null,
                 conversion_factor: editData.conversion_factor ? parseFloat(editData.conversion_factor) : null,
-                min_stock_level: Number(editData.min_stock_level),
-                reorder_point: Number(editData.reorder_point),
+                min_stock_level: editData.min_stock_level ? Number(editData.min_stock_level) : null,
+                reorder_point: editData.reorder_point ? Number(editData.reorder_point) : null,
                 is_active: editData.is_active !== undefined ? editData.is_active : true
             };
 
@@ -433,8 +425,8 @@ const ProductManagement = () => {
                             await createWarehouseInventory({
                                 product_id: newProduct.product_id,
                                 stock: 0, // Khởi tạo 0 tồn kho
-                                min_stock_level: Number(editData.min_stock_level),
-                                reorder_point: Number(editData.reorder_point),
+                                min_stock_level: editData.min_stock_level ? Number(editData.min_stock_level) : 0,
+                                reorder_point: editData.reorder_point ? Number(editData.reorder_point) : 0,
                                 location: 'Kho tổng',
                                 notes: 'Khởi tạo tự động khi tạo sản phẩm mới',
                             });
@@ -1663,35 +1655,6 @@ const ProductManagement = () => {
                             fullWidth
                             margin="normal"
                         />
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Tồn tối thiểu"
-                                    name="min_stock_level"
-                                    type="number"
-                                    inputProps={{ min: 0, step: 1 }}
-                                    value={editData.min_stock_level}
-                                    onChange={handleEditField}
-                                    fullWidth
-                                    margin="normal"
-                                    required
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <TextField
-                                    label="Điểm đặt hàng"
-                                    name="reorder_point"
-                                    type="number"
-                                    inputProps={{ min: 0, step: 1 }}
-                                    value={editData.reorder_point}
-                                    onChange={handleEditField}
-                                    fullWidth
-                                    margin="normal"
-                                    required
-                                    helperText="Khi tồn kho xuống tới mức này sẽ cần đặt hàng"
-                                />
-                            </Grid>
-                        </Grid>
                         <FormControl fullWidth margin="normal">
                             <InputLabel>Danh mục</InputLabel>
                             <Select
