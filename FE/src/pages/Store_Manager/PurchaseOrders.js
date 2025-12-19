@@ -962,7 +962,7 @@ const PurchaseOrders = () => {
       >
         <DialogTitle>
           <Typography variant="h6" fontWeight={700}>
-            Chi tiết đơn hàng #{selectedOrder?.store_order_id || 'N/A'}
+            Chi tiết đơn hàng #{selectedOrder?.order_code || selectedOrder?.store_order_id || 'N/A'}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -973,7 +973,7 @@ const PurchaseOrders = () => {
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">Mã đơn hàng</Typography>
                   <Typography variant="body1" fontWeight={600}>
-                    {selectedOrder.store_order_id || selectedOrder.order_code || 'N/A'}
+                    {selectedOrder.order_code || selectedOrder.store_order_id || 'N/A'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>

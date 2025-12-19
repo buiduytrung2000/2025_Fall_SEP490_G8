@@ -806,6 +806,9 @@ const ScheduleManagement = () => {
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
 
+      const selectedShiftTemplate = shiftTemplatesData.find(
+        (tpl) => (tpl.shift_template_id || tpl.id) === massAddTemplateId
+      );
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -818,7 +821,12 @@ const ScheduleManagement = () => {
       ) {
         const workDateKey = toLocalDateKey(d);
 
-        // Bỏ qua ngày quá khứ nếu chọn "từ hôm nay trở đi"
+        // Bỏ qua ca đã qua (ngày quá khứ hoặc ca trong hôm nay nhưng đã kết thúc)
+        const isDayInPast = isPastDate(workDateKey);
+        const isShiftPastToday = isPastShiftToday(workDateKey, selectedShiftTemplate);
+        if (isDayInPast || isShiftPastToday) continue;
+
+        // Bỏ qua ngày quá khứ nếu chọn "từ hôm nay trở đi" (đã lọc ở trên nhưng giữ để rõ ý)
         if (massAddFromToday) {
           const dayCopy = new Date(d);
           dayCopy.setHours(0, 0, 0, 0);

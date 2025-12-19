@@ -192,7 +192,9 @@ export default function CEOOrdersBoard() {
     try {
       const res = await getWarehouseSupplierOrderDetail(order.order_id);
       if (res.err === 0 && res.data) {
-        setOrderItems(res.data.items || []);
+        // API trả về orderItems, có thể là mảng trực tiếp hoặc trong object
+        const items = res.data.orderItems || res.data.items || [];
+        setOrderItems(items);
       } else {
         ToastNotification.error(res.msg || "Không thể tải chi tiết đơn hàng");
       }
@@ -679,33 +681,57 @@ export default function CEOOrdersBoard() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {orderItems.map((item, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{idx + 1}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>
-                            {item.product_name || item.name || 'N/A'}
-                          </Typography>
-                          {item.sku && (
-                            <Typography variant="caption" color="text.secondary">
-                              SKU: {item.sku}
+                    {orderItems.map((item, idx) => {
+                      const productName = item.product?.name || item.product_name || item.name || 'N/A';
+                      const sku = item.product?.sku || item.sku || item.product_sku || '';
+                      // Sử dụng display_quantity (đơn vị lớn) nếu có, nếu không thì dùng quantity
+                      const quantity = Number(item.display_quantity ?? item.quantity ?? 0);
+                      // Sử dụng display_unit_price (đơn giá đơn vị lớn) nếu có
+                      const unitPrice = Number(item.display_unit_price ?? item.unit_price ?? 0);
+                      const subtotal = Number(item.subtotal ?? ((quantity * unitPrice) || 0));
+                      // Lấy nhãn đơn vị lớn
+                      const unitLabel = item.display_unit_label || 
+                                       item.unit?.name || 
+                                       item.unit?.symbol || 
+                                       '';
+                      
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={500}>
+                              {productName}
                             </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="right">{formatNumber(item.quantity || 0)}</TableCell>
-                        <TableCell align="right">{formatCurrency(item.unit_price || 0)}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(item.subtotal || (item.quantity * item.unit_price) || 0)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                            {sku && (
+                              <Typography variant="caption" color="text.secondary">
+                                SKU: {sku}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatNumber(quantity)}{unitLabel ? ` ${unitLabel}` : ''}
+                          </TableCell>
+                          <TableCell align="right">
+                            {formatCurrency(unitPrice)}{unitLabel ? `/${unitLabel}` : ''}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 600 }}>
+                            {formatCurrency(subtotal)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     <TableRow>
                       <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>
                         Tổng cộng:
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
                         {formatCurrency(
-                          orderItems.reduce((sum, item) => sum + (item.subtotal || (item.quantity * item.unit_price) || 0), 0)
+                          orderItems.reduce((sum, item) => {
+                            const quantity = item.quantity || 0;
+                            const unitPrice = item.unit_price || 0;
+                            const subtotal = item.subtotal || (quantity * unitPrice) || 0;
+                            return sum + subtotal;
+                          }, 0)
                         )}
                       </TableCell>
                     </TableRow>
