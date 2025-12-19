@@ -228,15 +228,15 @@ const ShiftChangeRequest = () => {
                             if (otherUserSchedule) {
                                 // Ca đã có nhân viên khác - thêm vào để có thể đổi với
                                 const scheduleData = otherUserSchedule.get ? otherUserSchedule.get({ plain: true }) : otherUserSchedule;
-                                allPossible.push({
-                                    schedule_id: scheduleData.schedule_id,
-                                    work_date: dateStr,
-                                    shift_template_id: template.shift_template_id || template.id,
-                                    user_id: scheduleData.user_id || scheduleData.employee?.user_id,
-                                    employee: scheduleData.employee || {},
-                                    shiftTemplate: template,
-                                    is_empty: false,
-                                });
+                                    allPossible.push({
+                                        schedule_id: scheduleData.schedule_id,
+                                        work_date: dateStr,
+                                        shift_template_id: template.shift_template_id || template.id,
+                                        user_id: scheduleData.user_id || scheduleData.employee?.user_id,
+                                        employee: scheduleData.employee || {},
+                                        shiftTemplate: template,
+                                        is_empty: false,
+                                    });
                             } else {
                                 // Ca trống - thêm như ca trống
                                 allPossible.push({
@@ -385,15 +385,15 @@ const ShiftChangeRequest = () => {
                             if (otherUserSchedule) {
                                 // Ca đã có nhân viên khác - thêm vào để có thể đổi với
                                 const scheduleData = otherUserSchedule.get ? otherUserSchedule.get({ plain: true }) : otherUserSchedule;
-                                allPossible.push({
-                                    schedule_id: scheduleData.schedule_id,
-                                    work_date: dateStr,
-                                    shift_template_id: template.shift_template_id || template.id,
-                                    user_id: scheduleData.user_id || scheduleData.employee?.user_id,
-                                    employee: scheduleData.employee || {},
-                                    shiftTemplate: template,
-                                    is_empty: false,
-                                });
+                                    allPossible.push({
+                                        schedule_id: scheduleData.schedule_id,
+                                        work_date: dateStr,
+                                        shift_template_id: template.shift_template_id || template.id,
+                                        user_id: scheduleData.user_id || scheduleData.employee?.user_id,
+                                        employee: scheduleData.employee || {},
+                                        shiftTemplate: template,
+                                        is_empty: false,
+                                    });
                             } else {
                                 // Ca trống - thêm như ca trống
                                 allPossible.push({
@@ -1129,8 +1129,8 @@ const renderShiftOption = (shift, shiftTemplates) => {
                                         const scheduleData = schedule.get ? schedule.get({ plain: true }) : schedule;
                                         return (
                                             <MenuItem key={scheduleData.schedule_id || scheduleData.id || idx} value={scheduleData.schedule_id || scheduleData.id}>
-                                                {getScheduleLabel(schedule)}
-                                            </MenuItem>
+                                            {getScheduleLabel(schedule)}
+                                        </MenuItem>
                                         );
                                     });
                                 })()}

@@ -268,6 +268,63 @@ export const checkout = async ({ shift_id, closing_cash = 0, note = null }) => {
       return { err: 1, msg: 'Ca không tồn tại hoặc đã đóng' }
     }
 
+    // Tính phút kết ca sớm (nếu có) dựa trên schedule + shift template
+    // Thời gian hợp lệ checkout là ±5 phút quanh thời gian kết thúc ca
+    // Chỉ coi là kết ca sớm nếu checkout TRƯỚC (end_time - 5 phút)
+    let earlyMinutes = 0
+    try {
+      if (shift.schedule_id) {
+        const schedule = await db.Schedule.findOne({
+          where: { schedule_id: shift.schedule_id },
+          include: [
+            {
+              model: db.ShiftTemplate,
+              as: 'shiftTemplate',
+              attributes: ['start_time', 'end_time']
+            }
+          ],
+          transaction: t,
+          lock: t.LOCK.UPDATE
+        })
+
+        if (schedule && schedule.shiftTemplate && schedule.work_date) {
+          const [endHour, endMinute] = schedule.shiftTemplate.end_time.split(':').map(Number)
+          const shiftEnd = new Date(schedule.work_date)
+          shiftEnd.setHours(endHour, endMinute, 0, 0)
+
+          // Xử lý ca qua đêm: nếu end < start thì +1 ngày cho end
+          if (schedule.shiftTemplate.start_time) {
+            const [startHour, startMinute] = schedule.shiftTemplate.start_time.split(':').map(Number)
+            const shiftStart = new Date(schedule.work_date)
+            shiftStart.setHours(startHour, startMinute, 0, 0)
+            if (shiftEnd < shiftStart) {
+              shiftEnd.setDate(shiftEnd.getDate() + 1)
+            }
+          }
+
+          const now = new Date()
+          // Cho phép checkout sớm 5 phút hoặc muộn 5 phút quanh thời gian kết ca
+          const validEarlyTime = new Date(shiftEnd)
+          validEarlyTime.setMinutes(validEarlyTime.getMinutes() - 5) // sớm tối đa 5 phút vẫn xem là hợp lệ
+          // const validLateTime = new Date(shiftEnd)
+          // validLateTime.setMinutes(validLateTime.getMinutes() + 5) // nếu muốn xử lý checkout muộn
+
+          // Chỉ tính là kết ca sớm nếu checkout trước thời gian hợp lệ
+          if (now < validEarlyTime) {
+            earlyMinutes = Math.floor((validEarlyTime - now) / 60000)
+          }
+        }
+      }
+    } catch (timeErr) {
+      console.error('Lỗi khi tính earlyMinutes cho checkout:', timeErr)
+    }
+
+    // Nếu kết ca sớm (trước thời gian hợp lệ), bắt buộc phải có note
+    if (earlyMinutes > 0 && (!note || !note.trim())) {
+      await t.rollback()
+      return { err: 1, msg: 'Bạn đang kết ca sớm. Vui lòng nhập lý do vào phần ghi chú.' }
+    }
+
     // Tính lại tổng doanh thu tiền mặt từ Transaction + Payment để đảm bảo chính xác
     // (cash_sales_total đã được cập nhật real-time khi checkout, nhưng tính lại để đảm bảo)
     const cashTransactions = await db.Transaction.findAll({
@@ -287,7 +344,8 @@ export const checkout = async ({ shift_id, closing_cash = 0, note = null }) => {
       status: 'closed',
       closed_at: new Date(),
       closing_cash: closing_cash,
-      cash_sales_total: sumCash // Cập nhật lại để đảm bảo chính xác
+      cash_sales_total: sumCash, // Cập nhật lại để đảm bảo chính xác
+      early_minutes: earlyMinutes > 0 ? earlyMinutes : null
     }
     
     // Chỉ cập nhật note nếu có note mới (không null và không rỗng)
@@ -419,8 +477,6 @@ export const getShiftReport = async (query) => {
     }
   }
   
-  console.log('Shift report query:', JSON.stringify(where, null, 2))
-
   const shifts = await db.Shift.findAll({
     where,
     include: [
@@ -430,8 +486,6 @@ export const getShiftReport = async (query) => {
     order: [['opened_at', 'DESC']]
   })
   
-  console.log(`Found ${shifts.length} closed shifts for store_id=${store_id}, date_from=${date_from}, date_to=${date_to}`)
-
   // Tính bank_transfer_total và total_sales cho mỗi shift, và số lượng transaction
   const shiftsWithDetails = await Promise.all(shifts.map(async (shift) => {
     // Tính tổng doanh thu từ chuyển khoản

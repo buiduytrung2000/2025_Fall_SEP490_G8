@@ -112,6 +112,7 @@ const POS = () => {
     const [totalSales, setTotalSales] = useState(0); // tổng doanh thu (tiền mặt + chuyển khoản)
     const [showCheckinModal, setShowCheckinModal] = useState(false);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [checkoutNote, setCheckoutNote] = useState('');
     const [closingCashInput, setClosingCashInput] = useState('');
     const [scheduleAttendanceStatus, setScheduleAttendanceStatus] = useState(null); // Lưu trạng thái điểm danh từ schedule
     const [hasTodaySchedule, setHasTodaySchedule] = useState(false); // Kiểm tra có lịch làm việc hôm nay không
@@ -822,7 +823,6 @@ const POS = () => {
         setSelectedPaymentMethod(method);
     };
 
-    // Xử lý thanh toán
     const handleCheckout = async () => {
         // Kiểm tra ca làm việc
         if (!isShiftActive) {
@@ -2027,6 +2027,16 @@ const POS = () => {
                             </Box>
                         </Box>
                     )}
+                    <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        label="Ghi chú kết ca"
+                        placeholder="Nhập lý do nếu kết ca sớm hơn giờ quy định (±5 phút)"
+                        value={checkoutNote}
+                        onChange={(e) => setCheckoutNote(e.target.value)}
+                        sx={{ mt: 2 }}
+                    />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setShowCheckoutModal(false)}>Hủy</Button>
@@ -2043,7 +2053,11 @@ const POS = () => {
                                 ToastNotification.error('Không tìm thấy ca làm việc');
                                 return;
                             }
-                            const resp = await checkoutShift({ shift_id: shiftId, closing_cash: actual });
+                            const resp = await checkoutShift({ 
+                                shift_id: shiftId, 
+                                closing_cash: actual,
+                                note: checkoutNote && checkoutNote.trim() ? checkoutNote.trim() : null
+                            });
                             if (resp && resp.err === 0) {
                                 setIsShiftActive(false);
                                 setShiftId(null);
@@ -2052,6 +2066,7 @@ const POS = () => {
                                 setTotalSales(0);
                                 setOpeningCash('');
                                 setClosingCashInput('');
+                                setCheckoutNote('');
 
                                 // Refresh schedules để kiểm tra có ca tiếp theo không
                                 const todaySchedules = await loadTodaySchedules();

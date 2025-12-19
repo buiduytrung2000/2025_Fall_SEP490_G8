@@ -1025,14 +1025,14 @@ export const getRecentBranchOrders = (limit = 8) => new Promise(async (resolve, 
 
         const orders = rows.map((row, index) => {
             const order = {
-                store_order_id: row.store_order_id,
+            store_order_id: row.store_order_id,
                 order_code: row.order_code || `ORDER-${row.store_order_id}`,
                 status: row.status || 'pending',
-                store_name: row.store_name || 'N/A',
-                created_at: row.created_at,
+            store_name: row.store_name || 'N/A',
+            created_at: row.created_at,
                 notes: row.notes || null,
-                total_amount: parseFloat(row.totalAmount || 0),
-                item_count: parseInt(row.itemCount || 0)
+            total_amount: parseFloat(row.totalAmount || 0),
+            item_count: parseInt(row.itemCount || 0)
             };
             
             // Validate required fields
