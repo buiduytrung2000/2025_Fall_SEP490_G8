@@ -14,14 +14,13 @@ import {
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { getAllCategories, createCategory, updateCategory, deleteCategory } from '../../api/productApi';
 import { ToastNotification } from '../../components/common';
 
 const defaultForm = {
   category_id: null,
   name: '',
-  parent_id: null,
 };
 
 const CategoryManagement = () => {
@@ -63,7 +62,6 @@ const CategoryManagement = () => {
     setForm({
       category_id: row.category_id,
       name: row.name || '',
-      parent_id: row.parent_id || null,
     });
     setDialogOpen(true);
   };
@@ -75,12 +73,12 @@ const CategoryManagement = () => {
   };
 
   const handleChange = (field) => (e) => {
-    const value = field === 'parent_id' ? (e.target.value ? Number(e.target.value) : null) : e.target.value;
+    const value = e.target.value;
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
-    const { category_id, name, parent_id } = form;
+    const { category_id, name } = form;
     if (!name.trim()) {
       ToastNotification.error('Vui lòng nhập Tên danh mục');
       return;
@@ -90,9 +88,9 @@ const CategoryManagement = () => {
     try {
       let res;
       if (isEdit && category_id) {
-        res = await updateCategory(category_id, { name: name.trim(), parent_id });
+        res = await updateCategory(category_id, { name: name.trim() });
       } else {
-        res = await createCategory({ name: name.trim(), parent_id });
+        res = await createCategory({ name: name.trim() });
       }
 
       if (res && res.err === 0) {
@@ -138,17 +136,6 @@ const CategoryManagement = () => {
       size: 220,
     },
     {
-      accessorKey: 'parent_id',
-      header: 'Danh mục cha',
-      size: 220,
-      Cell: ({ row }) => {
-        const parentId = row.original.parent_id;
-        if (!parentId) return '—';
-        const parent = categories.find((c) => c.category_id === parentId);
-        return parent ? parent.name : `#${parentId}`;
-      },
-    },
-    {
       accessorKey: 'actions',
       header: 'Thao tác',
       size: 120,
@@ -185,14 +172,6 @@ const CategoryManagement = () => {
             onClick={handleOpenCreate}
           >
             Thêm danh mục
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<RefreshIcon />}
-            onClick={loadCategories}
-          >
-            Tải lại
           </Button>
         </Stack>
       </Paper>
@@ -233,14 +212,6 @@ const CategoryManagement = () => {
               onChange={handleChange('name')}
               fullWidth
               required
-            />
-            <TextField
-              label="ID danh mục cha (tùy chọn)"
-              type="number"
-              value={form.parent_id || ''}
-              onChange={handleChange('parent_id')}
-              fullWidth
-              inputProps={{ min: 1 }}
             />
           </Stack>
         </DialogContent>

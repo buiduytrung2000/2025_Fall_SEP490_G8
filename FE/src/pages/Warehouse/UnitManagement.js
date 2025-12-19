@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { MaterialReactTable } from 'material-react-table';
 import { MRT_Localization_VI } from 'material-react-table/locales/vi';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { getAllUnits, createUnit, updateUnit, deleteUnit } from '../../api/productApi';
 import { ToastNotification } from '../../components/common';
 
@@ -186,18 +186,10 @@ const UnitManagement = () => {
           <Button
             variant="contained"
             color="primary"
-            startIcon={{} && <AddIcon />}
+            startIcon={<AddIcon />}
             onClick={handleOpenCreate}
           >
             Thêm đơn vị
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<RefreshIcon />}
-            onClick={loadUnits}
-          >
-            Tải lại
           </Button>
         </Stack>
       </Paper>
