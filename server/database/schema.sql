@@ -313,6 +313,8 @@ CREATE TABLE IF NOT EXISTS Shift (
     cash_sales_total DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
     status ENUM('opened', 'closed', 'cancelled') NOT NULL DEFAULT 'opened',
     note TEXT NULL,
+    late_minutes INT NULL COMMENT 'Số phút đi muộn (tính từ sau thời gian hợp lệ check-in)',
+    early_minutes INT NULL COMMENT 'Số phút kết ca sớm (trước thời gian hợp lệ checkout)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (store_id) REFERENCES Store(store_id) ON DELETE CASCADE,
