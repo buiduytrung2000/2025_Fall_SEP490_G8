@@ -21,7 +21,8 @@ module.exports = (sequelize, DataTypes) => {
     cash_sales_total: { type: DataTypes.DECIMAL(14,2), allowNull: false, defaultValue: 0 },
     status: { type: DataTypes.ENUM('opened','closed','cancelled'), allowNull: false, defaultValue: 'opened' },
     note: { type: DataTypes.TEXT, allowNull: true },
-    late_minutes: { type: DataTypes.INTEGER, allowNull: true, comment: 'Số phút đi muộn (tính từ sau thời gian hợp lệ check-in)' }
+    late_minutes: { type: DataTypes.INTEGER, allowNull: true, comment: 'Số phút đi muộn (tính từ sau thời gian hợp lệ check-in)' },
+    early_minutes: { type: DataTypes.INTEGER, allowNull: true, comment: 'Số phút kết ca sớm (trước thời gian hợp lệ checkout)' }
   }, {
     sequelize,
     modelName: 'Shift',

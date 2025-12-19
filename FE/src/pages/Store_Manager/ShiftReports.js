@@ -160,57 +160,53 @@ const ShiftReports = () => {
     }, 0);
   }, [getDiscrepancy, shifts]);
 
-  // Xác định các ca có tiền đầu ca < tiền cuối ca trước đó (cùng thu ngân)
-  // -> highlight cả "tiền cuối ca" của ca trước và "tiền đầu ca" của ca sau
-  const { lowOpeningCashShiftIds, highClosingCashShiftIds } = useMemo(() => {
-    const lowOpening = new Set();
-    const highClosing = new Set();
+  // Xác định các cặp ca liên tiếp (theo thời gian) mà tiền cuối ca trước lệch so với tiền đầu ca sau
+  // -> highlight cả "tiền cuối ca" của ca trước và "tiền đầu ca" của ca sau, mỗi cặp một màu
+  const { openingHighlightMap, closingHighlightMap } = useMemo(() => {
+    const openingMap = new Map(); // shift_id -> pairIndex
+    const closingMap = new Map(); // shift_id -> pairIndex
 
     if (!Array.isArray(shifts) || shifts.length === 0) {
-      return { lowOpeningCashShiftIds: lowOpening, highClosingCashShiftIds: highClosing };
+      return { openingHighlightMap: openingMap, closingHighlightMap: closingMap };
     }
 
-    // Nhóm theo cashier_id (hoặc cashier.user_id)
-    const byCashier = new Map();
-    shifts.forEach((s) => {
-      const cashierIdKey =
-        s.cashier_id ||
-        s.cashier?.user_id ||
-        s.cashier?.id ||
-        'unknown';
-      if (!byCashier.has(cashierIdKey)) byCashier.set(cashierIdKey, []);
-      byCashier.get(cashierIdKey).push(s);
+    // Sắp xếp tất cả ca theo thời gian (không phân biệt thu ngân)
+    const sorted = [...shifts].sort((a, b) => {
+      const ta = new Date(a.closed_at || a.opened_at || a.created_at || 0).getTime();
+      const tb = new Date(b.closed_at || b.opened_at || b.created_at || 0).getTime();
+      return ta - tb; // Ca cũ trước, ca mới sau
     });
 
-    byCashier.forEach((list) => {
-      // Sắp xếp theo thời gian đóng ca (closed_at) hoặc mở ca (opened_at) nếu chưa đóng
-      const sorted = [...list].sort((a, b) => {
-        const ta = new Date(a.closed_at || a.opened_at || a.created_at || 0).getTime();
-        const tb = new Date(b.closed_at || b.opened_at || b.created_at || 0).getTime();
-        return ta - tb; // Sắp xếp tăng dần: ca cũ trước, ca mới sau
-      });
+    let pairIndex = 0;
 
-      // So sánh từng cặp ca liên tiếp
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = sorted[i - 1];
-        const curr = sorted[i];
-        
-        // Chuyển đổi sang số, xử lý cả string và number
-        const prevClosing = parseFloat(prev.closing_cash) || 0;
-        const currOpening = parseFloat(curr.opening_cash) || 0;
-        
-        // Highlight khi tiền cuối ca trước > tiền đầu ca sau (có chênh lệch bất thường)
-        if (prevClosing > currOpening && prevClosing > 0 && currOpening >= 0) {
-          // Đánh dấu ca hiện tại có tiền đầu ca thấp hơn tiền cuối ca trước
-          if (curr.shift_id) lowOpening.add(curr.shift_id);
-          // Đồng thời đánh dấu ca trước có tiền cuối ca cao bất thường
-          if (prev.shift_id) highClosing.add(prev.shift_id);
-        }
+    // So sánh từng cặp ca liên tiếp
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+
+      const prevClosing = parseFloat(prev.closing_cash) || 0;
+      const currOpening = parseFloat(curr.opening_cash) || 0;
+
+      // Highlight khi tiền cuối ca trước > tiền đầu ca sau (có chênh lệch bất thường)
+      if (prevClosing > currOpening && prevClosing > 0 && currOpening >= 0) {
+        const prevId = prev.shift_id;
+        const currId = curr.shift_id;
+        if (prevId) closingMap.set(prevId, pairIndex);
+        if (currId) openingMap.set(currId, pairIndex);
+        pairIndex += 1;
       }
-    });
+    }
 
-    return { lowOpeningCashShiftIds: lowOpening, highClosingCashShiftIds: highClosing };
+    return { openingHighlightMap: openingMap, closingHighlightMap: closingMap };
   }, [shifts]);
+
+  const highlightColors = [
+    { bg: '#fff3e0', color: '#e65100' },
+    { bg: '#e3f2fd', color: '#0d47a1' },
+    { bg: '#e8f5e9', color: '#1b5e20' },
+    { bg: '#f3e5f5', color: '#4a148c' },
+    { bg: '#fbe9e7', color: '#bf360c' },
+  ];
 
   const columns = useMemo(() => [
     {
@@ -323,16 +319,20 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell, row }) => {
         const value = cell.getValue() || 0;
-        const isLowOpening = lowOpeningCashShiftIds.has(row.original.shift_id);
+        const pairIndex = openingHighlightMap.get(row.original.shift_id);
+        const colorSet =
+          typeof pairIndex === 'number'
+            ? highlightColors[pairIndex % highlightColors.length]
+            : null;
         return (
           <Typography
             variant="body2"
             sx={{
-              fontWeight: isLowOpening ? 700 : 400,
-              color: isLowOpening ? '#ff9800' : 'inherit',
-              backgroundColor: isLowOpening ? '#ffe0b2' : 'transparent',
-              padding: isLowOpening ? '4px 8px' : '0',
-              borderRadius: isLowOpening ? '4px' : '0',
+              fontWeight: colorSet ? 700 : 400,
+              color: colorSet ? colorSet.color : 'inherit',
+              backgroundColor: colorSet ? colorSet.bg : 'transparent',
+              padding: colorSet ? '4px 8px' : '0',
+              borderRadius: colorSet ? '4px' : '0',
             }}
           >
             {formatCurrency(value)}
@@ -353,16 +353,20 @@ const ShiftReports = () => {
       size: 130,
       Cell: ({ cell, row }) => {
         const value = cell.getValue() || 0;
-        const isHighClosing = highClosingCashShiftIds.has(row.original.shift_id);
+        const pairIndex = closingHighlightMap.get(row.original.shift_id);
+        const colorSet =
+          typeof pairIndex === 'number'
+            ? highlightColors[pairIndex % highlightColors.length]
+            : null;
         return (
           <Typography
             variant="body2"
             sx={{
-              fontWeight: isHighClosing ? 700 : 400,
-              color: isHighClosing ? '#ff9800' : 'inherit',
-              backgroundColor: isHighClosing ? '#ffe0b2' : 'transparent',
-              padding: isHighClosing ? '4px 8px' : '0',
-              borderRadius: isHighClosing ? '4px' : '0',
+              fontWeight: colorSet ? 700 : 400,
+              color: colorSet ? colorSet.color : 'inherit',
+              backgroundColor: colorSet ? colorSet.bg : 'transparent',
+              padding: colorSet ? '4px 8px' : '0',
+              borderRadius: colorSet ? '4px' : '0',
             }}
           >
             {formatCurrency(value)}
@@ -438,6 +442,78 @@ const ShiftReports = () => {
       },
     },
     {
+      accessorKey: 'early_minutes',
+      header: 'Số giờ kết ca sớm',
+      size: 140,
+      Cell: ({ cell }) => {
+        const earlyMinutes = cell.getValue();
+        if (!earlyMinutes || earlyMinutes === 0) return '—';
+        // Hiển thị số phút kết ca sớm (cộng thêm 5 phút để hiển thị đúng so với giờ kết ca)
+        const displayEarlyMinutes = earlyMinutes + 5;
+        const hours = Math.floor(displayEarlyMinutes / 60);
+        const minutes = displayEarlyMinutes % 60;
+        const formattedTime = hours > 0
+          ? `${hours} giờ ${minutes} phút`
+          : `${minutes} phút`;
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'warning.main',
+              fontWeight: 600
+            }}
+          >
+            {formattedTime}
+          </Typography>
+        );
+      },
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'center',
+      },
+    },
+    {
+      accessorKey: 'early_reason',
+      header: 'Lý do kết ca sớm',
+      size: 220,
+      Cell: ({ row }) => {
+        const earlyMinutes = row.original.early_minutes;
+        const note = row.original.note || '';
+        if (!earlyMinutes || earlyMinutes === 0 || !note.trim()) return '—';
+
+        // Note được lưu dạng: "Lý do đi muộn | Lý do kết ca sớm"
+        const parts = note.split('|').map((p) => p.trim()).filter(Boolean);
+        const earlyReason = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+
+        if (!earlyReason) return '—';
+
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'warning.main',
+              fontWeight: 500,
+              maxWidth: 220,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={earlyReason}
+          >
+            {earlyReason}
+          </Typography>
+        );
+      },
+      muiTableHeadCellProps: {
+        align: 'center',
+      },
+      muiTableBodyCellProps: {
+        align: 'left',
+      },
+    },
+    {
       accessorKey: 'note',
       header: 'Lý do muộn',
       size: 200,
@@ -470,7 +546,7 @@ const ShiftReports = () => {
         align: 'left',
       },
     },
-  ], [getDiscrepancy, lowOpeningCashShiftIds, highClosingCashShiftIds]);
+  ], [getDiscrepancy, openingHighlightMap, closingHighlightMap]);
 
   return (
     <Box sx={{ px: { xs: 1, md: 3 }, py: 2 }}>
@@ -584,7 +660,9 @@ const ShiftReports = () => {
         muiTableHeadCellProps={{
           sx: {
             fontWeight: 700,
-            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+            whiteSpace: 'normal',
+            wordBreak: 'break-word'
           }
         }}
         muiTableBodyCellProps={{

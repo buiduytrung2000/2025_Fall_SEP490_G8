@@ -355,33 +355,33 @@ const ManagerDashboard = () => {
           <Typography variant="h6" fontWeight={600} sx={{ color: '#1a202c' }}>
             Thống kê theo tháng ({selectedMonth}/{selectedYear})
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Năm</InputLabel>
-              <Select
-                value={selectedYear}
-                label="Năm"
-                onChange={(e) => setSelectedYear(e.target.value)}
-              >
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - i;
-                  return <MenuItem key={year} value={year}>{year}</MenuItem>;
-                })}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Tháng</InputLabel>
-              <Select
-                value={selectedMonth}
-                label="Tháng"
-                onChange={(e) => setSelectedMonth(e.target.value)}
-              >
-                {Array.from({ length: 12 }, (_, i) => {
-                  const month = i + 1;
-                  return <MenuItem key={month} value={month}>Tháng {month}</MenuItem>;
-                })}
-              </Select>
-            </FormControl>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Năm</InputLabel>
+            <Select
+              value={selectedYear}
+              label="Năm"
+              onChange={(e) => setSelectedYear(e.target.value)}
+            >
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - i;
+                return <MenuItem key={year} value={year}>{year}</MenuItem>;
+              })}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Tháng</InputLabel>
+            <Select
+              value={selectedMonth}
+              label="Tháng"
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {Array.from({ length: 12 }, (_, i) => {
+                const month = i + 1;
+                return <MenuItem key={month} value={month}>Tháng {month}</MenuItem>;
+              })}
+            </Select>
+          </FormControl>
           </Box>
         </Box>
         <Grid container spacing={3}>
