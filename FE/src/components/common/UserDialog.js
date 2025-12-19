@@ -11,17 +11,23 @@ import {
     InputLabel,
     Box,
     CircularProgress,
-    Alert
+    Alert,
+    Typography
 } from '@mui/material';
 import { createUser, updateUser } from '../../api/userApi';
 import { getAllStores } from '../../api/storeApi';
-import { PrimaryButton, SecondaryButton, ToastNotification } from './index';
+import { getFutureSchedulesCountByEmployeeAndStore, deleteFutureSchedulesByEmployeeAndStore } from '../../api/scheduleApi';
+import { PrimaryButton, SecondaryButton, DangerButton, ToastNotification } from './index';
 
 const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [stores, setStores] = useState([]);
     const [loadingStores, setLoadingStores] = useState(false);
+    const [originalStoreId, setOriginalStoreId] = useState(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [pendingUpdate, setPendingUpdate] = useState(null);
+    const [futureSchedulesCount, setFutureSchedulesCount] = useState(0);
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -72,6 +78,17 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
     useEffect(() => {
         if (open) {
             if (editingUser) {
+                // Normalize store_id: convert to number if exists, otherwise null
+                const storeIdValue = editingUser.store_id;
+                const originalStoreIdValue = (storeIdValue !== null && storeIdValue !== undefined && storeIdValue !== '') 
+                    ? (typeof storeIdValue === 'number' ? storeIdValue : parseInt(storeIdValue))
+                    : null;
+                console.log('Setting originalStoreId:', { 
+                    raw: storeIdValue, 
+                    normalized: originalStoreIdValue,
+                    type: typeof storeIdValue
+                });
+                setOriginalStoreId(originalStoreIdValue);
                 setFormData({
                     username: editingUser.username || '',
                     email: editingUser.email || '',
@@ -81,11 +98,12 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                     confirmPassword: '',
                     phone: editingUser.phone || '',
                     address: editingUser.address || '',
-                    store_id: editingUser.store_id || '',
+                    store_id: storeIdValue ? String(storeIdValue) : '',
                     is_active: editingUser.is_active !== false,
                     status: editingUser.status || 'active'
                 });
             } else {
+                setOriginalStoreId(null);
                 setFormData({
                     username: '', // Will be auto-generated from email
                     email: '',
@@ -101,6 +119,10 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 });
             }
             setError(null);
+            // Reset confirmation dialog state
+            setShowDeleteConfirm(false);
+            setPendingUpdate(null);
+            setFutureSchedulesCount(0);
         }
     }, [open, editingUser]);
 
@@ -151,18 +173,141 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
             return;
         }
 
+        // Check if store_id is being changed for an existing employee
+        if (editingUser) {
+            // Normalize store IDs: convert to integer or null
+            const oldStoreId = originalStoreId !== null && originalStoreId !== undefined && originalStoreId !== ''
+                ? Number(originalStoreId)
+                : null;
+            const newStoreId = formData.store_id && formData.store_id !== '' 
+                ? Number(formData.store_id) 
+                : null;
+            
+            console.log('=== Store Change Check ===');
+            console.log('User ID:', editingUser.user_id);
+            console.log('Original Store ID (raw):', originalStoreId);
+            console.log('Form Store ID (raw):', formData.store_id);
+            console.log('Old Store ID (normalized):', oldStoreId);
+            console.log('New Store ID (normalized):', newStoreId);
+            console.log('Is different?', oldStoreId !== newStoreId);
+            console.log('Old store exists?', oldStoreId !== null && !isNaN(oldStoreId));
+            
+            // If store_id is being changed and old store exists, check for future schedules
+            if (oldStoreId !== null && !isNaN(oldStoreId) && oldStoreId !== newStoreId) {
+                console.log('✅ Store is being changed - will check for future schedules');
+                try {
+                    console.log('Checking future schedules for store:', oldStoreId);
+                    const countResponse = await getFutureSchedulesCountByEmployeeAndStore(
+                        editingUser.user_id,
+                        oldStoreId
+                    );
+
+                    console.log('Future schedules count response:', countResponse);
+
+                    if (countResponse.err === 0) {
+                        const count = countResponse.data?.count || 0;
+                        console.log('Future schedules count:', count);
+                        // Always show confirmation dialog when changing store, even if count is 0
+                        setFutureSchedulesCount(count);
+                        setPendingUpdate({ formData });
+                        setShowDeleteConfirm(true);
+                        return;
+                    } else {
+                        console.warn('Failed to get future schedules count:', countResponse.msg);
+                        // Even if API fails, still show confirmation dialog
+                        setFutureSchedulesCount(0);
+                        setPendingUpdate({ formData });
+                        setShowDeleteConfirm(true);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error checking future schedules:', error);
+                    // Even if check fails, still show confirmation dialog
+                    setFutureSchedulesCount(0);
+                    setPendingUpdate({ formData });
+                    setShowDeleteConfirm(true);
+                    return;
+                }
+            } else {
+                console.log('No store change or no old store - skipping schedule check');
+            }
+        }
+
+        // Proceed with update if no confirmation needed
+        await performUpdate();
+    };
+
+    const performUpdate = async () => {
         setLoading(true);
 
         try {
+            // Check if store_id is being changed and we need to delete schedules
+            // Use pendingUpdate if available, otherwise use current formData
+            const dataToCheck = pendingUpdate?.formData || formData;
+            
+            if (editingUser) {
+                // Normalize store IDs
+                const oldStoreId = originalStoreId !== null && originalStoreId !== undefined && originalStoreId !== ''
+                    ? Number(originalStoreId)
+                    : null;
+                const newStoreId = dataToCheck.store_id && dataToCheck.store_id !== '' 
+                    ? Number(dataToCheck.store_id) 
+                    : null;
+                
+                console.log('performUpdate - Checking schedule deletion:', {
+                    oldStoreId,
+                    newStoreId,
+                    isDifferent: oldStoreId !== newStoreId
+                });
+                
+                // If store_id is being changed and old store exists, delete future schedules
+                if (oldStoreId !== null && !isNaN(oldStoreId) && oldStoreId !== newStoreId) {
+                    try {
+                        console.log('Deleting future schedules for user:', editingUser.user_id, 'store:', oldStoreId);
+                        const deleteResponse = await deleteFutureSchedulesByEmployeeAndStore(
+                            editingUser.user_id,
+                            oldStoreId
+                        );
+
+                        console.log('Delete response:', deleteResponse);
+
+                        if (deleteResponse.err === 0) {
+                            const deletedCount = deleteResponse.data?.deletedCount || 0;
+                            if (deletedCount > 0) {
+                                ToastNotification.success(
+                                    `Đã xóa ${deletedCount} lịch làm việc tương lai tại cửa hàng cũ`
+                                );
+                            } else {
+                                console.log('No schedules to delete (count = 0)');
+                            }
+                        } else {
+                            console.warn('Không thể xóa lịch làm việc:', deleteResponse.msg);
+                            ToastNotification.warning('Không thể xóa lịch làm việc: ' + deleteResponse.msg);
+                        }
+                    } catch (error) {
+                        console.error('Error deleting schedules:', error);
+                        ToastNotification.error('Lỗi khi xóa lịch làm việc: ' + (error.message || 'Lỗi không xác định'));
+                        // Continue with update even if schedule deletion fails
+                    }
+                } else {
+                    console.log('No schedule deletion needed:', {
+                        oldStoreId,
+                        newStoreId,
+                        condition: oldStoreId !== null && !isNaN(oldStoreId) && oldStoreId !== newStoreId
+                    });
+                }
+            }
+
+            const dataToUse = pendingUpdate?.formData || formData;
             const submitData = {
-                email: formData.email || null,
-                full_name: formData.full_name || null,
-                role: formData.role,
-                phone: formData.phone || null,
-                address: formData.address || null,
-                store_id: formData.store_id ? parseInt(formData.store_id) : null,
-                is_active: formData.is_active,
-                status: formData.status
+                email: dataToUse.email || null,
+                full_name: dataToUse.full_name || null,
+                role: dataToUse.role,
+                phone: dataToUse.phone || null,
+                address: dataToUse.address || null,
+                store_id: dataToUse.store_id ? parseInt(dataToUse.store_id) : null,
+                is_active: dataToUse.is_active,
+                status: dataToUse.status
             };
 
             // For new users, automatically set password to "123" and status to active
@@ -170,14 +315,14 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
             // For editing users, only add password if provided
             if (editingUser) {
                 // Keep existing username when editing
-                submitData.username = formData.username;
-                if (formData.password) {
-                    submitData.password = formData.password;
+                submitData.username = dataToUse.username;
+                if (dataToUse.password) {
+                    submitData.password = dataToUse.password;
                 }
             } else {
                 // Auto-generate username from email (before @)
-                if (formData.email) {
-                    submitData.username = formData.email.split('@')[0];
+                if (dataToUse.email) {
+                    submitData.username = dataToUse.email.split('@')[0];
                 }
                 // Auto-generate password for new users
                 submitData.password = '123';
@@ -197,6 +342,10 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 ToastNotification.success(response.msg || (editingUser ? 'Cập nhật người dùng thành công' : 'Tạo người dùng thành công'));
                 onSuccess();
                 onClose();
+                // Reset states
+                setShowDeleteConfirm(false);
+                setPendingUpdate(null);
+                setFutureSchedulesCount(0);
             } else {
                 setError(response.msg || 'Lỗi không xác định');
                 ToastNotification.error(response.msg || 'Lỗi không xác định');
@@ -210,7 +359,19 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
         }
     };
 
+    const handleConfirmDelete = () => {
+        setShowDeleteConfirm(false);
+        performUpdate();
+    };
+
+    const handleCancelDelete = () => {
+        setShowDeleteConfirm(false);
+        setPendingUpdate(null);
+        setFutureSchedulesCount(0);
+    };
+
     return (
+        <>
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>
                 {editingUser ? 'Chỉnh sửa Người dùng' : 'Tạo Người dùng mới'}
@@ -365,6 +526,50 @@ const UserDialog = ({ open, onClose, editingUser, onSuccess }) => {
                 </PrimaryButton>
             </DialogActions>
         </Dialog>
+
+        {/* Confirmation Dialog for Deleting Future Schedules */}
+        <Dialog
+            open={showDeleteConfirm}
+            onClose={handleCancelDelete}
+            maxWidth="sm"
+            fullWidth
+        >
+            <DialogTitle>
+                Xác nhận xóa lịch làm việc
+            </DialogTitle>
+            <DialogContent>
+                {futureSchedulesCount > 0 ? (
+                    <>
+                        <Typography>
+                            Nhân viên này có <strong>{futureSchedulesCount}</strong> lịch làm việc tương lai tại cửa hàng cũ.
+                        </Typography>
+                        <Typography sx={{ mt: 2 }}>
+                            Bạn có muốn xóa các lịch làm việc này trước khi chuyển nhân viên sang cửa hàng mới không?
+                        </Typography>
+                    </>
+                ) : (
+                    <Typography>
+                        Bạn đang chuyển nhân viên sang cửa hàng mới. Nếu nhân viên có lịch làm việc tương lai tại cửa hàng cũ, các lịch đó sẽ bị xóa.
+                    </Typography>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+                <SecondaryButton
+                    onClick={handleCancelDelete}
+                    disabled={loading}
+                >
+                    Hủy
+                </SecondaryButton>
+                <DangerButton
+                    onClick={handleConfirmDelete}
+                    disabled={loading}
+                    loading={loading}
+                >
+                    Xóa và cập nhật
+                </DangerButton>
+            </DialogActions>
+        </Dialog>
+        </>
     );
 };
 

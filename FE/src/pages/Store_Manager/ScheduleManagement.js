@@ -90,6 +90,16 @@ const isPastDate = (dateKey) => {
   return targetDate < today;
 };
 
+// Hàm chuyển đổi trạng thái sang tiếng Việt
+const getStatusLabel = (status) => {
+  const statusMap = {
+    'draft': 'Nháp',
+    'confirmed': 'Đã xác nhận',
+    'cancelled': 'Đã hủy'
+  };
+  return statusMap[status] || status || 'Đã xác nhận';
+};
+
 // Kiểm tra ca trong cùng ngày hôm nay nhưng đã qua thời gian làm việc (quá khứ trong ngày)
 const isPastShiftToday = (dateKey, shiftTemplate) => {
   if (!shiftTemplate) return false;
@@ -313,8 +323,12 @@ const ScheduleManagement = () => {
     return (
       <Stack spacing={0.5} sx={{ width: "100%" }}>
         {effectiveList.map((item, idx) => {
-          const employeeName =
-            staffMap[String(item.user_id)] || `#${item.user_id}`;
+          // Ưu tiên sử dụng thông tin employee từ schedule data (cho nhân viên cũ đã chuyển cửa hàng)
+          // Nếu không có, mới dùng staffMap (nhân viên hiện tại)
+          const employeeName = item.employee?.full_name 
+            || item.employee?.username 
+            || staffMap[String(item.user_id)] 
+            || `#${item.user_id}`;
           const attendance = getAttendanceStatus(dayKey, tpl, item);
 
           return (
@@ -466,7 +480,11 @@ const ScheduleManagement = () => {
                             const dayLabel = `${String(d.getDate()).padStart(2, "0")}/${String(
                               d.getMonth() + 1
                             ).padStart(2, "0")}/${d.getFullYear()}`;
-                            const employeeName = staffMap[String(item.user_id)] || `#${item.user_id}`;
+                            // Ưu tiên sử dụng thông tin employee từ schedule data
+                            const employeeName = item.employee?.full_name 
+                              || item.employee?.username 
+                              || staffMap[String(item.user_id)] 
+                              || `#${item.user_id}`;
                             openConfirmDelete(dayKey, templateId, item.schedule_id, {
                               employeeName,
                               shiftLabel,
@@ -533,15 +551,47 @@ const ScheduleManagement = () => {
         const rows = schRes?.data || [];
         const grid = {};
         rows.forEach((r) => {
-          const dateKey = r.work_date;
+          const dateKey = r.work_date || (r.get ? r.get('work_date') : null);
+          const scheduleId = r.schedule_id || (r.get ? r.get('schedule_id') : null);
+          const userId = r.user_id || (r.get ? r.get('user_id') : null);
+          const shiftTemplateId = r.shift_template_id || (r.get ? r.get('shift_template_id') : null);
+          const status = r.status || (r.get ? r.get('status') : null);
+          const attendanceStatus = r.attendance_status || (r.get ? r.get('attendance_status') : null) || 'not_checked_in';
+          
+          if (!dateKey) return;
+          
           if (!grid[dateKey]) grid[dateKey] = {};
-          if (!grid[dateKey][r.shift_template_id])
-            grid[dateKey][r.shift_template_id] = [];
-          grid[dateKey][r.shift_template_id].push({
-            schedule_id: r.schedule_id,
-            user_id: r.user_id,
-            status: r.status,
-            attendance_status: r.attendance_status || 'not_checked_in', // Quan trọng: lưu attendance_status
+          if (!grid[dateKey][shiftTemplateId])
+            grid[dateKey][shiftTemplateId] = [];
+          
+          // Lưu thông tin employee từ schedule data để hiển thị tên nhân viên cũ
+          // Sequelize có thể trả về instance hoặc plain object
+          const employee = r.employee || (r.get ? r.get('employee') : null);
+          let employeeData = null;
+          
+          if (employee) {
+            // Xử lý cả Sequelize instance và plain object
+            const getValue = (key) => {
+              if (employee.get && typeof employee.get === 'function') {
+                return employee.get(key);
+              }
+              return employee[key];
+            };
+            
+            employeeData = {
+              user_id: getValue('user_id'),
+              full_name: getValue('full_name'),
+              username: getValue('username'),
+              email: getValue('email')
+            };
+          }
+          
+          grid[dateKey][shiftTemplateId].push({
+            schedule_id: scheduleId,
+            user_id: userId,
+            status: status,
+            attendance_status: attendanceStatus,
+            employee: employeeData
           });
         });
         setSchedule(grid);
@@ -1571,8 +1621,12 @@ const ScheduleManagement = () => {
               selectedShiftDetail.shiftList.length > 0 ? (
                 <List sx={{ bgcolor: "background.paper", borderRadius: 2 }}>
                   {selectedShiftDetail.shiftList.map((item, idx) => {
-                    const employeeName =
-                      staffMap[String(item.user_id)] || `#${item.user_id}`;
+                    // Ưu tiên sử dụng thông tin employee từ schedule data (cho nhân viên cũ đã chuyển cửa hàng)
+                    // Nếu không có, mới dùng staffMap (nhân viên hiện tại)
+                    const employeeName = item.employee?.full_name 
+                      || item.employee?.username 
+                      || staffMap[String(item.user_id)] 
+                      || `#${item.user_id}`;
                     const attendance = getAttendanceStatus(
                       selectedShiftDetail.dayKey,
                       selectedShiftDetail.shiftTemplate,
@@ -1699,7 +1753,7 @@ const ScheduleManagement = () => {
                               variant="caption"
                               color="text.secondary"
                             >
-                              Trạng thái: {item.status || "confirmed"}
+                              Trạng thái: {getStatusLabel(item.status)}
                             </Typography>
                           }
                         />

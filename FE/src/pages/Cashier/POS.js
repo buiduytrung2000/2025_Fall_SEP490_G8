@@ -21,7 +21,8 @@ import {
     Chip,
     IconButton,
     Badge,
-    Stack
+    Stack,
+    Alert
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -104,6 +105,8 @@ const POS = () => {
     const [shiftId, setShiftId] = useState(null);
     const [openingCash, setOpeningCash] = useState(''); // Số tiền đầu ca hiển thị trên header
     const [openingCashInput, setOpeningCashInput] = useState(''); // Input trong modal check-in
+    const [checkinNote, setCheckinNote] = useState(''); // Note khi check-in
+    const [isLateCheckin, setIsLateCheckin] = useState(false); // Kiểm tra check-in muộn
     const [cashSalesTotal, setCashSalesTotal] = useState(0); // tổng bán bằng tiền mặt trong ca
     const [bankTransferTotal, setBankTransferTotal] = useState(0); // tổng bán bằng chuyển khoản trong ca
     const [totalSales, setTotalSales] = useState(0); // tổng doanh thu (tiền mặt + chuyển khoản)
@@ -1110,8 +1113,45 @@ const POS = () => {
                                 color="success"
                                 size="small"
                                 startIcon={<LoginIcon />}
-                                onClick={() => {
+                                onClick={async () => {
                                     setOpeningCashInput('');
+                                    setCheckinNote('');
+                                    setIsLateCheckin(false);
+                                    
+                                    // Kiểm tra check-in muộn
+                                    // Thời gian hợp lệ check-in là ±5 phút từ thời gian bắt đầu ca
+                                    // Chỉ coi là muộn nếu check-in sau thời gian bắt đầu ca hơn 5 phút
+                                    if (selectedScheduleId) {
+                                        try {
+                                            const today = new Date().toISOString().split('T')[0];
+                                            const scheduleResp = await getMySchedules(today, today);
+                                            if (scheduleResp && scheduleResp.err === 0 && scheduleResp.data) {
+                                                const selectedSchedule = scheduleResp.data.find(s => s.schedule_id === selectedScheduleId);
+                                                if (selectedSchedule) {
+                                                    const shiftTemplate = selectedSchedule.shiftTemplate || selectedSchedule.shift_template;
+                                                    if (shiftTemplate && shiftTemplate.start_time) {
+                                                        const now = new Date();
+                                                        const workDate = new Date(selectedSchedule.work_date);
+                                                        const [startHour, startMinute] = shiftTemplate.start_time.split(':').map(Number);
+                                                        const shiftStart = new Date(workDate);
+                                                        shiftStart.setHours(startHour, startMinute, 0, 0);
+                                                        
+                                                        // Cho phép check-in sớm 5 phút hoặc muộn 5 phút (tổng cộng 10 phút window)
+                                                        const validEndTime = new Date(shiftStart);
+                                                        validEndTime.setMinutes(validEndTime.getMinutes() + 5); // Cho phép muộn 5 phút
+                                                        
+                                                        // Chỉ tính là muộn nếu check-in sau thời gian hợp lệ (sau shiftStart + 5 phút)
+                                                        if (now > validEndTime) {
+                                                            setIsLateCheckin(true);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.error('Error checking late check-in:', e);
+                                        }
+                                    }
+                                    
                                     setShowCheckinModal(true);
                                 }}
                             >
@@ -1790,9 +1830,18 @@ const POS = () => {
             <Dialog open={showCheckinModal} onClose={() => {
                 setShowCheckinModal(false);
                 setOpeningCashInput('');
+                setCheckinNote('');
+                setIsLateCheckin(false);
             }}>
                 <DialogTitle>Bắt đầu ca làm việc</DialogTitle>
                 <DialogContent>
+                    {isLateCheckin && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            <Typography variant="body2" fontWeight={600}>
+                                Bạn đang check-in muộn. Vui lòng nhập lý do vào phần ghi chú bên dưới.
+                            </Typography>
+                        </Alert>
+                    )}
                     <TextField
                         fullWidth
                         type="number"
@@ -1807,11 +1856,26 @@ const POS = () => {
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                         Số tiền này sẽ dùng để đối soát khi kết ca.
                     </Typography>
+                    <TextField
+                        fullWidth
+                        multiline
+                        rows={3}
+                        label={isLateCheckin ? "Ghi chú (bắt buộc khi check-in muộn) *" : "Ghi chú (tùy chọn)"}
+                        placeholder={isLateCheckin ? "Vui lòng nhập lý do check-in muộn..." : "Nhập ghi chú nếu có..."}
+                        value={checkinNote}
+                        onChange={(e) => setCheckinNote(e.target.value)}
+                        required={isLateCheckin}
+                        error={isLateCheckin && !checkinNote.trim()}
+                        helperText={isLateCheckin && !checkinNote.trim() ? "Vui lòng nhập lý do check-in muộn" : ""}
+                        sx={{ mt: 2 }}
+                    />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => {
                         setShowCheckinModal(false);
                         setOpeningCashInput('');
+                        setCheckinNote('');
+                        setIsLateCheckin(false);
                     }}>Hủy</Button>
                     <Button
                         variant="contained"
@@ -1829,6 +1893,13 @@ const POS = () => {
                                 ToastNotification.error('Vui lòng nhập số tiền hợp lệ');
                                 return;
                             }
+
+                            // Kiểm tra note bắt buộc khi check-in muộn
+                            if (isLateCheckin && !checkinNote.trim()) {
+                                ToastNotification.error('Vui lòng nhập lý do check-in muộn');
+                                return;
+                            }
+
                             const storedStoreId = (() => {
                                 if (user && user.store_id) return user.store_id;
                                 try { const persisted = localStorage.getItem('store_id'); if (persisted) return Number(persisted); } catch { }
@@ -1838,7 +1909,8 @@ const POS = () => {
                             // Gửi schedule_id nếu đã chọn (ưu tiên ca chưa check-in)
                             const checkinData = {
                                 store_id: storedStoreId,
-                                opening_cash: open
+                                opening_cash: open,
+                                note: checkinNote.trim() || null
                             };
                             if (selectedScheduleId) {
                                 checkinData.schedule_id = selectedScheduleId;
@@ -1863,6 +1935,8 @@ const POS = () => {
 
                                 setShowCheckinModal(false);
                                 setOpeningCashInput(''); // Reset input cho lần mở modal sau
+                                setCheckinNote(''); // Reset note
+                                setIsLateCheckin(false); // Reset late check-in flag
                                 ToastNotification.success('Bắt đầu ca thành công!');
                             } else {
                                 ToastNotification.error(resp?.msg || 'Không thể bắt đầu ca');

@@ -5,3 +5,4 @@ ALTER TABLE `Schedule`
   UNIQUE (`user_id`, `shift_template_id`, `work_date`);
 
 
+
