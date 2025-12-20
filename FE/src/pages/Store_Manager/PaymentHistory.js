@@ -90,7 +90,14 @@ const PaymentHistory = () => {
             });
             
             if (response.err === 0) {
-                setCashiers(response.data?.rows || response.data || []);
+                const allEmployees = response.data?.rows || response.data || [];
+                // Filter out store managers - only show cashiers and other non-manager roles
+                const cashiersOnly = allEmployees.filter(employee => {
+                    const role = employee.role || employee.user?.role;
+                    // Exclude Store_Manager and Manager roles
+                    return role !== 'Store_Manager' && role !== 'Manager';
+                });
+                setCashiers(cashiersOnly);
             }
         } catch (error) {
             console.error('Error fetching employees:', error);
