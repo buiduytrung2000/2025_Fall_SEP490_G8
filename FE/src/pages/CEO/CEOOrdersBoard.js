@@ -51,6 +51,7 @@ const orderStatusColorMap = {
   preparing: "info",
   shipped: "primary",
   delivered: "success",
+  rejected: "error",
 };
 
 const orderStatusLabelMap = {
@@ -60,6 +61,7 @@ const orderStatusLabelMap = {
   preparing: "Đang chuẩn bị",
   shipped: "Đã giao",
   delivered: "Đã nhận",
+  rejected: "Từ chối",
 };
 
 const formatCurrency = (value) =>
