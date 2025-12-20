@@ -4,15 +4,16 @@
  * Valid status transitions
  */
 export const VALID_STATUS_TRANSITIONS = {
-  'pending': ['confirmed', 'cancelled'],
+  'pending': ['confirmed', 'cancelled', 'rejected'],
   'confirmed': [], // No transitions allowed from confirmed
-  'cancelled': []  // No transitions allowed from cancelled
+  'cancelled': [],  // No transitions allowed from cancelled
+  'rejected': []  // No transitions allowed from rejected
 };
 
 /**
  * Valid statuses
  */
-export const VALID_STATUSES = ['pending', 'confirmed', 'cancelled'];
+export const VALID_STATUSES = ['pending', 'confirmed', 'cancelled', 'rejected'];
 
 /**
  * Check if order can be edited based on status
@@ -29,7 +30,7 @@ export const isValidStatusTransition = (currentStatus, newStatus) => {
   if (!VALID_STATUSES.includes(newStatus)) {
     return false;
   }
-  
+
   const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus];
   return allowedTransitions && allowedTransitions.includes(newStatus);
 };

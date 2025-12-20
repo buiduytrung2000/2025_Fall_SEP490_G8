@@ -59,9 +59,10 @@ module.exports = (sequelize, DataTypes) => {
      */
     canTransitionTo(newStatus) {
       const validTransitions = {
-        'pending': ['confirmed', 'cancelled'],
+        'pending': ['confirmed', 'cancelled', 'rejected'],
         'confirmed': [], // No transitions allowed from confirmed
-        'cancelled': []  // No transitions allowed from cancelled
+        'cancelled': [],  // No transitions allowed from cancelled
+        'rejected': []  // No transitions allowed from rejected
       };
       return validTransitions[this.status]?.includes(newStatus) || false;
     }
@@ -94,9 +95,9 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     status: {
-      type: DataTypes.ENUM('pending', 'confirmed', 'cancelled'),
+      type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'rejected'),
       defaultValue: 'pending',
-      comment: 'Order status: pending (can edit), confirmed (read-only), cancelled (read-only)'
+      comment: 'Order status: pending (can edit), confirmed (read-only), cancelled (read-only), rejected (read-only)'
     },
     direct_to_store: {
       type: DataTypes.BOOLEAN,

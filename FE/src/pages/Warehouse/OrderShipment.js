@@ -48,7 +48,8 @@ const statusColors = {
   confirmed: 'info',
   shipped: 'primary',
   delivered: 'success',
-  cancelled: 'error'
+  cancelled: 'error',
+  rejected: 'error'
 };
 
 const statusLabels = {
@@ -56,7 +57,8 @@ const statusLabels = {
   confirmed: 'Đã xác nhận',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
-  cancelled: 'Đã hủy'
+  cancelled: 'Đã hủy',
+  rejected: 'Từ chối'
 };
 
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
@@ -124,8 +126,8 @@ const OrderShipment = () => {
   const [pendingSaveItemId, setPendingSaveItemId] = useState(null);
   const [savingReasons, setSavingReasons] = useState({}); // Track which reasons are being saved
   const saveReasonTimeouts = React.useRef({}); // Store timeout refs for debounce
-  const [cancelDialog, setCancelDialog] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
+  const [rejectDialog, setRejectDialog] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
 
   const loadOrderDetail = async () => {
     setLoading(true);
@@ -520,32 +522,38 @@ const OrderShipment = () => {
   }, []);
 
   // =====================================================
-  // EVENT HANDLERS - Cancel Order
+  // EVENT HANDLERS - Reject Order
   // =====================================================
 
-  const handleOpenCancelDialog = () => {
-    // Không cho phép hủy đơn đã giao
-    if (order.status === 'delivered') {
-      ToastNotification.warning('Không thể hủy đơn hàng đã được giao');
+  const handleOpenRejectDialog = () => {
+    // Chỉ cho phép từ chối đơn đang ở trạng thái pending
+    if (order.status !== 'pending') {
+      ToastNotification.warning('Chỉ có thể từ chối đơn hàng đang chờ xác nhận');
       return;
     }
-    setCancelDialog(true);
+    setRejectNote('');
+    setRejectDialog(true);
   };
 
-  const handleCancelOrder = async () => {
+  const handleRejectOrder = async () => {
     if (!order) return;
+
+    if (!rejectNote || rejectNote.trim() === '') {
+      ToastNotification.error('Vui lòng nhập lý do từ chối đơn hàng');
+      return;
+    }
 
     setUpdating(true);
     try {
-      const response = await updateWarehouseOrderStatus(id, 'cancelled');
+      const response = await updateWarehouseOrderStatus(id, 'rejected', rejectNote.trim());
       if (response.err === 0) {
-        ToastNotification.success('Đã hủy đơn hàng thành công!');
-        setCancelDialog(false);
-        setCancelReason('');
+        ToastNotification.success('Đã từ chối đơn hàng thành công!');
+        setRejectDialog(false);
+        setRejectNote('');
         // Reload lại chi tiết đơn hàng
         await loadOrderDetail();
       } else {
-        ToastNotification.error(response.msg || 'Không thể hủy đơn hàng');
+        ToastNotification.error(response.msg || 'Không thể từ chối đơn hàng');
       }
     } catch (error) {
       ToastNotification.error('Lỗi kết nối: ' + error.message);
@@ -678,11 +686,17 @@ const OrderShipment = () => {
   const canProceed = next && order.status !== 'delivered';
 
   // Ghi chú xác nhận từ cửa hàng (khi store bấm "Đã nhận hàng")
+  // CHỈ lấy store_receive_note khi status = delivered (không phải rejected)
   const storeConfirmNote =
-    order.store_receive_note ||
+    (order.status === 'delivered' && order.store_receive_note) ||
     order.store_confirmation_note ||
     order.receive_note ||
     order.store_note ||
+    null;
+
+  // Lý do từ chối từ warehouse (khi warehouse từ chối đơn hàng)
+  const warehouseRejectNote =
+    (order.status === 'rejected' && order.store_receive_note) ||
     null;
 
   // Các sản phẩm có chênh lệch giữa SL thực tế giao (kho) và SL nhận thực tế (cửa hàng)
@@ -808,8 +822,20 @@ const OrderShipment = () => {
               </Paper>
             )}
 
+            {/* Lý do từ chối từ warehouse */}
+            {warehouseRejectNote && (
+              <Paper sx={{ p: 3, mb: 3, bgcolor: '#ffebee', border: '1px solid #ef5350' }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom color="error.dark">
+                  ❌ Lý do từ chối đơn hàng từ kho
+                </Typography>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+                  {warehouseRejectNote}
+                </Typography>
+              </Paper>
+            )}
+
             {/* Store confirmation note after receiving goods */}
-            {(storeConfirmNote || order.orderItems?.some(item => item.received_quantity !== null && item.received_quantity !== undefined)) && (
+            {(storeConfirmNote || order.orderItems?.some(item => item.received_quantity !== null && item.received_quantity !== undefined)) && order.status !== 'rejected' && (
               <Paper sx={{ p: 3, mb: 3, bgcolor: '#e8f5e9', border: '1px solid #81c784' }}>
                 <Typography variant="h6" fontWeight={600} gutterBottom color="success.dark">
                   ✅ Ghi chú khi cửa hàng xác nhận đã nhận hàng
@@ -1273,12 +1299,31 @@ const OrderShipment = () => {
               </Typography>
               <Divider sx={{ my: 2 }} />
 
-              {/* Hiển thị cảnh báo nếu đơn hàng đã hủy */}
+              {/* Hiển thị cảnh báo nếu đơn hàng đã hủy hoặc bị từ chối */}
               {order.status === 'cancelled' && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   <Typography variant="body2" fontWeight={600}>
                     Đơn hàng này đã bị hủy. Không thể thực hiện các thao tác xuất kho.
                   </Typography>
+                  {/* Hiển thị note từ store khi hủy */}
+                  {order.notes && (
+                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                      <strong>Lý do hủy từ cửa hàng:</strong> {order.notes}
+                    </Typography>
+                  )}
+                </Alert>
+              )}
+              {order.status === 'rejected' && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  <Typography variant="body2" fontWeight={600}>
+                    Đơn hàng này đã bị từ chối.
+                  </Typography>
+                  {/* Hiển thị note từ warehouse khi từ chối */}
+                  {warehouseRejectNote && (
+                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                      <strong>Lý do từ chối:</strong> {warehouseRejectNote}
+                    </Typography>
+                  )}
                 </Alert>
               )}
 
@@ -1312,6 +1357,10 @@ const OrderShipment = () => {
                 <Alert severity="warning">
                   Đơn hàng đã bị hủy. Chỉ có thể xem thông tin, không thể thực hiện thao tác.
                 </Alert>
+              ) : order.status === 'rejected' ? (
+                <Alert severity="error">
+                  Đơn hàng đã bị từ chối. Không thể thực hiện thao tác.
+                </Alert>
               ) : order.status === 'delivered' ? (
                 <Alert severity="success">
                   ✅ Đơn hàng đã được giao thành công vào {formatDate(order.updated_at)}
@@ -1331,43 +1380,17 @@ const OrderShipment = () => {
                     {getStatusActionLabel(next)}
                   </PrimaryButton>
 
-                  {/* Nút hủy đơn hàng */}
-                  <SecondaryButton
-                    fullWidth
-                    size="large"
-                    startIcon={<BlockIcon />}
-                    onClick={handleOpenCancelDialog}
-                    sx={{
-                      py: 1.5,
-                      fontWeight: 600,
-                      color: 'error.main',
-                      borderColor: 'error.main',
-                      '&:hover': {
-                        borderColor: 'error.dark',
-                        bgcolor: 'error.light',
-                        color: 'error.dark'
-                      }
-                    }}
-                  >
-                    Hủy đơn hàng
-                  </SecondaryButton>
-                </>
-              ) : (
-                <>
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Đơn hàng đang trong quá trình xử lý
-                  </Alert>
-
-                  {/* Nút hủy đơn hàng cho các trạng thái khác */}
-                  {order.status !== 'delivered' && (
+                  {/* Nút từ chối đơn hàng (chỉ hiển thị khi pending) */}
+                  {order.status === 'pending' && (
                     <SecondaryButton
                       fullWidth
                       size="large"
                       startIcon={<BlockIcon />}
-                      onClick={handleOpenCancelDialog}
+                      onClick={handleOpenRejectDialog}
                       sx={{
                         py: 1.5,
                         fontWeight: 600,
+                        mb: 2,
                         color: 'error.main',
                         borderColor: 'error.main',
                         '&:hover': {
@@ -1377,9 +1400,15 @@ const OrderShipment = () => {
                         }
                       }}
                     >
-                      Hủy đơn hàng
+                      Từ chối đơn hàng
                     </SecondaryButton>
                   )}
+                </>
+              ) : (
+                <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Đơn hàng đang trong quá trình xử lý
+                  </Alert>
                 </>
               )}
             </Paper>
@@ -1572,25 +1601,25 @@ const OrderShipment = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Cancel Order Dialog */}
+      {/* Reject Order Dialog */}
       <Dialog
-        open={cancelDialog}
-        onClose={() => !updating && setCancelDialog(false)}
+        open={rejectDialog}
+        onClose={() => !updating && setRejectDialog(false)}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle>
           <Typography variant="h6" fontWeight={600} color="error">
-            Xác nhận hủy đơn hàng
+            Xác nhận từ chối đơn hàng
           </Typography>
         </DialogTitle>
         <DialogContent>
           <Alert severity="error" sx={{ mb: 2 }}>
             <Typography variant="body2" fontWeight={600}>
-              ⚠️ Bạn có chắc chắn muốn hủy đơn hàng này?
+              ⚠️ Bạn có chắc chắn muốn từ chối đơn hàng này?
             </Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>
-              Hành động này không thể hoàn tác. Đơn hàng sẽ được đánh dấu là đã hủy và không thể tiếp tục xử lý.
+              Hành động này sẽ từ chối đơn hàng và thông báo cho cửa hàng. Lý do từ chối sẽ được lưu vào hệ thống.
             </Typography>
           </Alert>
 
@@ -1615,24 +1644,26 @@ const OrderShipment = () => {
           <TextField
             fullWidth
             multiline
-            rows={3}
-            label="Lý do hủy đơn hàng (tùy chọn)"
-            placeholder="Nhập lý do hủy đơn hàng..."
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
+            rows={4}
+            label="Lý do từ chối đơn hàng *"
+            placeholder="Nhập lý do từ chối đơn hàng (bắt buộc)..."
+            value={rejectNote}
+            onChange={(e) => setRejectNote(e.target.value)}
+            required
+            helperText="Lý do từ chối sẽ được gửi đến cửa hàng"
             sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <SecondaryButton onClick={() => {
-            setCancelDialog(false);
-            setCancelReason('');
+            setRejectDialog(false);
+            setRejectNote('');
           }} disabled={updating}>
-            Không hủy
+            Không từ chối
           </SecondaryButton>
           <PrimaryButton
-            onClick={handleCancelOrder}
-            disabled={updating}
+            onClick={handleRejectOrder}
+            disabled={updating || !rejectNote || !rejectNote.trim()}
             loading={updating}
             startIcon={<BlockIcon />}
             sx={{
@@ -1640,7 +1671,7 @@ const OrderShipment = () => {
               '&:hover': { bgcolor: 'error.dark' }
             }}
           >
-            Xác nhận hủy đơn
+            Xác nhận từ chối
           </PrimaryButton>
         </DialogActions>
       </Dialog>

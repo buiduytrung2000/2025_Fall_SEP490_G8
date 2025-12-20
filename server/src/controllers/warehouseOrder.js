@@ -235,7 +235,7 @@ export const getOrderStatistics = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { status } = req.body;
+        const { status, notes } = req.body;
 
         if (!orderId || !status) {
             return res.status(400).json({
@@ -244,7 +244,7 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+        const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'rejected'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 err: 1,
@@ -255,7 +255,8 @@ export const updateOrderStatus = async (req, res) => {
         const response = await warehouseOrderService.updateOrderStatusService({
             orderId,
             status,
-            updatedBy: req.user.user_id
+            updatedBy: req.user.user_id,
+            notes: notes || null
         });
 
         return res.status(200).json(response);

@@ -64,14 +64,19 @@ export async function getWarehouseOrderDetail(orderId) {
 /**
  * Update warehouse order status
  * @param {number} orderId - Order ID
- * @param {string} status - New status: pending, confirmed, shipped, delivered, cancelled
+ * @param {string} status - New status: pending, confirmed, shipped, delivered, cancelled, rejected
+ * @param {string} notes - Optional notes (required for rejected status)
  */
-export async function updateWarehouseOrderStatus(orderId, status) {
+export async function updateWarehouseOrderStatus(orderId, status, notes = null) {
     try {
+        const body = { status };
+        if (notes !== null && notes !== undefined) {
+            body.notes = notes;
+        }
         const res = await fetch(`${API_BASE}/warehouse-order/${orderId}/status`, {
             method: 'PATCH',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ status })
+            body: JSON.stringify(body)
         });
         return await res.json();
     } catch (error) {

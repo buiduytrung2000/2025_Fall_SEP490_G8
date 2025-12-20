@@ -311,7 +311,7 @@ const PurchaseOrders = () => {
       Cell: ({ row }) => {
         const order = row.original;
         const isPending = order.status?.toLowerCase() === 'pending';
-        
+
         return (
           <Stack direction="row" spacing={0.5} justifyContent="center">
             <Tooltip title="Xem chi tiết">
@@ -1030,6 +1030,19 @@ const PurchaseOrders = () => {
                     </Typography>
                   </Grid>
                 )}
+                {/* Hiển thị note từ warehouse khi từ chối */}
+                {selectedOrder.status?.toLowerCase() === 'rejected' && selectedOrder.store_receive_note && (
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2, bgcolor: 'error.light', border: '1px solid', borderColor: 'error.main' }}>
+                      <Typography variant="body2" color="error.main" fontWeight={600} gutterBottom>
+                        ⚠️ Lý do từ chối từ kho:
+                      </Typography>
+                      <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+                        {selectedOrder.store_receive_note}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                )}
               </Grid>
 
               <Divider sx={{ my: 2 }} />
@@ -1108,9 +1121,9 @@ const PurchaseOrders = () => {
                             {editingItemIndex === idx
                               ? `${(Number(editingItemData.quantity || 0) * Number(editingItemData.unit_price || 0)).toLocaleString('vi-VN')} đ`
                               : `${Number(
-                                  item.subtotal ||
-                                  (item.received_quantity ?? item.quantity ?? 0) * (item.unit_price || 0)
-                                ).toLocaleString('vi-VN')} đ`
+                                item.subtotal ||
+                                (item.received_quantity ?? item.quantity ?? 0) * (item.unit_price || 0)
+                              ).toLocaleString('vi-VN')} đ`
                             }
                           </TableCell>
                           {selectedOrder?.status?.toLowerCase() === 'pending' && (
@@ -1168,8 +1181,8 @@ const PurchaseOrders = () => {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={
-                          selectedOrder?.status?.toLowerCase() === 'pending' 
-                            ? 8 
+                          selectedOrder?.status?.toLowerCase() === 'pending'
+                            ? 8
                             : (selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered')
                               ? 8
                               : 7
@@ -1181,8 +1194,8 @@ const PurchaseOrders = () => {
                     {selectedOrder.items && selectedOrder.items.length > 0 && (
                       <TableRow>
                         <TableCell colSpan={
-                          selectedOrder?.status?.toLowerCase() === 'pending' 
-                            ? 7 
+                          selectedOrder?.status?.toLowerCase() === 'pending'
+                            ? 7
                             : (selectedOrder?.status?.toLowerCase() === 'shipped' || selectedOrder?.status?.toLowerCase() === 'delivered')
                               ? 7
                               : 6
@@ -1370,9 +1383,9 @@ const PurchaseOrders = () => {
           <SecondaryButton onClick={() => setOpenEditOrderModal(false)} disabled={submitting}>
             Hủy chỉnh sửa
           </SecondaryButton>
-          <PrimaryButton 
-            onClick={handleSaveEditOrder} 
-            disabled={submitting || !editLines.length || editLines.every(l => !l.sku && !l.name)} 
+          <PrimaryButton
+            onClick={handleSaveEditOrder}
+            disabled={submitting || !editLines.length || editLines.every(l => !l.sku && !l.name)}
             loading={submitting}
           >
             Lưu thay đổi
@@ -1470,10 +1483,10 @@ const PurchaseOrders = () => {
                           onChange={(e) => {
                             const value = e.target.value;
                             const numValue = Number(value);
-                            const maxQuantity = item.package_quantity !== null && item.package_quantity !== undefined 
-                              ? Number(item.package_quantity) 
+                            const maxQuantity = item.package_quantity !== null && item.package_quantity !== undefined
+                              ? Number(item.package_quantity)
                               : null;
-                            
+
                             // Giới hạn số lượng nhận không được vượt quá số lượng giao
                             let finalValue = value;
                             if (maxQuantity !== null && numValue > maxQuantity) {
@@ -1481,7 +1494,7 @@ const PurchaseOrders = () => {
                             } else if (numValue < 0) {
                               finalValue = 0;
                             }
-                            
+
                             setReceiveItems((prev) =>
                               prev.map((it, i) =>
                                 i === idx ? { ...it, received_quantity: finalValue } : it
@@ -1489,25 +1502,25 @@ const PurchaseOrders = () => {
                             );
                           }}
                           sx={{ width: 90 }}
-                          inputProps={{ 
+                          inputProps={{
                             min: 0,
-                            max: item.package_quantity !== null && item.package_quantity !== undefined 
-                              ? Number(item.package_quantity) 
+                            max: item.package_quantity !== null && item.package_quantity !== undefined
+                              ? Number(item.package_quantity)
                               : undefined
                           }}
                           error={
-                            item.received_quantity !== null && 
+                            item.received_quantity !== null &&
                             item.received_quantity !== undefined &&
-                            item.package_quantity !== null && 
+                            item.package_quantity !== null &&
                             item.package_quantity !== undefined &&
                             Number(item.received_quantity) > Number(item.package_quantity)
                           }
                           helperText={
-                            item.received_quantity !== null && 
-                            item.received_quantity !== undefined &&
-                            item.package_quantity !== null && 
-                            item.package_quantity !== undefined &&
-                            Number(item.received_quantity) > Number(item.package_quantity)
+                            item.received_quantity !== null &&
+                              item.received_quantity !== undefined &&
+                              item.package_quantity !== null &&
+                              item.package_quantity !== undefined &&
+                              Number(item.received_quantity) > Number(item.package_quantity)
                               ? `Không được vượt quá ${Number(item.package_quantity).toLocaleString('vi-VN')}`
                               : ''
                           }

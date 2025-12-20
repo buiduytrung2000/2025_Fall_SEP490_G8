@@ -871,13 +871,14 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy, not
         }
 
         const validTransitions = {
-            'pending': ['confirmed', 'cancelled'],
+            'pending': ['confirmed', 'cancelled', 'rejected'],
             // Cho phép confirmed -> shipped để supplier/warehouse cập nhật tiến trình,
             // nhưng luồng xuất kho sẽ bị bỏ qua cho đơn perishable.
             'confirmed': ['pending', 'shipped', 'cancelled'],
             'shipped': ['confirmed', 'delivered', 'cancelled'],
             'delivered': [],
-            'cancelled': ['pending']
+            'cancelled': ['pending'],
+            'rejected': []
         };
 
         if (!validTransitions[currentStatus]?.includes(status)) {
@@ -941,12 +942,18 @@ export const updateOrderStatusService = async ({ orderId, status, updatedBy, not
             updated_at: new Date()
         };
 
-        // Append notes if provided (when marking as delivered)
-        if (notes && status === 'delivered') {
-            const existingNotes = order.notes || '';
-            updateData.notes = existingNotes
-                ? `${existingNotes}\n[Ghi chú nhận hàng]: ${notes}`
-                : `[Ghi chú nhận hàng]: ${notes}`;
+        // Handle notes based on status
+        if (notes) {
+            if (status === 'rejected') {
+                // Khi warehouse từ chối đơn, lưu note vào store_receive_note
+                updateData.store_receive_note = notes;
+            } else if (status === 'delivered') {
+                // Khi store xác nhận đã nhận hàng, lưu note vào store_receive_note
+                const existingNotes = order.notes || '';
+                updateData.notes = existingNotes
+                    ? `${existingNotes}\n[Ghi chú nhận hàng]: ${notes}`
+                    : `[Ghi chú nhận hàng]: ${notes}`;
+            }
         }
 
         await order.update(updateData, { transaction });

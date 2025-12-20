@@ -28,6 +28,7 @@ import {
   Lock as LockIcon,
   CheckCircle as ConfirmIcon,
   Cancel as CancelIcon,
+  Block as BlockIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
 import { ToastNotification, PrimaryButton, SecondaryButton, Alert, Icon } from '../../../components/common';
@@ -37,24 +38,27 @@ import {
   getWarehouseSupplierOrderDetail,
 } from '../../../api/warehouseOrderApi';
 
-// Three-stage status system
+// Status system
 const statusColors = {
   pending: 'warning',
   confirmed: 'success',
-  cancelled: 'error'
+  cancelled: 'error',
+  rejected: 'error'
 };
 
 const statusLabels = {
   pending: 'Đang chờ',
   confirmed: 'Đã xác nhận',
-  cancelled: 'Đã hủy'
+  cancelled: 'Đã hủy',
+  rejected: 'Từ chối'
 };
 
-// Valid status transitions (three-stage system)
+// Valid status transitions
 const nextTransitions = {
-  pending: ['confirmed', 'cancelled'],
+  pending: ['confirmed', 'cancelled', 'rejected'],
   confirmed: [], // No transitions from confirmed
-  cancelled: []  // No transitions from cancelled
+  cancelled: [],  // No transitions from cancelled
+  rejected: [] // No transitions from rejected
 };
 
 // Làm tròn an toàn tổng tiền để tránh hiển thị 999.999,96 thay vì 1.000.000
@@ -318,10 +322,25 @@ export default function OrderList() {
                               disabled={order.status !== 'pending'}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleUpdateStatus(order, 'cancelled');
+                                handleUpdateStatus(order, 'rejected');
                               }}
                             >
                               <CancelIcon fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Hủy phiếu nhập">
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={order.status !== 'pending'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateStatus(order, 'cancelled');
+                              }}
+                            >
+                              <BlockIcon fontSize="small" />
                             </IconButton>
                           </span>
                         </Tooltip>
@@ -475,10 +494,22 @@ export default function OrderList() {
               <SecondaryButton
                 onClick={() => {
                   setDetailDialogOpen(false);
-                  handleUpdateStatus(detailOrder, 'cancelled');
+                  handleUpdateStatus(detailOrder, 'rejected');
                 }}
                 disabled={detailLoading}
                 startIcon={<CancelIcon />}
+                sx={{ color: 'error.main', borderColor: 'error.main' }}
+              >
+                Từ chối phiếu nhập
+              </SecondaryButton>
+              <SecondaryButton
+                onClick={() => {
+                  setDetailDialogOpen(false);
+                  handleUpdateStatus(detailOrder, 'cancelled');
+                }}
+                disabled={detailLoading}
+                startIcon={<BlockIcon />}
+                sx={{ color: 'error.main', borderColor: 'error.main' }}
               >
                 Hủy phiếu nhập
               </SecondaryButton>
@@ -500,17 +531,34 @@ export default function OrderList() {
       {/* Status Update Dialog */}
       <Dialog open={updateDialog} onClose={() => !updating && setUpdateDialog(false)}>
         <DialogTitle>
-          {newStatus === 'confirmed' ? 'Xác nhận phiếu nhập hàng' : newStatus === 'cancelled' ? 'Hủy phiếu nhập hàng' : 'Cập nhật trạng thái đơn hàng'}
+          {newStatus === 'confirmed' 
+            ? 'Xác nhận phiếu nhập hàng' 
+            : newStatus === 'cancelled' 
+            ? 'Hủy phiếu nhập hàng' 
+            : newStatus === 'rejected'
+            ? 'Từ chối phiếu nhập hàng'
+            : 'Cập nhật trạng thái đơn hàng'}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" mb={2}>
-            Bạn có chắc chắn muốn {newStatus === 'confirmed' ? 'xác nhận' : newStatus === 'cancelled' ? 'hủy' : 'cập nhật'} phiếu nhập hàng <b>#{selectedOrder?.order_id}</b>?
+            Bạn có chắc chắn muốn {
+              newStatus === 'confirmed' 
+                ? 'xác nhận' 
+                : newStatus === 'cancelled' 
+                ? 'hủy' 
+                : newStatus === 'rejected'
+                ? 'từ chối'
+                : 'cập nhật'
+            } phiếu nhập hàng <b>#{selectedOrder?.order_id}</b>?
           </Typography>
           {newStatus === 'confirmed' && (
             <Alert severity="info" message="Xác nhận đơn hàng sẽ cập nhật tồn kho và khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
           {newStatus === 'cancelled' && (
             <Alert severity="warning" message="Hủy đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
+          )}
+          {newStatus === 'rejected' && (
+            <Alert severity="error" message="Từ chối đơn hàng sẽ khóa đơn hàng. Không thể hoàn tác!" sx={{ mt: 2 }} />
           )}
         </DialogContent>
         <DialogActions>
