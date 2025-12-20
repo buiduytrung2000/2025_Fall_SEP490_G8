@@ -80,8 +80,12 @@ export const generateVouchersForCustomer = async (req, res) => {
             })
         }
 
-        console.log('Controller: Generating vouchers for customer:', customer_id);
-        const response = await voucherService.generateVouchersForExistingCustomer(customer_id)
+        // Ưu tiên lấy store_id từ query, sau đó tới user context (nếu có middleware auth)
+        const { store_id } = req.query;
+        const storeId = store_id || req.user?.store_id || null;
+
+        console.log('Controller: Generating vouchers for customer:', customer_id, 'store:', storeId);
+        const response = await voucherService.generateVouchersForExistingCustomer(customer_id, storeId)
         console.log('Controller: Generate response:', response);
 
         return res.status(200).json(response)

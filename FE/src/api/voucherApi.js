@@ -89,9 +89,12 @@ export async function updateCustomerLoyaltyPoints(customerId, purchaseAmount) {
     return res.json();
 }
 
-export async function generateVouchersForCustomer(customerId) {
+export async function generateVouchersForCustomer(customerId, storeId = null) {
     try {
-        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/generate`, {
+        const params = new URLSearchParams();
+        if (storeId) params.append('store_id', storeId);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`${API_BASE}/voucher/customer/${customerId}/generate${query}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
         });

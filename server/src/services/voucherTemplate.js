@@ -43,7 +43,7 @@ export const getVoucherTemplateById = (id) => new Promise(async (resolve, reject
 
         resolve({
             err: response ? 0 : 1,
-            msg: response ? 'OK' : 'Voucher template not found',
+            msg: response ? 'OK' : 'Không tìm thấy mẫu mã khuyến mãi',
             data: response
         });
     } catch (error) {
@@ -69,22 +69,37 @@ export const createVoucherTemplate = (data) => new Promise(async (resolve, rejec
         } = data;
 
         // Validation
-        if (!voucher_code_prefix || !voucher_name || !discount_type || !discount_value) {
+        const missingFields = [];
+        if (!voucher_code_prefix) missingFields.push('Mã tiền tố');
+        if (!voucher_name) missingFields.push('Tên mã khuyến mãi');
+        if (!discount_type) missingFields.push('Loại giảm giá');
+        if (!discount_value) missingFields.push('Giá trị giảm giá');
+        
+        if (missingFields.length > 0) {
             return resolve({
                 err: 1,
-                msg: 'Missing required fields: voucher_code_prefix, voucher_name, discount_type, discount_value'
+                msg: `Vui lòng điền đầy đủ các trường bắt buộc: ${missingFields.join(', ')}`
             });
         }
 
-        // Check if prefix already exists
+        // Check if prefix already exists in the same store only (không check giữa các store khác nhau)
+        const whereClause = { voucher_code_prefix };
+        if (store_id) {
+            // Nếu có store_id, chỉ check trùng trong cùng store đó
+            whereClause.store_id = store_id;
+        } else {
+            // Nếu không có store_id (voucher global), chỉ check trùng với voucher global khác
+            whereClause.store_id = null;
+        }
+
         const existingTemplate = await db.VoucherTemplate.findOne({
-            where: { voucher_code_prefix }
+            where: whereClause
         });
 
         if (existingTemplate) {
             return resolve({
                 err: 1,
-                msg: 'Voucher code prefix already exists'
+                msg: 'Mã tiền tố đã tồn tại trong cửa hàng này'
             });
         }
 
@@ -104,7 +119,7 @@ export const createVoucherTemplate = (data) => new Promise(async (resolve, rejec
 
         resolve({
             err: 0,
-            msg: 'Voucher template created successfully',
+            msg: 'Tạo mẫu mã khuyến mãi thành công',
             data: response
         });
     } catch (error) {
@@ -120,23 +135,34 @@ export const updateVoucherTemplate = (id, data) => new Promise(async (resolve, r
         if (!template) {
             return resolve({
                 err: 1,
-                msg: 'Voucher template not found'
+                msg: 'Không tìm thấy mẫu mã khuyến mãi'
             });
         }
 
-        // If updating prefix, check if new prefix already exists
+        // If updating prefix, check if new prefix already exists in the same store only
         if (data.voucher_code_prefix && data.voucher_code_prefix !== template.voucher_code_prefix) {
+            const storeId = data.store_id !== undefined ? data.store_id : template.store_id;
+            const whereClause = { 
+                voucher_code_prefix: data.voucher_code_prefix,
+                voucher_template_id: { [Op.ne]: id }
+            };
+            
+            if (storeId) {
+                // Nếu có store_id, chỉ check trùng trong cùng store đó (không check với store khác)
+                whereClause.store_id = storeId;
+            } else {
+                // Nếu không có store_id (voucher global), chỉ check trùng với voucher global khác
+                whereClause.store_id = null;
+            }
+
             const existingTemplate = await db.VoucherTemplate.findOne({
-                where: { 
-                    voucher_code_prefix: data.voucher_code_prefix,
-                    voucher_template_id: { [Op.ne]: id }
-                }
+                where: whereClause
             });
 
             if (existingTemplate) {
                 return resolve({
                     err: 1,
-                    msg: 'Voucher code prefix already exists'
+                    msg: 'Mã tiền tố đã tồn tại trong cửa hàng này'
                 });
             }
         }
@@ -145,7 +171,7 @@ export const updateVoucherTemplate = (id, data) => new Promise(async (resolve, r
 
         resolve({
             err: 0,
-            msg: 'Voucher template updated successfully',
+            msg: 'Cập nhật mẫu mã khuyến mãi thành công',
             data: template
         });
     } catch (error) {
@@ -161,7 +187,7 @@ export const deleteVoucherTemplate = (id) => new Promise(async (resolve, reject)
         if (!template) {
             return resolve({
                 err: 1,
-                msg: 'Voucher template not found'
+                msg: 'Không tìm thấy mẫu mã khuyến mãi'
             });
         }
 
@@ -169,7 +195,7 @@ export const deleteVoucherTemplate = (id) => new Promise(async (resolve, reject)
 
         resolve({
             err: 0,
-            msg: 'Voucher template deleted successfully'
+            msg: 'Xóa mẫu mã khuyến mãi thành công'
         });
     } catch (error) {
         reject(error);

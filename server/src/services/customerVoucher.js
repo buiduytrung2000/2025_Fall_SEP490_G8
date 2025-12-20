@@ -40,9 +40,15 @@ export const getAvailableVouchersByCustomer = (customerId, storeId = null) => ne
             }
         };
 
-        // Nếu có storeId, chỉ lấy voucher của store đó (có thể mở rộng thêm voucher global sau này)
+        // Nếu có storeId, chỉ lấy voucher của store đó hoặc voucher global (store_id = NULL)
         if (storeId) {
-            whereClause.store_id = storeId;
+            whereClause[Op.or] = [
+                { store_id: storeId },
+                { store_id: null }
+            ];
+        } else {
+            // Nếu không có storeId, chỉ lấy voucher global (store_id = NULL)
+            whereClause.store_id = null;
         }
 
         const response = await db.CustomerVoucher.findAll({
@@ -105,9 +111,15 @@ export const validateVoucher = (voucherCode, customerId, purchaseAmount, storeId
             }
         };
 
-        // Nếu có storeId, chỉ cho phép voucher thuộc store đó
+        // Nếu có storeId, chỉ cho phép voucher thuộc store đó hoặc voucher global (store_id = NULL)
         if (storeId) {
-            whereClause.store_id = storeId;
+            whereClause[Op.or] = [
+                { store_id: storeId },
+                { store_id: null }
+            ];
+        } else {
+            // Nếu không có storeId, chỉ cho phép voucher global (store_id = NULL)
+            whereClause.store_id = null;
         }
 
         const voucher = await db.CustomerVoucher.findOne({
@@ -117,7 +129,15 @@ export const validateVoucher = (voucherCode, customerId, purchaseAmount, storeId
         if (!voucher) {
             return resolve({
                 err: 1,
-                msg: 'Voucher không hợp lệ, đã hết hạn hoặc đã được sử dụng'
+                msg: 'Voucher không hợp lệ, đã hết hạn, đã được sử dụng hoặc không thuộc cửa hàng này'
+            })
+        }
+
+        // Double check: Nếu có storeId và voucher có store_id, phải khớp
+        if (storeId && voucher.store_id && voucher.store_id !== storeId) {
+            return resolve({
+                err: 1,
+                msg: 'Voucher này chỉ có thể sử dụng tại cửa hàng tạo voucher'
             })
         }
 

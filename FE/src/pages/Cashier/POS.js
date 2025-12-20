@@ -742,13 +742,13 @@ const POS = () => {
                 if (res.data.length === 0) {
                     console.log('No vouchers found, generating...');
                     ToastNotification.info('Đang tạo voucher cho khách hàng...');
-                    const generateRes = await generateVouchersForCustomer(customerId);
+                    const generateRes = await generateVouchersForCustomer(customerId, storedStoreId);
                     console.log('Generate vouchers response:', generateRes);
 
                     if (generateRes && generateRes.err === 0) {
                         ToastNotification.success(generateRes.msg);
-                        // Reload vouchers
-                        const reloadRes = await getAvailableVouchers(customerId);
+                        // Reload vouchers với store_id
+                        const reloadRes = await getAvailableVouchers(customerId, storedStoreId);
                         console.log('Reloaded vouchers:', reloadRes);
                         if (reloadRes && reloadRes.err === 0) {
                             setVouchers(reloadRes.data || []);

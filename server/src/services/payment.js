@@ -178,8 +178,43 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
             console.log(`No open shift found for cashier_id: ${cashier_id}, store_id: ${store_id}`);
         }
 
-        // Mark voucher as used if applicable (atomic update to prevent double usage)
+        // Mark voucher as used and deduct loyalty points if applicable
+        let pointsToDeduct = 0;
         if (voucher_code) {
+            // Get voucher info to check required loyalty points
+            const voucher = await db.CustomerVoucher.findOne({
+                where: {
+                    voucher_code: voucher_code,
+                    status: 'available'
+                },
+                transaction
+            });
+
+            if (!voucher) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: 'Voucher không tồn tại hoặc đã được sử dụng'
+                });
+            }
+
+            // Check if customer has enough points (if customer is registered)
+            if (customer_id && voucher.required_loyalty_points > 0) {
+                const customer = await db.Customer.findByPk(customer_id, { transaction });
+                if (customer) {
+                    const currentPoints = customer.loyalty_point || 0;
+                    if (currentPoints < voucher.required_loyalty_points) {
+                        await transaction.rollback();
+                        return resolve({
+                            err: 1,
+                            msg: `Khách hàng không đủ điểm tích lũy. Cần ${voucher.required_loyalty_points} điểm, hiện có ${currentPoints} điểm`
+                        });
+                    }
+                    pointsToDeduct = voucher.required_loyalty_points;
+                }
+            }
+
+            // Mark voucher as used (atomic update to prevent double usage)
             const [affectedRows] = await db.sequelize.query(
                 `UPDATE CustomerVoucher
                  SET status = 'used',
@@ -207,12 +242,17 @@ export const createCashPayment = (paymentData) => new Promise(async (resolve, re
         if (customer_id) {
             const customer = await db.Customer.findByPk(customer_id, { transaction });
             if (customer) {
-                // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                // Calculate points to add: 10,000đ = 100 points (100đ = 1 point)
                 const pointsToAdd = Math.floor(subtotal / 100);
-                const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+                // Deduct points for using voucher, then add points from purchase
+                const currentPoints = customer.loyalty_point || 0;
+                const newPoints = currentPoints - pointsToDeduct + pointsToAdd;
+
+                // Ensure points don't go negative
+                const finalPoints = Math.max(0, newPoints);
 
                 await customer.update({
-                    loyalty_point: newPoints
+                    loyalty_point: finalPoints
                 }, { transaction });
             }
         }
@@ -569,8 +609,43 @@ export const updateQRPaymentStatus = (orderCode) => new Promise(async (resolve, 
                     }
                 }
 
-                // Mark voucher as used if applicable (atomic update to prevent double usage)
+                // Mark voucher as used and deduct loyalty points if applicable
+                let pointsToDeduct = 0;
                 if (transactionRecord.voucher_code) {
+                    // Get voucher info to check required loyalty points
+                    const voucher = await db.CustomerVoucher.findOne({
+                        where: {
+                            voucher_code: transactionRecord.voucher_code,
+                            status: 'available'
+                        },
+                        transaction
+                    });
+
+                    if (!voucher) {
+                        await transaction.rollback();
+                        return resolve({
+                            err: 1,
+                            msg: 'Voucher không tồn tại hoặc đã được sử dụng'
+                        });
+                    }
+
+                    // Check if customer has enough points (if customer is registered)
+                    if (transactionRecord.customer_id && voucher.required_loyalty_points > 0) {
+                        const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
+                        if (customer) {
+                            const currentPoints = customer.loyalty_point || 0;
+                            if (currentPoints < voucher.required_loyalty_points) {
+                                await transaction.rollback();
+                                return resolve({
+                                    err: 1,
+                                    msg: `Khách hàng không đủ điểm tích lũy. Cần ${voucher.required_loyalty_points} điểm, hiện có ${currentPoints} điểm`
+                                });
+                            }
+                            pointsToDeduct = voucher.required_loyalty_points;
+                        }
+                    }
+
+                    // Mark voucher as used (atomic update to prevent double usage)
                     const [affectedRows] = await db.sequelize.query(
                         `UPDATE CustomerVoucher
                          SET status = 'used',
@@ -598,12 +673,17 @@ export const updateQRPaymentStatus = (orderCode) => new Promise(async (resolve, 
                 if (transactionRecord.customer_id) {
                     const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
                     if (customer) {
-                        // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                        // Calculate points to add: 10,000đ = 100 points (100đ = 1 point)
                         const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
-                        const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+                        // Deduct points for using voucher, then add points from purchase
+                        const currentPoints = customer.loyalty_point || 0;
+                        const newPoints = currentPoints - pointsToDeduct + pointsToAdd;
+
+                        // Ensure points don't go negative
+                        const finalPoints = Math.max(0, newPoints);
 
                         await customer.update({
-                            loyalty_point: newPoints
+                            loyalty_point: finalPoints
                         }, { transaction });
                     }
                 }
@@ -741,8 +821,43 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
             }
         }
 
-        // Mark voucher as used if applicable (atomic update to prevent double usage)
+        // Mark voucher as used and deduct loyalty points if applicable
+        let pointsToDeduct = 0;
         if (transactionRecord.voucher_code) {
+            // Get voucher info to check required loyalty points
+            const voucher = await db.CustomerVoucher.findOne({
+                where: {
+                    voucher_code: transactionRecord.voucher_code,
+                    status: 'available'
+                },
+                transaction
+            });
+
+            if (!voucher) {
+                await transaction.rollback();
+                return resolve({
+                    err: 1,
+                    msg: 'Voucher không tồn tại hoặc đã được sử dụng'
+                });
+            }
+
+            // Check if customer has enough points (if customer is registered)
+            if (transactionRecord.customer_id && voucher.required_loyalty_points > 0) {
+                const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
+                if (customer) {
+                    const currentPoints = customer.loyalty_point || 0;
+                    if (currentPoints < voucher.required_loyalty_points) {
+                        await transaction.rollback();
+                        return resolve({
+                            err: 1,
+                            msg: `Khách hàng không đủ điểm tích lũy. Cần ${voucher.required_loyalty_points} điểm, hiện có ${currentPoints} điểm`
+                        });
+                    }
+                    pointsToDeduct = voucher.required_loyalty_points;
+                }
+            }
+
+            // Mark voucher as used (atomic update to prevent double usage)
             const [affectedRows] = await db.sequelize.query(
                 `UPDATE CustomerVoucher
                  SET status = 'used',
@@ -770,12 +885,17 @@ export const handlePayOSWebhook = (webhookData) => new Promise(async (resolve, r
         if (transactionRecord.customer_id) {
             const customer = await db.Customer.findByPk(transactionRecord.customer_id, { transaction });
             if (customer) {
-                // Calculate points: 10,000đ = 100 points (100đ = 1 point)
+                // Calculate points to add: 10,000đ = 100 points (100đ = 1 point)
                 const pointsToAdd = Math.floor(transactionRecord.subtotal / 100);
-                const newPoints = (customer.loyalty_point || 0) + pointsToAdd;
+                // Deduct points for using voucher, then add points from purchase
+                const currentPoints = customer.loyalty_point || 0;
+                const newPoints = currentPoints - pointsToDeduct + pointsToAdd;
+
+                // Ensure points don't go negative
+                const finalPoints = Math.max(0, newPoints);
 
                 await customer.update({
-                    loyalty_point: newPoints
+                    loyalty_point: finalPoints
                 }, { transaction });
             }
         }
