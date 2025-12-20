@@ -48,7 +48,6 @@ const orderStatusColorMap = {
   pending: "warning",
   confirmed: "success",
   cancelled: "default",
-  preparing: "info",
   shipped: "primary",
   delivered: "success",
   rejected: "error",
@@ -58,8 +57,7 @@ const orderStatusLabelMap = {
   pending: "Chờ duyệt",
   confirmed: "Đã xác nhận",
   cancelled: "Đã hủy",
-  preparing: "Đang chuẩn bị",
-  shipped: "Đã giao",
+  shipped: "Đang giao",
   delivered: "Đã nhận",
   rejected: "Từ chối",
 };
@@ -103,7 +101,7 @@ export default function CEOOrdersBoard() {
         const [purchaseRes, warehouseRes, branchRes, branchStatsRes] = await Promise.all([
           getRecentPurchaseOrders(12),
           getWarehouseOrdersSummary(),
-          getRecentBranchOrders(12),
+          getRecentBranchOrders(1000), // Tăng limit để lấy tất cả đơn hàng
           getBranchOrdersSummary(),
         ]);
 
@@ -183,6 +181,107 @@ export default function CEOOrdersBoard() {
 
   const warehouseSummary = warehouseOrders || {};
   const branchSummary = branchOrdersStats || {};
+
+  // Tính tổng số đơn xuất từ tất cả các trạng thái trong summary
+  const totalBranchOrders = useMemo(() => {
+    // Ưu tiên tính từ branchOrders nếu đã load đủ (vì đã tăng limit lên 1000)
+    if (Array.isArray(branchOrders) && branchOrders.length > 0) {
+      return branchOrders.length;
+    }
+    
+    // Nếu không có branchOrders, tính từ tất cả các trạng thái trong summary
+    const pending = branchSummary.pending || 0;
+    const confirmed = branchSummary.confirmed || 0;
+    const shipped = branchSummary.shipped || 0;
+    const delivered = branchSummary.delivered || 0;
+    const cancelled = branchSummary.cancelled || 0;
+    const rejected = branchSummary.rejected || 0;
+    
+    const calculatedTotal = pending + confirmed + shipped + delivered + cancelled + rejected;
+    
+    // Nếu calculatedTotal > 0, dùng nó
+    if (calculatedTotal > 0) {
+      return calculatedTotal;
+    }
+    
+    // Nếu không có trong summary, dùng branchSummary.total
+    if (branchSummary.total !== undefined && branchSummary.total !== null) {
+      return branchSummary.total;
+    }
+    
+    return 0;
+  }, [branchSummary, branchOrders]);
+
+  // Tính số đơn đang xử lý: chờ duyệt, đã xác nhận
+  const preparingCount = useMemo(() => {
+    // Ưu tiên tính từ branchOrders nếu đã load đủ (vì đã tăng limit lên 1000)
+    if (Array.isArray(branchOrders) && branchOrders.length > 0) {
+      return branchOrders.filter(order => {
+        const status = order.status || '';
+        // Đang xử lý bao gồm: pending (chờ duyệt), confirmed (đã xác nhận)
+        return status === 'pending' || 
+               status === 'confirmed';
+      }).length;
+    }
+    
+    // Nếu không có branchOrders, tính từ summary
+    const pending = branchSummary.pending || 0;
+    const confirmed = branchSummary.confirmed || 0;
+    return pending + confirmed;
+  }, [branchSummary.pending, branchSummary.confirmed, branchOrders]);
+
+  // Tính số đơn đang vận chuyển (shipped - đang giao)
+  const shippedCount = useMemo(() => {
+    // Nếu có trong summary, dùng summary
+    if (branchSummary.shipped !== undefined && branchSummary.shipped !== null) {
+      return branchSummary.shipped;
+    }
+    
+    // Nếu không có trong summary, tính từ branchOrders
+    if (Array.isArray(branchOrders) && branchOrders.length > 0) {
+      return branchOrders.filter(order => {
+        const status = order.status || '';
+        // Đang vận chuyển chỉ bao gồm: shipped (đang giao)
+        return status === 'shipped';
+      }).length;
+    }
+    return 0;
+  }, [branchSummary.shipped, branchOrders]);
+
+  // Tính số đơn đã hoàn thành (delivered - đã nhận)
+  const deliveredCount = useMemo(() => {
+    // Nếu có trong summary, dùng summary
+    if (branchSummary.delivered !== undefined && branchSummary.delivered !== null) {
+      return branchSummary.delivered;
+    }
+    
+    // Nếu không có trong summary, tính từ branchOrders
+    if (Array.isArray(branchOrders) && branchOrders.length > 0) {
+      return branchOrders.filter(order => {
+        const status = order.status || '';
+        // Đã hoàn thành chỉ bao gồm: delivered (đã nhận)
+        return status === 'delivered';
+      }).length;
+    }
+    return 0;
+  }, [branchSummary.delivered, branchOrders]);
+
+  // Tính số đơn đã hủy/từ chối (cancelled + rejected)
+  const cancelledRejectedCount = useMemo(() => {
+    // Ưu tiên tính từ branchOrders nếu đã load đủ
+    if (Array.isArray(branchOrders) && branchOrders.length > 0) {
+      return branchOrders.filter(order => {
+        const status = order.status || '';
+        // Đã hủy/từ chối bao gồm: cancelled (đã hủy), rejected (từ chối)
+        return status === 'cancelled' || status === 'rejected';
+      }).length;
+    }
+    
+    // Nếu không có branchOrders, tính từ summary
+    const cancelled = branchSummary.cancelled || 0;
+    const rejected = branchSummary.rejected || 0;
+    return cancelled + rejected;
+  }, [branchSummary.cancelled, branchSummary.rejected, branchOrders]);
 
   // Handle view purchase order detail
   const handleViewPurchaseOrder = async (order) => {
@@ -500,7 +599,7 @@ export default function CEOOrdersBoard() {
                   Tổng đơn xuất
                 </Typography>
                 <Typography variant="h5" fontWeight={700}>
-                  {formatNumber(branchSummary.total || 0)}
+                  {formatNumber(totalBranchOrders)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {formatCurrency(branchSummary.totalAmount || 0)}
@@ -513,7 +612,7 @@ export default function CEOOrdersBoard() {
                   Đang chuẩn bị
                 </Typography>
                 <Typography variant="h5" fontWeight={700}>
-                  {formatNumber(branchSummary.preparing || 0)}
+                  {formatNumber(preparingCount)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Đang xử lý
@@ -523,10 +622,10 @@ export default function CEOOrdersBoard() {
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={summaryBoxSx}>
                 <Typography variant="caption" color="text.secondary">
-                  Đã giao hàng
+                  Đang giao hàng
                 </Typography>
                 <Typography variant="h5" fontWeight={700}>
-                  {formatNumber(branchSummary.shipped || 0)}
+                  {formatNumber(shippedCount)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Đang vận chuyển
@@ -539,10 +638,23 @@ export default function CEOOrdersBoard() {
                   Đã hoàn thành
                 </Typography>
                 <Typography variant="h5" fontWeight={700}>
-                  {formatNumber(branchSummary.delivered || 0)}
+                  {formatNumber(deliveredCount)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Chi nhánh đã nhận
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={summaryBoxSx}>
+                <Typography variant="caption" color="text.secondary">
+                  Đơn hàng đã hủy/từ chối
+                </Typography>
+                <Typography variant="h5" fontWeight={700}>
+                  {formatNumber(cancelledRejectedCount)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Đã hủy / Từ chối
                 </Typography>
               </Box>
             </Grid>
