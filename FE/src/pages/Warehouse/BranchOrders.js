@@ -26,7 +26,8 @@ const statusColors = {
   confirmed: 'info',
   shipped: 'primary',
   delivered: 'success',
-  cancelled: 'error'
+  cancelled: 'error',
+  rejected: 'error'
 };
 
 const statusLabels = {
@@ -34,7 +35,8 @@ const statusLabels = {
   confirmed: 'Đã xác nhận',
   shipped: 'Đang giao',
   delivered: 'Đã giao',
-  cancelled: 'Đã hủy'
+  cancelled: 'Đã hủy',
+  rejected: 'Từ chối'
 };
 
 const formatVnd = (n) => Number(n).toLocaleString('vi-VN') + ' đ';
@@ -164,6 +166,7 @@ const BranchOrders = () => {
             <MenuItem value="shipped">Đang giao</MenuItem>
             <MenuItem value="delivered">Đã giao</MenuItem>
             <MenuItem value="cancelled">Đã hủy</MenuItem>
+            <MenuItem value="rejected">Từ chối</MenuItem>
           </TextField>
 
           <TextField
@@ -219,80 +222,80 @@ const BranchOrders = () => {
               orders.map((order, index) => {
                 const orderCode = getOrderCode(order);
                 return (
-                <TableRow
-                  key={order.order_id}
-                  hover
-                  onClick={() => handleViewDetail(order.order_id)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                  <TableCell>#{orderCode}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
-                      {order.store?.name}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography variant="caption" color="text.secondary">
-                        {order.store?.phone}
+                  <TableRow
+                    key={order.order_id}
+                    hover
+                    onClick={() => handleViewDetail(order.order_id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                    <TableCell>#{orderCode}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600}>
+                        {order.store?.name}
                       </Typography>
-                      
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={order.perishable ? 'warning' : 'default'}
-                      label={order.perishable ? 'Đơn tươi sống' : 'Đơn thường'}
-                    />
-                  </TableCell>
-                  <TableCell>{formatDate(order.created_at)}</TableCell>
-                  <TableCell>{formatDate(order.expected_delivery)}</TableCell>
-                  <TableCell>{order.totalItems || 0} sản phẩm</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600} color="primary">
-                      {formatVnd(order.totalAmount)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const normalizedStatus =
-                        order.status === 'preparing' ? 'confirmed' : order.status;
-                      return (
-                        <Chip
-                          size="small"
-                          color={statusColors[normalizedStatus]}
-                          label={statusLabels[normalizedStatus]}
-                        />
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Stack direction="row" spacing={1} justifyContent="center">
-                      <ActionButton
-                        icon={<Icon name="View" />}
-                        action="view"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewDetail(order.order_id);
-                        }}
-                        tooltip="Xem chi tiết"
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption" color="text.secondary">
+                          {order.store?.phone}
+                        </Typography>
+
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={order.perishable ? 'warning' : 'default'}
+                        label={order.perishable ? 'Đơn tươi sống' : 'Đơn thường'}
                       />
-                      {['confirmed', 'shipped'].includes(
-                        order.status === 'preparing' ? 'confirmed' : order.status
-                      ) && (
+                    </TableCell>
+                    <TableCell>{formatDate(order.created_at)}</TableCell>
+                    <TableCell>{formatDate(order.expected_delivery)}</TableCell>
+                    <TableCell>{order.totalItems || 0} sản phẩm</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600} color="primary">
+                        {formatVnd(order.totalAmount)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const normalizedStatus =
+                          order.status === 'preparing' ? 'confirmed' : order.status;
+                        return (
+                          <Chip
+                            size="small"
+                            color={statusColors[normalizedStatus]}
+                            label={statusLabels[normalizedStatus]}
+                          />
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
                         <ActionButton
-                          icon={<Icon name="Upload" />}
+                          icon={<Icon name="View" />}
+                          action="view"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleShipOrder(order.order_id);
+                            handleViewDetail(order.order_id);
                           }}
-                          color="success"
-                          tooltip="Xuất đơn hàng"
+                          tooltip="Xem chi tiết"
                         />
-                      )}
-                    </Stack>
-                  </TableCell>
-                </TableRow>
+                        {['confirmed', 'shipped'].includes(
+                          order.status === 'preparing' ? 'confirmed' : order.status
+                        ) && (
+                            <ActionButton
+                              icon={<Icon name="Upload" />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShipOrder(order.order_id);
+                              }}
+                              color="success"
+                              tooltip="Xuất đơn hàng"
+                            />
+                          )}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
                 );
               })
             )}
